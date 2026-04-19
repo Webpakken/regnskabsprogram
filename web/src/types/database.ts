@@ -6,6 +6,8 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+export type CompanyRole = 'owner' | 'manager' | 'bookkeeper' | 'accountant'
+
 export interface Database {
   public: {
     Tables: {
@@ -53,16 +55,16 @@ export interface Database {
           id: string
           company_id: string
           user_id: string
-          role: 'owner' | 'member'
+          role: CompanyRole
           created_at: string
         }
         Insert: {
           id?: string
           company_id: string
           user_id: string
-          role?: 'owner' | 'member'
+          role?: CompanyRole
         }
-        Update: { role?: 'owner' | 'member' }
+        Update: { role?: CompanyRole }
       }
       subscriptions: {
         Row: {
@@ -186,6 +188,11 @@ export interface Database {
           notes: string | null
           uploaded_by: string | null
           uploaded_at: string
+          expense_date: string
+          gross_cents: number
+          vat_cents: number
+          net_cents: number
+          vat_rate: number
         }
         Insert: {
           id?: string
@@ -197,11 +204,21 @@ export interface Database {
           category?: string | null
           notes?: string | null
           uploaded_by?: string | null
+          expense_date?: string
+          gross_cents?: number
+          vat_cents?: number
+          net_cents?: number
+          vat_rate?: number
         }
         Update: {
           title?: string | null
           category?: string | null
           notes?: string | null
+          expense_date?: string
+          gross_cents?: number
+          vat_cents?: number
+          net_cents?: number
+          vat_rate?: number
         }
       }
       bank_connections: {
@@ -231,6 +248,24 @@ export interface Database {
           external_user_id?: string | null
           last_error?: string | null
         }
+      }
+      pending_invites: {
+        Row: {
+          id: string
+          company_id: string
+          email: string
+          role: CompanyRole
+          invited_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          email: string
+          role: CompanyRole
+          invited_by?: string | null
+        }
+        Update: { role?: CompanyRole }
       }
       activity_events: {
         Row: {

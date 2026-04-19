@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { lookupCVR } from '@/lib/cvrLookup'
 import { Navigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useApp, subscriptionOk } from '@/context/AppProvider'
@@ -19,6 +20,23 @@ export function OnboardingPage() {
   const [cvr, setCvr] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [cvrLoading, setCvrLoading] = useState(false)
+  async function handleCvrLookup() {
+    if (!cvr) return
+    setCvrLoading(true)
+    setError(null)
+    try {
+      const data = await lookupCVR(cvr)
+      if (data && data.name) {
+        setName(data.name)
+      } else {
+        setError('Ingen virksomhed fundet på dette CVR')
+      }
+    } catch (err) {
+      setError('CVR slå-op fejlede')
+    }
+    setCvrLoading(false)
+  }
 
   useEffect(() => {
     if (searchParams.get('checkout') === 'success') {
@@ -127,13 +145,26 @@ export function OnboardingPage() {
             <label className="text-sm font-medium text-slate-700" htmlFor="cvr">
               CVR (valgfrit)
             </label>
-            <input
-              id="cvr"
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-              value={cvr}
-              onChange={(e) => setCvr(e.target.value)}
-              placeholder="12345678"
-            />
+            <div className="flex gap-2 mt-1">
+              <input
+                id="cvr"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                value={cvr}
+                onChange={(e) => setCvr(e.target.value)}
+                placeholder="12345678"
+                maxLength={8}
+                pattern="[0-9]{8}"
+              />
+              <button
+                type="button"
+                className="rounded-lg bg-slate-200 px-2 py-2 text-xs font-medium text-slate-700 hover:bg-slate-300 disabled:opacity-60 whitespace-nowrap"
+                onClick={handleCvrLookup}
+                disabled={!cvr || cvrLoading}
+                title="Slå virksomhed op via CVR"
+              >
+                {cvrLoading ? 'Søger…' : 'Slå op'}
+              </button>
+            </div>
           </div>
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
           <button

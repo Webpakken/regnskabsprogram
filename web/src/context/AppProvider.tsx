@@ -9,7 +9,7 @@ import {
 } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
-import type { Database } from '@/types/database'
+import type { CompanyRole, Database } from '@/types/database'
 
 type Company = Database['public']['Tables']['companies']['Row']
 type Profile = Database['public']['Tables']['profiles']['Row']
@@ -21,6 +21,8 @@ type AppContextValue = {
   profile: Profile | null
   companies: Company[]
   currentCompany: Company | null
+  rolesByCompany: Record<string, CompanyRole>
+  currentRole: CompanyRole | null
   subscription: Subscription | null
   loading: boolean
   refresh: () => Promise<void>
@@ -34,6 +36,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [companies, setCompanies] = useState<Company[]>([])
+  const [rolesByCompany, setRolesByCompany] = useState<Record<string, CompanyRole>>({})
   const [subscription, setSubscription] = useState<Subscription | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -45,6 +48,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!s?.user) {
       setProfile(null)
       setCompanies([])
+      setRolesByCompany({})
       setSubscription(null)
       setLoading(false)
       return
@@ -60,10 +64,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const { data: memberships } = await supabase
       .from('company_members')
-      .select('company_id')
+      .select('company_id, role')
       .eq('user_id', s.user.id)
 
     const ids = memberships?.map((m) => m.company_id) ?? []
+    const roles: Record<string, CompanyRole> = {}
+    for (const m of memberships ?? []) {
+      roles[m.company_id] = m.role as CompanyRole
+    }
+    setRolesByCompany(roles)
     let list: Company[] = []
     if (ids.length > 0) {
       const { data: comps } = await supabase
@@ -125,6 +134,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return companies.find((c) => c.id === cid) ?? null
   }, [companies, profile?.current_company_id])
 
+  const currentRole = useMemo<CompanyRole | null>(() => {
+    if (!currentCompany) return null
+    return rolesByCompany[currentCompany.id] ?? null
+  }, [currentCompany, rolesByCompany])
+
   const value = useMemo(
     () => ({
       session,
@@ -132,6 +146,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       profile,
       companies,
       currentCompany,
+      rolesByCompany,
+      currentRole,
       subscription,
       loading,
       refresh: load,
@@ -143,6 +159,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       profile,
       companies,
       currentCompany,
+      rolesByCompany,
+      currentRole,
       subscription,
       loading,
       load,
@@ -160,5 +178,25 @@ export function useApp() {
 }
 
 export function subscriptionOk(sub: Subscription | null) {
-  return sub?.status === 'active' || sub?.status === 'trialing'
+  if (!sub) return false
+  if (sub.status === 'active') return true
+  if (sub.status === 'trialing') {
+    if (!sub.current_period_end) return true
+    return new Date(sub.current_period_end).getTime() > Date.now()
+  }
+  return false
+}
+
+export function hasRole(
+  role: CompanyRole | null,
+  allowed: readonly CompanyRole[],
+): boolean {
+  return role !== null && allowed.includes(role)
+}
+
+export const ROLE_LABELS: Record<CompanyRole, string> = {
+  owner: 'Ejer',
+  manager: 'Manager',
+  bookkeeper: 'Bogholder',
+  accountant: 'Revisor',
 }

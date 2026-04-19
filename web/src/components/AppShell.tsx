@@ -5,13 +5,85 @@ import { useApp, subscriptionOk } from '@/context/AppProvider'
 import { startStripeCheckout } from '@/lib/edge'
 import { supabase } from '@/lib/supabase'
 
+type NavIconProps = { className?: string }
+
 const nav = [
-  { to: '/app/dashboard', label: 'Oversigt' },
-  { to: '/app/invoices', label: 'Fakturaer' },
-  { to: '/app/vouchers', label: 'Bilag' },
-  { to: '/app/bank', label: 'Bank' },
-  { to: '/app/settings', label: 'Indstillinger' },
+  { to: '/app/dashboard', label: 'Oversigt', icon: HomeIcon },
+  { to: '/app/invoices', label: 'Fakturaer', icon: InvoiceIcon },
+  { to: '/app/vouchers', label: 'Bilag', icon: ReceiptIcon },
+  { to: '/app/bank', label: 'Bank', icon: BankIcon },
+  { to: '/app/vat', label: 'Moms', icon: PercentIcon },
+  { to: '/app/members', label: 'Medlemmer', icon: UsersIcon },
+  { to: '/app/settings', label: 'Indstillinger', icon: CogIcon },
 ]
+
+function HomeIcon({ className }: NavIconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m3 11 9-7 9 7" />
+      <path d="M5 10v10h14V10" />
+    </svg>
+  )
+}
+
+function InvoiceIcon({ className }: NavIconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" />
+      <path d="M14 2v6h6" />
+      <path d="M8 13h8M8 17h6" />
+    </svg>
+  )
+}
+
+function ReceiptIcon({ className }: NavIconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 3v18l2-1 2 1 2-1 2 1 2-1 2 1 2-1V3z" />
+      <path d="M9 8h6M9 12h6M9 16h4" />
+    </svg>
+  )
+}
+
+function BankIcon({ className }: NavIconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 10 12 4l9 6" />
+      <path d="M5 10v8M9 10v8M15 10v8M19 10v8" />
+      <path d="M3 20h18" />
+    </svg>
+  )
+}
+
+function PercentIcon({ className }: NavIconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m5 19 14-14" />
+      <circle cx="7" cy="7" r="2.2" />
+      <circle cx="17" cy="17" r="2.2" />
+    </svg>
+  )
+}
+
+function UsersIcon({ className }: NavIconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2.5 20a6.5 6.5 0 0 1 13 0" />
+      <circle cx="17" cy="9" r="2.8" />
+      <path d="M22 19a5 5 0 0 0-7.5-4.3" />
+    </svg>
+  )
+}
+
+function CogIcon({ className }: NavIconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
+    </svg>
+  )
+}
 
 export function AppShell({ children }: { children?: ReactNode }) {
   const {
@@ -34,7 +106,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
       <aside className="hidden w-56 shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
         <div className="border-b border-slate-100 px-4 py-5">
           <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Hisab
+            Bilago
           </div>
           <div className="mt-1 text-lg font-semibold text-slate-900">
             Regnskab
@@ -113,15 +185,74 @@ export function AppShell({ children }: { children?: ReactNode }) {
 
         {!ok && currentCompany ? (
           <div className="border-b border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            Aktivér dit månedsabonnement for at bruge Hisab. Data er isoleret per
+            Aktivér dit månedsabonnement for at bruge Bilago. Data er isoleret per
             virksomhed (CVR kan tilføjes under Indstillinger).
           </div>
+        ) : subscription?.status === 'trialing' && currentCompany ? (
+          <TrialBanner
+            periodEnd={subscription.current_period_end}
+            companyId={currentCompany.id}
+          />
         ) : null}
 
-        <main className="flex-1 px-4 py-6 md:px-8">
+        <main className="flex-1 px-4 pb-24 pt-6 md:px-8 md:pb-6">
           {children ?? <Outlet />}
         </main>
+
+        <nav
+          className="fixed inset-x-0 bottom-0 z-30 flex items-stretch border-t border-slate-200 bg-white/95 backdrop-blur pb-[env(safe-area-inset-bottom)] md:hidden"
+          aria-label="Hovedmenu"
+        >
+          {nav.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                clsx(
+                  'flex flex-1 min-w-0 flex-col items-center justify-center gap-0.5 px-1 py-2 text-[10px] font-medium',
+                  isActive ? 'text-indigo-700' : 'text-slate-500',
+                )
+              }
+            >
+              <item.icon className="h-5 w-5" />
+              <span className="truncate">{item.label}</span>
+            </NavLink>
+          ))}
+        </nav>
       </div>
+    </div>
+  )
+}
+
+function TrialBanner({
+  periodEnd,
+  companyId,
+}: {
+  periodEnd: string | null
+  companyId: string
+}) {
+  const daysLeft = periodEnd
+    ? Math.max(0, Math.ceil((new Date(periodEnd).getTime() - Date.now()) / 86_400_000))
+    : null
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-indigo-100 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
+      <span>
+        Gratis prøveperiode
+        {daysLeft !== null ? ` — ${daysLeft} ${daysLeft === 1 ? 'dag' : 'dage'} tilbage` : null}
+        . Tilføj betaling for at fortsætte efter perioden slutter.
+      </span>
+      <button
+        type="button"
+        className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
+        onClick={() =>
+          void startStripeCheckout(companyId).then((url) => {
+            window.location.href = url
+          })
+        }
+      >
+        Tilføj betaling
+      </button>
     </div>
   )
 }
