@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useMatch, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { Link, useMatch, useNavigate, useParams } from 'react-router-dom'
 import { useApp } from '@/context/AppProvider'
 import { logActivity } from '@/lib/activity'
 import { formatDkk } from '@/lib/format'
@@ -33,6 +33,60 @@ type View =
   | { kind: 'wizard' }
   | { kind: 'lineEditor'; index: number }
   | { kind: 'settings' }
+
+type CvrCompany = { vat: number; name: string; email: string | null }
+
+function useCvrSearch(query: string, active: boolean) {
+  const [results, setResults] = useState<CvrCompany[]>([])
+  const [loading, setLoading] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!active) {
+      setResults([])
+      setNotice(null)
+      return
+    }
+    const q = query.trim()
+    if (q.length < 2) {
+      setResults([])
+      setNotice(null)
+      return
+    }
+    let cancelled = false
+    const t = setTimeout(async () => {
+      setLoading(true)
+      setNotice(null)
+      const { data, error } = await supabase.functions.invoke('cvr-search', {
+        body: { q },
+      })
+      if (cancelled) return
+      setLoading(false)
+      if (error) {
+        setResults([])
+        setNotice('Kunne ikke søge i CVR.')
+        return
+      }
+      const payload = data as {
+        companies?: CvrCompany[]
+        disabled?: boolean
+        message?: string
+      }
+      if (payload.disabled && payload.message) {
+        setNotice(payload.message)
+        setResults([])
+        return
+      }
+      setResults(payload.companies ?? [])
+    }, 400)
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+    }
+  }, [query, active])
+
+  return { results, loading, notice }
+}
 
 function effectiveDraft(line: WizardLine): DraftLine {
   const adjusted = Math.max(
@@ -179,6 +233,24 @@ export function InvoiceWizardPage() {
   function addLine() {
     setLines((prev) => [...prev, emptyLine()])
     setView({ kind: 'lineEditor', index: lines.length })
+  }
+
+  function addLineFromProduct(p: {
+    description: string
+    unit_price_cents: number
+    vat_rate: number
+  }) {
+    const newIndex = lines.length
+    setLines((prev) => [
+      ...prev,
+      {
+        ...emptyLine(),
+        description: p.description,
+        unit_price_cents: p.unit_price_cents,
+        vat_rate: p.vat_rate,
+      },
+    ])
+    setView({ kind: 'lineEditor', index: newIndex })
   }
 
   function removeLine(i: number) {
@@ -355,6 +427,8 @@ export function InvoiceWizardPage() {
             lines={lines}
             onOpenLine={(i) => setView({ kind: 'lineEditor', index: i })}
             onAddLine={addLine}
+            onAddLineFromProduct={addLineFromProduct}
+            companyId={currentCompany?.id ?? null}
             onRemoveLine={removeLine}
             totals={totals}
             issueDate={issueDate}
@@ -368,6 +442,7 @@ export function InvoiceWizardPage() {
             onSave={() => void persist('draft')}
             onSend={() => void persist('sent')}
             isNew={isNew}
+            invoiceStatus={status}
           />
         )}
 
@@ -422,6 +497,12 @@ type WizardViewProps = {
   lines: WizardLine[]
   onOpenLine: (i: number) => void
   onAddLine: () => void
+  onAddLineFromProduct: (p: {
+    description: string
+    unit_price_cents: number
+    vat_rate: number
+  }) => void
+  companyId: string | null
   onRemoveLine: (i: number) => void
   totals: { net_cents: number; vat_cents: number; gross_cents: number }
   issueDate: string
@@ -435,6 +516,7 @@ type WizardViewProps = {
   onSave: () => void
   onSend: () => void
   isNew: boolean
+  invoiceStatus: Invoice['status']
 }
 
 function WizardView(p: WizardViewProps) {
@@ -504,6 +586,8 @@ function WizardView(p: WizardViewProps) {
             lines={p.lines}
             onOpen={p.onOpenLine}
             onAdd={p.onAddLine}
+            onAddFromProduct={p.onAddLineFromProduct}
+            companyId={p.companyId}
             onRemove={p.onRemoveLine}
           />
         )}
@@ -561,7 +645,7 @@ function WizardView(p: WizardViewProps) {
               onClick={p.onSend}
               className="rounded-full bg-indigo-600 py-3.5 text-[15px] font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
             >
-              {p.isNew ? 'Opret & send' : 'Marker sendt'}
+              {p.invoiceStatus === 'draft' ? 'Opret og send' : 'Marker sendt'}
             </button>
           </div>
         )}
@@ -587,6 +671,8 @@ function CustomerTab({
   setQuery: (v: string) => void
   recent: { name: string; email: string | null }[]
 }) {
+  const cvr = useCvrSearch(query, !customerName)
+
   return (
     <div className="space-y-5">
       <h2 className="text-lg font-semibold text-slate-900">Tilføj kunde</h2>
@@ -619,7 +705,7 @@ function CustomerTab({
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Hvem er din kunde?"
+          placeholder="Navn, firma eller CVR"
           className="w-full rounded-xl border-0 bg-white px-4 py-3.5 text-[15px] shadow-sm ring-1 ring-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
       )}
@@ -640,8 +726,50 @@ function CustomerTab({
             Opret ny kontakt
           </button>
 
+          {cvr.notice ? (
+            <p className="text-xs text-slate-500">{cvr.notice}</p>
+          ) : null}
+
+          {cvr.loading ? (
+            <p className="text-xs text-slate-500">Søger i CVR…</p>
+          ) : null}
+
+          {!cvr.notice && cvr.results.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                CVR
+              </p>
+              {cvr.results.map((row) => (
+                <button
+                  key={`${row.vat}-${row.name}`}
+                  type="button"
+                  onClick={() => {
+                    setCustomerName(row.name)
+                    setCustomerEmail(row.email ?? '')
+                    setQuery('')
+                  }}
+                  className="flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-3.5 text-left shadow-sm ring-1 ring-indigo-200 hover:ring-indigo-400"
+                >
+                  <FactoryIcon />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[15px] font-semibold text-slate-900">
+                      {row.name}
+                    </div>
+                    <div className="truncate text-xs text-slate-500">
+                      CVR {String(row.vat).padStart(8, '0')}
+                      {row.email ? ` · ${row.email}` : ''}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : null}
+
           {recent.length > 0 && (
             <div className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                Seneste
+              </p>
               {recent.map((c) => (
                 <button
                   key={c.name}
@@ -688,17 +816,81 @@ function CustomerTab({
   )
 }
 
+type PopularProductRow = {
+  description: string
+  unit_price_cents: number
+  vat_rate: number
+  usage_count: number
+}
+
+function popularProductKey(p: PopularProductRow) {
+  return `${p.description}\0${Number(p.unit_price_cents)}\0${Number(p.vat_rate)}`
+}
+
 function ProductsTab({
   lines,
   onOpen,
   onAdd,
+  onAddFromProduct,
+  companyId,
   onRemove,
 }: {
   lines: WizardLine[]
   onOpen: (i: number) => void
   onAdd: () => void
+  onAddFromProduct: (p: {
+    description: string
+    unit_price_cents: number
+    vat_rate: number
+  }) => void
+  companyId: string | null
   onRemove: (i: number) => void
 }) {
+  const [companyPopular, setCompanyPopular] = useState<PopularProductRow[]>(
+    [],
+  )
+  const [globalPopular, setGlobalPopular] = useState<PopularProductRow[]>([])
+  const [popularLoading, setPopularLoading] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      setPopularLoading(true)
+      const globalP = supabase.rpc('get_popular_invoice_products_globally', {
+        p_limit: 8,
+      })
+      const companyP = companyId
+        ? supabase.rpc('get_popular_invoice_products_for_company', {
+            p_company_id: companyId,
+            p_limit: 8,
+          })
+        : Promise.resolve({
+            data: null as PopularProductRow[] | null,
+            error: null,
+          })
+
+      const [gRes, cRes] = await Promise.all([globalP, companyP])
+      if (cancelled) return
+      setPopularLoading(false)
+
+      const companyRows = (cRes.data ?? []) as PopularProductRow[]
+      setCompanyPopular(cRes.error ? [] : companyRows)
+
+      const globalRows = ((gRes.data ?? []) as PopularProductRow[]) 
+      setGlobalPopular(
+        gRes.error
+          ? []
+          : globalRows.filter((r) => {
+              const keys = new Set(companyRows.map(popularProductKey))
+              return !keys.has(popularProductKey(r))
+            }),
+      )
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [companyId])
+
   return (
     <div className="space-y-5">
       <h2 className="text-lg font-semibold text-slate-900">Tilføj fakturalinje</h2>
@@ -721,6 +913,74 @@ function ProductsTab({
         <PlusIcon />
         Opret fakturalinje
       </button>
+
+      {popularLoading ? (
+        <p className="text-xs text-slate-500">Indlæser forslag…</p>
+      ) : null}
+
+      {!popularLoading && companyId && companyPopular.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            Ofte brugt i din virksomhed
+          </p>
+          <div className="space-y-2">
+            {companyPopular.map((row) => (
+              <button
+                key={`c-${popularProductKey(row)}`}
+                type="button"
+                onClick={() =>
+                  onAddFromProduct({
+                    description: row.description,
+                    unit_price_cents: Number(row.unit_price_cents),
+                    vat_rate: Number(row.vat_rate),
+                  })
+                }
+                className="flex w-full flex-col gap-0.5 rounded-2xl bg-white px-4 py-3 text-left shadow-sm ring-1 ring-slate-200 transition hover:ring-indigo-300"
+              >
+                <span className="text-[15px] font-semibold leading-snug text-slate-900">
+                  {row.description}
+                </span>
+                <span className="text-xs text-slate-500">
+                  {formatDkk(Number(row.unit_price_cents))} · {Number(row.vat_rate)}% moms
+                  {row.usage_count > 1 ? ` · ${row.usage_count}×` : ''}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {!popularLoading && globalPopular.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            Ofte brugt på tværs af virksomheder
+          </p>
+          <div className="space-y-2">
+            {globalPopular.map((row) => (
+              <button
+                key={`g-${popularProductKey(row)}`}
+                type="button"
+                onClick={() =>
+                  onAddFromProduct({
+                    description: row.description,
+                    unit_price_cents: Number(row.unit_price_cents),
+                    vat_rate: Number(row.vat_rate),
+                  })
+                }
+                className="flex w-full flex-col gap-0.5 rounded-2xl bg-white px-4 py-3 text-left shadow-sm ring-1 ring-slate-200 transition hover:ring-indigo-300"
+              >
+                <span className="text-[15px] font-semibold leading-snug text-slate-900">
+                  {row.description}
+                </span>
+                <span className="text-xs text-slate-500">
+                  {formatDkk(Number(row.unit_price_cents))} · {Number(row.vat_rate)}% moms
+                  {row.usage_count > 1 ? ` · ${row.usage_count}×` : ''}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {lines.length > 0 && (
         <div className="divide-y divide-slate-200 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useApp } from '@/context/AppProvider'
@@ -23,6 +23,15 @@ export function VouchersPage() {
   const [grossKr, setGrossKr] = useState('')
   const [vatRate, setVatRate] = useState('25')
   const [error, setError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  function openDesktopFilePicker() {
+    document.getElementById('voucher-upload')?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    })
+    window.setTimeout(() => fileInputRef.current?.click(), 150)
+  }
 
   async function load() {
     if (!currentCompany) return
@@ -112,18 +121,33 @@ export function VouchersPage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Bilag</h1>
           <p className="text-sm text-slate-600">
-            Upload kvitteringer og bilag — kun synlige for denne virksomhed
+            <span className="md:hidden">
+              Scan med kamera eller vælg fil — kun synligt for denne virksomhed.
+            </span>
+            <span className="hidden md:inline">
+              Vedhæft filer fra din computer — kun synligt for denne virksomhed.
+            </span>
           </p>
         </div>
         <Link
           to="/app/vouchers/scan"
-          className="shrink-0 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+          className="shrink-0 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 md:hidden"
         >
           Scan bilag
         </Link>
+        <button
+          type="button"
+          className="hidden shrink-0 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 md:inline-flex"
+          onClick={openDesktopFilePicker}
+        >
+          Vedhæft bilag
+        </button>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div
+        id="voucher-upload"
+        className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+      >
         <h2 className="text-sm font-semibold text-slate-900">Upload</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           <div>
@@ -177,6 +201,7 @@ export function VouchersPage() {
             <label className="flex w-full cursor-pointer items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100">
               {uploading ? 'Uploader…' : 'Vælg fil og upload'}
               <input
+                ref={fileInputRef}
                 type="file"
                 className="hidden"
                 disabled={uploading}

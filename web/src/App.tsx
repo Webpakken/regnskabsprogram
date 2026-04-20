@@ -12,6 +12,7 @@ import { DashboardPage } from '@/pages/DashboardPage'
 import { InvoicesPage } from '@/pages/InvoicesPage'
 import { InvoiceEditorPage } from '@/pages/InvoiceEditorPage'
 import { InvoiceWizardPage } from '@/pages/InvoiceWizardPage'
+import { InvoicePdfPage } from '@/pages/InvoicePdfPage'
 import { VouchersPage } from '@/pages/VouchersPage'
 import { ScanBilagPage } from '@/pages/ScanBilagPage'
 import { BankPage } from '@/pages/BankPage'
@@ -39,6 +40,7 @@ export default function App() {
               <Route element={<RequireSubscription />}>
                 <Route path="/app/invoices" element={<InvoicesPage />} />
                 <Route path="/app/invoices/new" element={<InvoiceWizardPage />} />
+                <Route path="/app/invoices/:id/pdf" element={<InvoicePdfPage />} />
                 <Route path="/app/invoices/:id" element={<InvoiceWizardPage />} />
                 <Route path="/app/invoices/:id/classic" element={<InvoiceEditorPage />} />
                 <Route path="/app/vouchers" element={<VouchersPage />} />

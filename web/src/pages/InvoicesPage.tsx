@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useApp } from '@/context/AppProvider'
 import { formatDate, formatDkk } from '@/lib/format'
@@ -15,6 +15,7 @@ const statusDa: Record<Invoice['status'], string> = {
 }
 
 export function InvoicesPage() {
+  const navigate = useNavigate()
   const { currentCompany } = useApp()
   const [rows, setRows] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
@@ -39,6 +40,10 @@ export function InvoicesPage() {
   }, [currentCompany])
 
   if (!currentCompany) return null
+
+  function openPdf(invId: string) {
+    navigate(`/app/invoices/${invId}/pdf`)
+  }
 
   return (
     <div className="space-y-6">
@@ -81,14 +86,21 @@ export function InvoicesPage() {
               </tr>
             ) : (
               rows.map((inv) => (
-                <tr key={inv.id} className="border-t border-slate-100">
-                  <td className="px-4 py-3 font-mono text-slate-800">
-                    <Link
-                      className="text-indigo-600 hover:underline"
-                      to={`/app/invoices/${inv.id}`}
-                    >
-                      {inv.invoice_number}
-                    </Link>
+                <tr
+                  key={inv.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openPdf(inv.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      openPdf(inv.id)
+                    }
+                  }}
+                  className="cursor-pointer border-t border-slate-100 transition hover:bg-indigo-50/50 focus-visible:bg-indigo-50/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-indigo-500"
+                >
+                  <td className="px-4 py-3 font-mono text-indigo-700">
+                    {inv.invoice_number}
                   </td>
                   <td className="px-4 py-3 text-slate-800">{inv.customer_name}</td>
                   <td className="px-4 py-3 text-slate-600">

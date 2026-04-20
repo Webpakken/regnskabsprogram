@@ -290,6 +290,24 @@ export interface Database {
     }
     Functions: {
       next_invoice_number: { Args: { p_company_id: string }; Returns: string }
+      get_popular_invoice_products_globally: {
+        Args: { p_limit?: number }
+        Returns: {
+          description: string
+          unit_price_cents: number
+          vat_rate: number
+          usage_count: number
+        }[]
+      }
+      get_popular_invoice_products_for_company: {
+        Args: { p_company_id: string; p_limit?: number }
+        Returns: {
+          description: string
+          unit_price_cents: number
+          vat_rate: number
+          usage_count: number
+        }[]
+      }
     }
   }
 }

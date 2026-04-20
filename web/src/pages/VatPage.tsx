@@ -43,11 +43,13 @@ type VoucherRow = {
 export function VatPage() {
   const { currentCompany } = useApp()
   const year = new Date().getUTCFullYear()
-  const years = [year - 1, year, year + 1]
-  const periods = useMemo(
-    () => years.flatMap((y) => danishQuarters(y).map((p, i) => ({ key: `${y}-q${i + 1}`, ...p }))),
-    [years],
-  )
+  /* Vigtigt: stabilt dependency-array — ikke `years` som nyt [] hver render (gav useEffect-loop og blink). */
+  const periods = useMemo(() => {
+    const years = [year - 1, year, year + 1]
+    return years.flatMap((y) =>
+      danishQuarters(y).map((p, i) => ({ key: `${y}-q${i + 1}`, ...p })),
+    )
+  }, [year])
   const [periodKey, setPeriodKey] = useState(currentQuarterKey())
   const period = periods.find((p) => p.key === periodKey) ?? periods[0]
 
@@ -170,8 +172,12 @@ export function VatPage() {
         />
       </div>
 
-      <Section title="Salg (udgående fakturaer)" empty="Ingen fakturaer i perioden.">
-        {loading ? null : invoices.length === 0 ? null : (
+      <Section
+        title="Salg (udgående fakturaer)"
+        empty="Ingen fakturaer i perioden."
+        loading={loading}
+      >
+        {invoices.length > 0 ? (
           <Table
             headers={['Fakturanr', 'Kunde', 'Dato', 'Netto', 'Moms', 'Brutto']}
             rows={invoices.map((r) => [
@@ -184,11 +190,15 @@ export function VatPage() {
             ])}
             rightCols={[3, 4, 5]}
           />
-        )}
+        ) : null}
       </Section>
 
-      <Section title="Køb (bilag)" empty="Ingen bilag i perioden.">
-        {loading ? null : vouchers.length === 0 ? null : (
+      <Section
+        title="Køb (bilag)"
+        empty="Ingen bilag i perioden."
+        loading={loading}
+      >
+        {vouchers.length > 0 ? (
           <Table
             headers={['Titel', 'Kategori', 'Dato', 'Netto', 'Moms', 'Brutto']}
             rows={vouchers.map((r) => [
@@ -201,7 +211,7 @@ export function VatPage() {
             ])}
             rightCols={[3, 4, 5]}
           />
-        )}
+        ) : null}
       </Section>
 
       <p className="text-xs text-slate-500">
@@ -240,10 +250,12 @@ function Card({
 function Section({
   title,
   empty,
+  loading,
   children,
 }: {
   title: string
   empty: string
+  loading: boolean
   children: React.ReactNode
 }) {
   return (
@@ -251,7 +263,13 @@ function Section({
       <header className="border-b border-slate-100 px-4 py-3">
         <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
       </header>
-      {children ?? <p className="px-4 py-6 text-sm text-slate-500">{empty}</p>}
+      {loading ? (
+        <p className="px-4 py-6 text-sm text-slate-500">Indlæser…</p>
+      ) : children ? (
+        children
+      ) : (
+        <p className="px-4 py-6 text-sm text-slate-500">{empty}</p>
+      )}
     </section>
   )
 }
