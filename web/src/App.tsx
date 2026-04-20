@@ -11,11 +11,14 @@ import { OnboardingPage } from '@/pages/OnboardingPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { InvoicesPage } from '@/pages/InvoicesPage'
 import { InvoiceEditorPage } from '@/pages/InvoiceEditorPage'
+import { InvoiceWizardPage } from '@/pages/InvoiceWizardPage'
 import { VouchersPage } from '@/pages/VouchersPage'
+import { ScanBilagPage } from '@/pages/ScanBilagPage'
 import { BankPage } from '@/pages/BankPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { MembersPage } from '@/pages/MembersPage'
 import { VatPage } from '@/pages/VatPage'
+import { MorePage } from '@/pages/MorePage'
 
 export default function App() {
   return (
@@ -31,12 +34,15 @@ export default function App() {
             <Route element={<AppShell />}>
               <Route path="/app/dashboard" element={<DashboardPage />} />
               <Route path="/app/settings" element={<SettingsPage />} />
+              <Route path="/app/more" element={<MorePage />} />
               <Route path="/app/members" element={<MembersPage />} />
               <Route element={<RequireSubscription />}>
                 <Route path="/app/invoices" element={<InvoicesPage />} />
-                <Route path="/app/invoices/new" element={<InvoiceEditorPage />} />
-                <Route path="/app/invoices/:id" element={<InvoiceEditorPage />} />
+                <Route path="/app/invoices/new" element={<InvoiceWizardPage />} />
+                <Route path="/app/invoices/:id" element={<InvoiceWizardPage />} />
+                <Route path="/app/invoices/:id/classic" element={<InvoiceEditorPage />} />
                 <Route path="/app/vouchers" element={<VouchersPage />} />
+                <Route path="/app/vouchers/scan" element={<ScanBilagPage />} />
                 <Route path="/app/bank" element={<BankPage />} />
                 <Route path="/app/vat" element={<VatPage />} />
               </Route>

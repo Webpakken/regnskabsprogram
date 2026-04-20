@@ -181,6 +181,13 @@ export function DashboardPage() {
         <Stat label="Bilag i alt" value={String(voucherCount)} />
       </div>
 
+      <div className="grid grid-cols-2 gap-3 lg:hidden">
+        <Tile to="/app/bank" title="Bank" hint="Se konto og match" />
+        <Tile to="/app/vat" title="Moms" hint="Rapport til TastSelv" accent />
+        <Tile to="/app/invoices" title="Til gode" hint={formatDkk(openGross)} />
+        <Tile to="/app/vouchers" title="Bilag" hint={`${voucherCount} i alt`} />
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2">
           <h2 className="text-sm font-semibold text-slate-900">
@@ -264,5 +271,32 @@ function Stat({
       <div className="mt-2 text-xl font-semibold text-slate-900">{value}</div>
       {hint ? <div className="mt-1 text-xs text-slate-500">{hint}</div> : null}
     </div>
+  )
+}
+
+function Tile({
+  to,
+  title,
+  hint,
+  accent,
+}: {
+  to: string
+  title: string
+  hint: string
+  accent?: boolean
+}) {
+  return (
+    <Link
+      to={to}
+      className="group flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition active:scale-[0.99]"
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold text-slate-900">{title}</span>
+        <span className="text-slate-300 group-hover:text-indigo-500">›</span>
+      </div>
+      <div className={accent ? 'mt-4 text-lg font-semibold text-indigo-600' : 'mt-4 text-lg font-semibold text-slate-900'}>
+        {hint}
+      </div>
+    </Link>
   )
 }

@@ -4,6 +4,7 @@ import clsx from 'clsx'
 import { useApp, subscriptionOk } from '@/context/AppProvider'
 import { startStripeCheckout } from '@/lib/edge'
 import { supabase } from '@/lib/supabase'
+import { MobileBottomNav } from '@/components/MobileBottomNav'
 
 type NavIconProps = { className?: string }
 
@@ -119,13 +120,14 @@ export function AppShell({ children }: { children?: ReactNode }) {
               to={item.to}
               className={({ isActive }) =>
                 clsx(
-                  'rounded-lg px-3 py-2 text-sm font-medium transition',
+                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition',
                   isActive
                     ? 'bg-indigo-50 text-indigo-700'
                     : 'text-slate-600 hover:bg-slate-50',
                 )
               }
             >
+              <item.icon className="h-4 w-4" />
               {item.label}
             </NavLink>
           ))}
@@ -195,31 +197,12 @@ export function AppShell({ children }: { children?: ReactNode }) {
           />
         ) : null}
 
-        <main className="flex-1 px-4 pb-24 pt-6 md:px-8 md:pb-6">
+        <main className="flex-1 px-4 pb-28 pt-6 md:px-8 md:pb-6">
           {children ?? <Outlet />}
         </main>
-
-        <nav
-          className="fixed inset-x-0 bottom-0 z-30 flex items-stretch border-t border-slate-200 bg-white/95 backdrop-blur pb-[env(safe-area-inset-bottom)] md:hidden"
-          aria-label="Hovedmenu"
-        >
-          {nav.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                clsx(
-                  'flex flex-1 min-w-0 flex-col items-center justify-center gap-0.5 px-1 py-2 text-[10px] font-medium',
-                  isActive ? 'text-indigo-700' : 'text-slate-500',
-                )
-              }
-            >
-              <item.icon className="h-5 w-5" />
-              <span className="truncate">{item.label}</span>
-            </NavLink>
-          ))}
-        </nav>
       </div>
+
+      <MobileBottomNav />
     </div>
   )
 }

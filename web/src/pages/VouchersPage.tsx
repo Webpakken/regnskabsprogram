@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useApp } from '@/context/AppProvider'
 import { logActivity } from '@/lib/activity'
@@ -107,11 +108,19 @@ export function VouchersPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Bilag</h1>
-        <p className="text-sm text-slate-600">
-          Upload kvitteringer og bilag — kun synlige for denne virksomhed
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Bilag</h1>
+          <p className="text-sm text-slate-600">
+            Upload kvitteringer og bilag — kun synlige for denne virksomhed
+          </p>
+        </div>
+        <Link
+          to="/app/vouchers/scan"
+          className="shrink-0 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+        >
+          Scan bilag
+        </Link>
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">

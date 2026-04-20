@@ -60,7 +60,7 @@ export function MembersPage() {
         : Promise.resolve({ data: [] as InviteRow[], error: null }),
     ])
 
-    const rawMembers = (membersRes.data ?? []) as Array<{
+    const rawMembers = (membersRes.data ?? []) as unknown as Array<{
       id: string
       user_id: string
       role: CompanyRole
