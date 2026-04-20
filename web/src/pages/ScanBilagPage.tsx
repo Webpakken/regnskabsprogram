@@ -178,6 +178,7 @@ export function ScanBilagPage() {
     setTitle(p.merchantGuess ?? 'Kvittering')
     if (p.expenseDateIso) setExpenseDate(p.expenseDateIso)
     if (p.totalKr != null) setGrossKr(p.totalKr.toFixed(2).replace('.', ','))
+    if (p.vatRateGuess !== null) setVatRate(String(p.vatRateGuess))
     setNotes(formatParsedNotes(p))
     setPhase('review')
   }
@@ -224,6 +225,7 @@ export function ScanBilagPage() {
       setTitle(p.merchantGuess ?? file.name)
       if (p.expenseDateIso) setExpenseDate(p.expenseDateIso)
       if (p.totalKr != null) setGrossKr(p.totalKr.toFixed(2).replace('.', ','))
+      if (p.vatRateGuess !== null) setVatRate(String(p.vatRateGuess))
       setNotes(formatParsedNotes(p))
       setPhase('review')
     } catch (e) {

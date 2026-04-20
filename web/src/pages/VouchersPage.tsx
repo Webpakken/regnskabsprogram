@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useApp } from '@/context/AppProvider'
 import { logActivity } from '@/lib/activity'
-import { formatDateTime, formatDkk } from '@/lib/format'
+import { formatDateOnly, formatDkk } from '@/lib/format'
 import { formatParsedNotes, parseDanishReceiptText } from '@/lib/receiptParse'
 import { ocrImageOrPdfFile } from '@/lib/voucherOcr'
 import type { Database } from '@/types/database'
@@ -68,6 +68,7 @@ export function VouchersPage() {
     let titleForDb = title.trim() || file.name.replace(/\.[^.]+$/, '')
     let expenseDateForDb = expenseDate
     let grossKrForDb = grossKr
+    let vatRateForDb = vatRate
     let notesForDb: string | null = null
 
     if (canOcr) {
@@ -84,6 +85,9 @@ export function VouchersPage() {
         if (parsed.totalKr != null) {
           grossKrForDb = parsed.totalKr.toFixed(2).replace('.', ',')
         }
+        if (parsed.vatRateGuess !== null) {
+          vatRateForDb = String(parsed.vatRateGuess)
+        }
       } catch {
         setOcrWarning(
           'Kunne ikke læse bilaget automatisk. Tjek felterne eller prøv «Scan bilag» på mobil.',
@@ -96,7 +100,7 @@ export function VouchersPage() {
     const grossCents = Math.round(
       (parseFloat(grossKrForDb.replace(',', '.')) || 0) * 100,
     )
-    const rate = parseFloat(vatRate.replace(',', '.')) || 0
+    const rate = parseFloat(vatRateForDb.replace(',', '.')) || 0
     const netCents = rate > 0 ? Math.round(grossCents / (1 + rate / 100)) : grossCents
     const vatCents = grossCents - netCents
 
@@ -291,7 +295,9 @@ export function VouchersPage() {
               rows.map((v) => (
                 <tr key={v.id} className="border-t border-slate-100">
                   <td className="px-4 py-3 text-slate-600">
-                    {v.expense_date ? formatDateTime(v.expense_date) : formatDateTime(v.uploaded_at)}
+                    {v.expense_date
+                      ? formatDateOnly(v.expense_date)
+                      : formatDateOnly(v.uploaded_at)}
                   </td>
                   <td className="px-4 py-3 text-slate-800">{v.title ?? '—'}</td>
                   <td className="px-4 py-3 text-slate-600">{v.category ?? '—'}</td>
