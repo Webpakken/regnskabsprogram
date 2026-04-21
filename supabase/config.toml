@@ -39,5 +39,7 @@ verify_jwt = false
 [functions.cvr-search]
 verify_jwt = true
 
+# false: gateway bruger HS256-verifikation; Supabase Auth kan udstede ES256 — så fejler kald før funktionen.
+# Vi validerer JWT inde i funktionen via GET /auth/v1/user.
 [functions.smtp-test]
-verify_jwt = true
+verify_jwt = false
