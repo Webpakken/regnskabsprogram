@@ -1,19 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { createWorker } from 'tesseract.js'
 import { supabase } from '@/lib/supabase'
 import { useApp } from '@/context/AppProvider'
 import { logActivity } from '@/lib/activity'
-import {
-  cropCenterRegion,
-  downscaleToCanvas,
-  scoreDocumentPresence,
-} from '@/lib/documentDetect'
+import { downscaleToCanvas, scoreDocumentPresence } from '@/lib/documentDetect'
 import { formatParsedNotes, parseDanishReceiptText } from '@/lib/receiptParse'
 import { renderPdfFirstPageToCanvas } from '@/lib/pdfToCanvas'
+import { maxOcrDimension, ocrReceiptCanvas } from '@/lib/voucherOcr'
 
-const DETECT_THRESHOLD = 0.13
-const FRAMES_STABLE = 10
+/** Lavere tærskel + færre frames — mobil-kamera giver ofte lavere «edge score». */
+const DETECT_THRESHOLD = 0.075
+const FRAMES_STABLE = 6
 
 type Phase =
   | 'init'
@@ -136,31 +133,15 @@ export function ScanBilagPage() {
     return () => cancelAnimationFrame(rafRef.current)
   }, [phase])
 
-  async function runOcrOnCanvas(source: HTMLCanvasElement): Promise<string> {
-    const worker = await createWorker('dan+eng', undefined, {
-      logger: (m) => {
-        if (m.status === 'recognizing text' && m.progress != null) {
-          setOcrProgress(Math.round(m.progress * 100))
-        }
-      },
-    })
-    try {
-      /* Fokusér midten — typisk hvor kvitteringen er */
-      const cropped = cropCenterRegion(source, 0.06)
-      const { data } = await worker.recognize(cropped)
-      return data.text
-    } finally {
-      await worker.terminate()
-    }
-  }
-
   async function captureFromCamera() {
     const video = videoRef.current
     if (!video || video.readyState < 2) return
     stopCamera()
     setPhase('processing')
     setOcrProgress(0)
-    const cap = downscaleToCanvas(video, 2400, 2400)
+    setSaveError(null)
+    const dim = maxOcrDimension()
+    const cap = downscaleToCanvas(video, dim, dim)
     const blob = await new Promise<Blob | null>((res) =>
       cap.toBlob((b) => res(b), 'image/jpeg', 0.92),
     )
@@ -171,16 +152,27 @@ export function ScanBilagPage() {
         return url
       })
     }
-    const text = await runOcrOnCanvas(cap)
-    setOcrText(text)
-    const p = parseDanishReceiptText(text)
-    setParsed(p)
-    setTitle(p.merchantGuess ?? 'Kvittering')
-    if (p.expenseDateIso) setExpenseDate(p.expenseDateIso)
-    if (p.totalKr != null) setGrossKr(p.totalKr.toFixed(2).replace('.', ','))
-    if (p.vatRateGuess !== null) setVatRate(String(p.vatRateGuess))
-    setNotes(formatParsedNotes(p))
-    setPhase('review')
+    try {
+      const text = await ocrReceiptCanvas(cap, (p) => setOcrProgress(p))
+      setOcrText(text)
+      const p = parseDanishReceiptText(text)
+      setParsed(p)
+      setTitle(p.merchantGuess ?? 'Kvittering')
+      if (p.expenseDateIso) setExpenseDate(p.expenseDateIso)
+      if (p.totalKr != null) setGrossKr(p.totalKr.toFixed(2).replace('.', ','))
+      if (p.vatRateGuess !== null) setVatRate(String(p.vatRateGuess))
+      setNotes(formatParsedNotes(p))
+      setPhase('review')
+    } catch (e) {
+      console.warn('[scan OCR]', e)
+      setSaveError(
+        e instanceof Error
+          ? e.message
+          : 'Kunne ikke læse kvitteringen. Prøv «Kamerarulle» eller et mindre billede.',
+      )
+      setPhase('stream')
+      setCameraKey((k) => k + 1)
+    }
   }
 
   async function handleGalleryFile(file: File | null) {
@@ -218,7 +210,7 @@ export function ScanBilagPage() {
           return u
         })
       }
-      const text = await runOcrOnCanvas(canvas)
+      const text = await ocrReceiptCanvas(canvas, (p) => setOcrProgress(p))
       setOcrText(text)
       const p = parseDanishReceiptText(text)
       setParsed(p)
@@ -394,10 +386,13 @@ export function ScanBilagPage() {
       <div className="fixed inset-0 z-[100] flex min-h-[100dvh] flex-col items-center justify-center bg-black px-6 text-white">
         <p className="text-center text-lg font-medium">Læser kvittering…</p>
         <p className="mt-2 text-sm text-white/70">{ocrProgress}%</p>
+        <p className="mt-3 max-w-xs text-center text-xs text-white/55">
+          Første gang hentes sprogfiler — det kan tage 15–45 sek. på mobil. Fanen skal være åben.
+        </p>
         <div className="mt-6 h-2 w-48 overflow-hidden rounded-full bg-white/20">
           <div
             className="h-full bg-indigo-400 transition-all"
-            style={{ width: `${ocrProgress}%` }}
+            style={{ width: `${Math.max(ocrProgress, 2)}%` }}
           />
         </div>
       </div>
@@ -463,12 +458,21 @@ export function ScanBilagPage() {
                   </svg>
                 </div>
                 <p className="text-sm font-medium text-white">Søger efter bilag</p>
+                <p className="mt-2 text-xs text-white/75">
+                  Eller tryk på den blå knap — automatisk scanning er valgfri.
+                </p>
               </div>
             ) : null}
             {documentFound ? (
               <div className="mx-4 aspect-[3/4] w-full max-w-sm rounded-lg border-4 border-blue-500/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
             ) : null}
           </div>
+
+          {saveError ? (
+            <div className="absolute inset-x-0 bottom-[5.5rem] z-30 mx-4 rounded-xl bg-red-900/90 px-3 py-2 text-center text-xs text-white">
+              {saveError}
+            </div>
+          ) : null}
 
           <div className="absolute inset-x-0 bottom-0 z-20 flex items-end justify-around border-t border-white/10 bg-black/50 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
             <label className="flex cursor-pointer flex-col items-center gap-1 text-blue-400">
