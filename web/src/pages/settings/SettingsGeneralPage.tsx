@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useApp, subscriptionOk } from '@/context/AppProvider'
 import { formatDateTime } from '@/lib/format'
+import { subscriptionStatusLabelDa } from '@/lib/subscriptionLabels'
 import { startStripeCheckout } from '@/lib/edge'
 import {
   cvrValidationHint,
@@ -168,7 +169,7 @@ export function SettingsGeneralPage() {
         <p className="text-sm text-slate-600">
           Status:{' '}
           <span className="font-medium text-slate-900">
-            {subscription?.status ?? 'ingen'}
+            {subscriptionStatusLabelDa(subscription?.status)}
           </span>
         </p>
         {subscription?.current_period_end ? (
