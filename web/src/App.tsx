@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppProvider } from '@/context/AppProvider'
+import { isSupabaseConfigured } from '@/lib/supabase'
 import { AppShell } from '@/components/AppShell'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { RequireSubscription } from '@/components/RequireSubscription'
@@ -21,7 +22,38 @@ import { MembersPage } from '@/pages/MembersPage'
 import { VatPage } from '@/pages/VatPage'
 import { MorePage } from '@/pages/MorePage'
 
+function MissingConfigPage() {
+  return (
+    <div className="min-h-screen bg-slate-50 px-6 py-16 text-slate-800">
+      <div className="mx-auto max-w-lg rounded-2xl border border-amber-200 bg-amber-50 p-8 shadow-sm">
+        <h1 className="text-lg font-semibold text-amber-950">Manglende konfiguration</h1>
+        <p className="mt-3 text-sm leading-relaxed text-amber-950/90">
+          Tilføj miljøvariablerne{' '}
+          <code className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-mono">
+            VITE_SUPABASE_URL
+          </code>{' '}
+          og{' '}
+          <code className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-mono">
+            VITE_SUPABASE_ANON_KEY
+          </code>{' '}
+          i dit hosting-dashboard (samme værdier som i{' '}
+          <code className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-mono">
+            web/.env.local
+          </code>
+          ), og deploy igen.
+        </p>
+        <p className="mt-4 text-xs text-amber-900/80">
+          Uden dem er der ofte helt hvid skærm, fordi appen ikke kan tale med Supabase.
+        </p>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
+  if (!isSupabaseConfigured) {
+    return <MissingConfigPage />
+  }
   return (
     <BrowserRouter>
       <AppProvider>

@@ -8,7 +8,7 @@ import {
   useState,
 } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
+import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 import type { CompanyRole, Database } from '@/types/database'
 
 type Company = Database['public']['Tables']['companies']['Row']
@@ -41,6 +41,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
+    if (!isSupabaseConfigured) {
+      setSession(null)
+      setUser(null)
+      setProfile(null)
+      setCompanies([])
+      setRolesByCompany({})
+      setSubscription(null)
+      setLoading(false)
+      return
+    }
     const { data: sessionData } = await supabase.auth.getSession()
     const s = sessionData.session
     setSession(s)
@@ -110,6 +120,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
+    if (!isSupabaseConfigured) {
+      setLoading(false)
+      return
+    }
     void load()
     const { data: sub } = supabase.auth.onAuthStateChange(() => {
       void load()
@@ -118,6 +132,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [load])
 
   const setCurrentCompanyId = useCallback(async (id: string) => {
+    if (!isSupabaseConfigured) return
     const { data: sessionData } = await supabase.auth.getSession()
     const uid = sessionData.session?.user?.id
     if (!uid) return
