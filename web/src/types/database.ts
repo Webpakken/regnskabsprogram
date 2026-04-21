@@ -368,6 +368,7 @@ export interface Database {
           user_name: string | null
           from_email: string | null
           from_name: string | null
+          smtp_password: string | null
           updated_at: string
         }
         Insert: {
@@ -378,6 +379,7 @@ export interface Database {
           user_name?: string | null
           from_email?: string | null
           from_name?: string | null
+          smtp_password?: string | null
         }
         Update: {
           label?: string
@@ -386,6 +388,7 @@ export interface Database {
           user_name?: string | null
           from_email?: string | null
           from_name?: string | null
+          smtp_password?: string | null
         }
       }
       support_tickets: {

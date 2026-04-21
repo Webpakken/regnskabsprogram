@@ -1,6 +1,11 @@
-import { Navigate, Outlet } from 'react-router-dom'
+import { Navigate } from 'react-router-dom'
 import { useApp } from '@/context/AppProvider'
+import { PlatformShell } from '@/components/PlatformShell'
 
+/**
+ * Platform-ruter: én layout uden ekstra pathless Route, så Outlet i PlatformShell
+ * matcher korrekt under React Router 7 (undgår tom/hvid hovedindhold).
+ */
 export function ProtectedPlatformRoute() {
   const { loading, platformRole } = useApp()
   if (loading) {
@@ -13,5 +18,5 @@ export function ProtectedPlatformRoute() {
   if (!platformRole) {
     return <Navigate to="/home" replace />
   }
-  return <Outlet />
+  return <PlatformShell />
 }

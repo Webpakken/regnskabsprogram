@@ -4,7 +4,6 @@ import { isSupabaseConfigured } from '@/lib/supabase'
 import { AppShell } from '@/components/AppShell'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { ProtectedPlatformRoute } from '@/components/ProtectedPlatformRoute'
-import { PlatformShell } from '@/components/PlatformShell'
 import { RequireSubscription } from '@/components/RequireSubscription'
 import { HomeRedirect } from '@/components/HomeRedirect'
 import { LandingPage } from '@/pages/LandingPage'
@@ -29,7 +28,10 @@ import { PlatformDashboardPage } from '@/pages/platform/PlatformDashboardPage'
 import { PlatformCompaniesPage } from '@/pages/platform/PlatformCompaniesPage'
 import { PlatformSupportPage } from '@/pages/platform/PlatformSupportPage'
 import { PlatformSettingsLayout } from '@/pages/platform/PlatformSettingsLayout'
-import { PlatformPublicSettingsPage } from '@/pages/platform/PlatformPublicSettingsPage'
+import { PlatformPublicSettingsLayout } from '@/pages/platform/PlatformPublicSettingsLayout'
+import { PlatformPublicContactPage } from '@/pages/platform/PlatformPublicContactPage'
+import { PlatformPublicHoursPage } from '@/pages/platform/PlatformPublicHoursPage'
+import { PlatformPublicPricePage } from '@/pages/platform/PlatformPublicPricePage'
 import { PlatformSmtpSettingsPage } from '@/pages/platform/PlatformSmtpSettingsPage'
 import { PlatformStaffPage } from '@/pages/platform/PlatformStaffPage'
 
@@ -74,21 +76,34 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route element={<ProtectedRoute />}>
-            <Route element={<ProtectedPlatformRoute />}>
-              <Route element={<PlatformShell />}>
-                <Route path="/platform/dashboard" element={<PlatformDashboardPage />} />
-                <Route path="/platform/companies" element={<PlatformCompaniesPage />} />
-                <Route path="/platform/support" element={<PlatformSupportPage />} />
-                <Route path="/platform/settings" element={<PlatformSettingsLayout />}>
+            {/* Kun /platform/* rammer platform-guard — ellers blokerede /app/settings for ikke-staff */}
+            <Route path="/platform" element={<ProtectedPlatformRoute />}>
+              <Route
+                index
+                element={<Navigate to="/platform/dashboard" replace />}
+              />
+              <Route path="dashboard" element={<PlatformDashboardPage />} />
+              <Route path="companies" element={<PlatformCompaniesPage />} />
+              <Route path="support" element={<PlatformSupportPage />} />
+              <Route path="settings" element={<PlatformSettingsLayout />}>
+                <Route
+                  index
+                  element={
+                    <Navigate to="/platform/settings/public/kontakt" replace />
+                  }
+                />
+                <Route path="public" element={<PlatformPublicSettingsLayout />}>
                   <Route
                     index
-                    element={<Navigate to="/platform/settings/public" replace />}
+                    element={<Navigate to="/platform/settings/public/kontakt" replace />}
                   />
-                  <Route path="public" element={<PlatformPublicSettingsPage />} />
-                  <Route path="smtp" element={<PlatformSmtpSettingsPage />} />
+                  <Route path="kontakt" element={<PlatformPublicContactPage />} />
+                  <Route path="aabning" element={<PlatformPublicHoursPage />} />
+                  <Route path="pris" element={<PlatformPublicPricePage />} />
                 </Route>
-                <Route path="/platform/staff" element={<PlatformStaffPage />} />
+                <Route path="smtp" element={<PlatformSmtpSettingsPage />} />
               </Route>
+              <Route path="staff" element={<PlatformStaffPage />} />
             </Route>
             <Route path="/home" element={<HomeRedirect />} />
             <Route path="/onboarding" element={<OnboardingPage />} />

@@ -113,7 +113,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
 
   async function logout() {
     await supabase.auth.signOut()
-    navigate('/login')
+    navigate('/')
   }
 
   async function endImpersonation() {

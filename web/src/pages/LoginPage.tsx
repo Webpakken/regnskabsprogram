@@ -81,6 +81,12 @@ export function LoginPage() {
             {busy ? 'Logger ind…' : 'Log ind'}
           </button>
         </form>
+        <Link
+          to="/"
+          className="mt-4 flex w-full items-center justify-center rounded-lg border border-slate-200 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+        >
+          Gå til forsiden
+        </Link>
         <p className="mt-4 text-center text-sm text-slate-600">
           Ingen konto?{' '}
           <Link className="font-medium text-indigo-600" to="/signup">

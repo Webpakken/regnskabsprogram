@@ -1,64 +1,24 @@
-import { useCallback, useEffect, useState } from 'react'
-import type { Database } from '@/types/database'
-import { supabase } from '@/lib/supabase'
+import { usePlatformPublicSettings } from '@/hooks/usePlatformPublicSettings'
 
-type PublicSettings = Database['public']['Tables']['platform_public_settings']['Row']
+export function PlatformPublicContactPage() {
+  const { pub, setPub, loading, saving, message, error, saveFields } =
+    usePlatformPublicSettings()
 
-export function PlatformPublicSettingsPage() {
-  const [pub, setPub] = useState<Partial<PublicSettings>>({})
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    const { data, error: qErr } = await supabase
-      .from('platform_public_settings')
-      .select('*')
-      .eq('id', 1)
-      .maybeSingle()
-    setLoading(false)
-    if (qErr) {
-      setError(qErr.message)
-      return
-    }
-    setPub(data ?? {})
-  }, [])
-
-  useEffect(() => {
-    void load()
-  }, [load])
-
-  async function savePublic(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setSaving(true)
-    setMessage(null)
-    setError(null)
-    const { error: uErr } = await supabase
-      .from('platform_public_settings')
-      .update({
+    await saveFields(
+      {
         contact_email: pub.contact_email || null,
         contact_phone: pub.contact_phone || null,
         address_line: pub.address_line || null,
         postal_code: pub.postal_code || null,
         city: pub.city || null,
         org_cvr: pub.org_cvr || null,
-        support_hours: pub.support_hours || null,
         terms_url: pub.terms_url || null,
         privacy_url: pub.privacy_url || null,
-        monthly_price_cents: pub.monthly_price_cents ?? null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', 1)
-    setSaving(false)
-    if (uErr) {
-      setError(uErr.message)
-      return
-    }
-    setMessage('Offentlige oplysninger gemt.')
-    void load()
+      },
+      'Kontakt og links gemt.',
+    )
   }
 
   if (loading) {
@@ -81,10 +41,10 @@ export function PlatformPublicSettingsPage() {
       ) : null}
 
       <form
-        onSubmit={(e) => void savePublic(e)}
+        onSubmit={(e) => void onSubmit(e)}
         className="space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
       >
-        <h2 className="text-sm font-semibold text-slate-900">Offentlig kontakt og pris</h2>
+        <h2 className="text-sm font-semibold text-slate-900">Kontakt & links</h2>
         <p className="text-xs text-slate-500">
           Vises på forsiden og i sidens fod.
         </p>
@@ -120,17 +80,6 @@ export function PlatformPublicSettingsPage() {
             value={pub.org_cvr ?? ''}
             onChange={(v) => setPub((p) => ({ ...p, org_cvr: v }))}
           />
-          <div className="sm:col-span-2">
-            <Field
-              label="Supporttider (tekst)"
-              value={pub.support_hours ?? ''}
-              onChange={(v) => setPub((p) => ({ ...p, support_hours: v }))}
-            />
-            <p className="mt-1 text-xs text-slate-500">
-              Vises på den offentlige side{' '}
-              <span className="font-mono text-slate-600">/support-tider</span>.
-            </p>
-          </div>
           <Field
             label="Link vilkår"
             value={pub.terms_url ?? ''}
@@ -141,32 +90,13 @@ export function PlatformPublicSettingsPage() {
             value={pub.privacy_url ?? ''}
             onChange={(v) => setPub((p) => ({ ...p, privacy_url: v }))}
           />
-          <div className="sm:col-span-2">
-            <label className="text-xs font-medium text-slate-600">
-              Månedspris (øre), til visning på forsiden
-            </label>
-            <input
-              type="number"
-              min={0}
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-              value={pub.monthly_price_cents ?? ''}
-              onChange={(e) =>
-                setPub((p) => ({
-                  ...p,
-                  monthly_price_cents: e.target.value
-                    ? Number(e.target.value)
-                    : null,
-                }))
-              }
-            />
-          </div>
         </div>
         <button
           type="submit"
           disabled={saving}
           className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
         >
-          {saving ? 'Gemmer…' : 'Gem offentlige felter'}
+          {saving ? 'Gemmer…' : 'Gem kontakt & links'}
         </button>
       </form>
     </div>

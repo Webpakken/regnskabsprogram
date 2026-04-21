@@ -38,3 +38,6 @@ verify_jwt = false
 
 [functions.cvr-search]
 verify_jwt = true
+
+[functions.smtp-test]
+verify_jwt = true

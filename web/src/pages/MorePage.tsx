@@ -94,7 +94,7 @@ export function MorePage() {
 
   async function logout() {
     await supabase.auth.signOut()
-    navigate('/login')
+    navigate('/')
   }
 
   return (

@@ -8,7 +8,7 @@ const nav = [
   { to: '/platform/dashboard', label: 'Overblik' },
   { to: '/platform/companies', label: 'Virksomheder' },
   { to: '/platform/support', label: 'Support' },
-  { to: '/platform/settings/public', label: 'Indstillinger' },
+  { to: '/platform/settings/public/kontakt', label: 'Indstillinger' },
   { to: '/platform/staff', label: 'Team', superadminOnly: true },
 ]
 
@@ -18,7 +18,7 @@ export function PlatformShell({ children }: { children?: ReactNode }) {
 
   async function logout() {
     await supabase.auth.signOut()
-    navigate('/login')
+    navigate('/')
   }
 
   return (
@@ -61,18 +61,33 @@ export function PlatformShell({ children }: { children?: ReactNode }) {
             </button>
           </div>
         ) : null}
-        <div className="border-t border-slate-800 p-3 text-xs text-slate-500">
-          {user?.email}
+        <div className="border-t border-slate-800 p-3">
+          <div className="mb-2 font-mono text-[10px] leading-tight text-slate-500">
+            {__PLATFORM_BUILD__}
+          </div>
+          <button
+            type="button"
+            onClick={() => void logout()}
+            className="mb-2 w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-200 hover:bg-slate-800"
+          >
+            Log ud
+          </button>
+          <div className="truncate text-xs text-slate-500" title={user?.email}>
+            {user?.email}
+          </div>
         </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="border-b border-slate-200 bg-white md:hidden">
-          <div className="flex items-center justify-between px-4 py-3">
-            <span className="text-sm font-semibold text-slate-900">Platform</span>
+          <div className="flex items-center justify-between gap-2 px-4 py-3">
+            <div className="min-w-0">
+              <span className="text-sm font-semibold text-slate-900">Platform</span>
+              <div className="font-mono text-[10px] text-slate-400">{__PLATFORM_BUILD__}</div>
+            </div>
             <button
               type="button"
-              className="text-sm text-indigo-600"
+              className="shrink-0 text-sm text-indigo-600"
               onClick={() => void logout()}
             >
               Log ud
