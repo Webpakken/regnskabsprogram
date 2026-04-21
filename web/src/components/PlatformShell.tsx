@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { useApp } from '@/context/AppProvider'
-import { supabase } from '@/lib/supabase'
+import { logoutToLanding } from '@/lib/logoutToLanding'
 
 const nav = [
   { to: '/platform/dashboard', label: 'Overblik' },
@@ -17,8 +17,7 @@ export function PlatformShell({ children }: { children?: ReactNode }) {
   const navigate = useNavigate()
 
   async function logout() {
-    navigate('/', { replace: true })
-    await supabase.auth.signOut()
+    await logoutToLanding(navigate)
   }
 
   return (

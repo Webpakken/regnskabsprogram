@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { ROLE_LABELS, useApp } from '@/context/AppProvider'
-import { supabase } from '@/lib/supabase'
+import { logoutToLanding } from '@/lib/logoutToLanding'
 
 type IconProps = { className?: string }
 
@@ -93,8 +93,7 @@ export function MorePage() {
   const navigate = useNavigate()
 
   async function logout() {
-    navigate('/', { replace: true })
-    await supabase.auth.signOut()
+    await logoutToLanding(navigate)
   }
 
   return (

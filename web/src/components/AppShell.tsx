@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { useApp, subscriptionOk } from '@/context/AppProvider'
 import { startStripeCheckout } from '@/lib/edge'
+import { logoutToLanding } from '@/lib/logoutToLanding'
 import { supabase } from '@/lib/supabase'
 import { MobileBottomNav } from '@/components/MobileBottomNav'
 
@@ -112,9 +113,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
   const ok = subscriptionOk(subscription)
 
   async function logout() {
-    // Navigér væk fra beskyttede ruter før signOut, ellers rammer ProtectedRoute /login.
-    navigate('/', { replace: true })
-    await supabase.auth.signOut()
+    await logoutToLanding(navigate)
   }
 
   async function endImpersonation() {
