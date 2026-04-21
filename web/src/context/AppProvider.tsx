@@ -84,12 +84,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    const { data: psRow } = await supabase
-      .from('platform_staff')
-      .select('role')
-      .eq('user_id', s.user.id)
-      .maybeSingle()
-    setPlatformRole((psRow?.role as PlatformStaffRole) ?? null)
+    const rpcRole = await supabase.rpc('get_my_platform_role')
+    let resolvedPlatformRole: PlatformStaffRole | null = null
+    if (!rpcRole.error && rpcRole.data) {
+      resolvedPlatformRole = rpcRole.data as PlatformStaffRole
+    } else {
+      const { data: psRow } = await supabase
+        .from('platform_staff')
+        .select('role')
+        .eq('user_id', s.user.id)
+        .maybeSingle()
+      resolvedPlatformRole = (psRow?.role as PlatformStaffRole) ?? null
+    }
+    setPlatformRole(resolvedPlatformRole)
 
     const { data: impRow } = await supabase
       .from('support_impersonation')

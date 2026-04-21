@@ -2,13 +2,12 @@ import { useCallback, useEffect, useState } from 'react'
 import type { Database } from '@/types/database'
 import { supabase } from '@/lib/supabase'
 
-type PublicSettings = Database['public']['Tables']['platform_public_settings']['Row']
 type SmtpProfile = Database['public']['Tables']['platform_smtp_profiles']['Row']
 
-export function PlatformSettingsPage() {
-  const [pub, setPub] = useState<Partial<PublicSettings>>({})
+export function PlatformSmtpSettingsPage() {
   const [smtp, setSmtp] = useState<SmtpProfile[]>([])
   const [loading, setLoading] = useState(true)
+  const [seeding, setSeeding] = useState(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -16,54 +15,33 @@ export function PlatformSettingsPage() {
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
-    const [pRes, sRes] = await Promise.all([
-      supabase.from('platform_public_settings').select('*').eq('id', 1).maybeSingle(),
-      supabase.from('platform_smtp_profiles').select('*').order('id'),
-    ])
+    const { data, error: qErr } = await supabase
+      .from('platform_smtp_profiles')
+      .select('*')
+      .order('id')
     setLoading(false)
-    if (pRes.error) {
-      setError(pRes.error.message)
+    if (qErr) {
+      setError(qErr.message)
       return
     }
-    if (sRes.error) {
-      setError(sRes.error.message)
-      return
-    }
-    setPub(pRes.data ?? {})
-    setSmtp(sRes.data ?? [])
+    setSmtp(data ?? [])
   }, [])
 
   useEffect(() => {
     void load()
   }, [load])
 
-  async function savePublic(e: React.FormEvent) {
-    e.preventDefault()
-    setSaving(true)
+  async function seedProfiles() {
+    setSeeding(true)
     setMessage(null)
     setError(null)
-    const { error: uErr } = await supabase
-      .from('platform_public_settings')
-      .update({
-        contact_email: pub.contact_email || null,
-        contact_phone: pub.contact_phone || null,
-        address_line: pub.address_line || null,
-        postal_code: pub.postal_code || null,
-        city: pub.city || null,
-        org_cvr: pub.org_cvr || null,
-        support_hours: pub.support_hours || null,
-        terms_url: pub.terms_url || null,
-        privacy_url: pub.privacy_url || null,
-        monthly_price_cents: pub.monthly_price_cents ?? null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', 1)
-    setSaving(false)
-    if (uErr) {
-      setError(uErr.message)
+    const { error: rpcErr } = await supabase.rpc('ensure_platform_smtp_profiles')
+    setSeeding(false)
+    if (rpcErr) {
+      setError(rpcErr.message)
       return
     }
-    setMessage('Offentlige oplysninger gemt.')
+    setMessage('Standard SMTP-profiler er oprettet — udfyld felterne herunder.')
     void load()
   }
 
@@ -98,14 +76,7 @@ export function PlatformSettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-10">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Platformindstillinger</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Vises på forsiden og i fod — SMTP uden adgangskode i databasen.
-        </p>
-      </div>
-
+    <div className="space-y-6">
       {error ? (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
           {error}
@@ -117,89 +88,30 @@ export function PlatformSettingsPage() {
         </div>
       ) : null}
 
-      <form
-        onSubmit={(e) => void savePublic(e)}
-        className="space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
-      >
-        <h2 className="text-sm font-semibold text-slate-900">Offentlig kontakt og pris</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field
-            label="Kontakt e-mail"
-            value={pub.contact_email ?? ''}
-            onChange={(v) => setPub((p) => ({ ...p, contact_email: v }))}
-          />
-          <Field
-            label="Telefon"
-            value={pub.contact_phone ?? ''}
-            onChange={(v) => setPub((p) => ({ ...p, contact_phone: v }))}
-          />
-          <Field
-            label="Adresse"
-            className="sm:col-span-2"
-            value={pub.address_line ?? ''}
-            onChange={(v) => setPub((p) => ({ ...p, address_line: v }))}
-          />
-          <Field
-            label="Postnr."
-            value={pub.postal_code ?? ''}
-            onChange={(v) => setPub((p) => ({ ...p, postal_code: v }))}
-          />
-          <Field
-            label="By"
-            value={pub.city ?? ''}
-            onChange={(v) => setPub((p) => ({ ...p, city: v }))}
-          />
-          <Field
-            label="CVR (Bilago)"
-            value={pub.org_cvr ?? ''}
-            onChange={(v) => setPub((p) => ({ ...p, org_cvr: v }))}
-          />
-          <Field
-            label="Supporttider (tekst)"
-            value={pub.support_hours ?? ''}
-            onChange={(v) => setPub((p) => ({ ...p, support_hours: v }))}
-          />
-          <Field
-            label="Link vilkår"
-            value={pub.terms_url ?? ''}
-            onChange={(v) => setPub((p) => ({ ...p, terms_url: v }))}
-          />
-          <Field
-            label="Link privatliv"
-            value={pub.privacy_url ?? ''}
-            onChange={(v) => setPub((p) => ({ ...p, privacy_url: v }))}
-          />
-          <div className="sm:col-span-2">
-            <label className="text-xs font-medium text-slate-600">
-              Månedspris (øre), til visning på forsiden
-            </label>
-            <input
-              type="number"
-              min={0}
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-              value={pub.monthly_price_cents ?? ''}
-              onChange={(e) =>
-                setPub((p) => ({
-                  ...p,
-                  monthly_price_cents: e.target.value
-                    ? Number(e.target.value)
-                    : null,
-                }))
-              }
-            />
-          </div>
+      <p className="text-sm text-slate-600">
+        Tre faste profiler (transactional / platform / marketing). Adgangskode
+        gemmes ikke her — brug Supabase secrets eller Edge ved udsendelse.
+      </p>
+
+      {smtp.length === 0 ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-950">
+          <p className="font-medium">Ingen SMTP-profiler i databasen endnu.</p>
+          <p className="mt-2 text-amber-900/90">
+            Kør den seneste migration, eller opret standardrækkerne her — derefter kan du
+            indtaste host, port, bruger og afsender.
+          </p>
+          <button
+            type="button"
+            disabled={seeding}
+            onClick={() => void seedProfiles()}
+            className="mt-4 rounded-lg bg-amber-900 px-4 py-2 text-sm font-medium text-white hover:bg-amber-950 disabled:opacity-50"
+          >
+            {seeding ? 'Opretter…' : 'Opret standard SMTP-profiler'}
+          </button>
         </div>
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-        >
-          {saving ? 'Gemmer…' : 'Gem offentlige felter'}
-        </button>
-      </form>
+      ) : null}
 
       <div className="space-y-6">
-        <h2 className="text-sm font-semibold text-slate-900">SMTP-profiler</h2>
         {smtp.map((row) => (
           <SmtpCard
             key={row.id}

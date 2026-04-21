@@ -172,6 +172,9 @@ export function LandingPage() {
             <a href="#faq" className="hover:text-slate-900">
               FAQ
             </a>
+            <Link to="/support-tider" className="hover:text-slate-900">
+              Support
+            </Link>
           </nav>
           <div className="flex items-center gap-3 text-sm">
             <Link to="/login" className="hidden text-slate-600 hover:text-slate-900 sm:inline">
@@ -568,6 +571,7 @@ export function LandingPage() {
               <li><a href="#features" className="hover:text-slate-900">Funktioner</a></li>
               <li><a href="#pricing" className="hover:text-slate-900">Priser</a></li>
               <li><a href="#faq" className="hover:text-slate-900">FAQ</a></li>
+              <li><Link to="/support-tider" className="hover:text-slate-900">Support og åbningstider</Link></li>
             </ul>
           </div>
           <div>

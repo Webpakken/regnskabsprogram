@@ -84,7 +84,7 @@ export function PlatformDashboardPage() {
             </Link>
           </li>
           <li>
-            <Link to="/platform/settings" className="text-indigo-600 hover:underline">
+            <Link to="/platform/settings/public" className="text-indigo-600 hover:underline">
               Offentlige oplysninger og SMTP
             </Link>
           </li>

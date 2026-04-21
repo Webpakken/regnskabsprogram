@@ -3,6 +3,11 @@ import { supabase } from '@/lib/supabase'
 import { useApp, subscriptionOk } from '@/context/AppProvider'
 import { formatDateTime } from '@/lib/format'
 import { startStripeCheckout } from '@/lib/edge'
+import {
+  cvrValidationHint,
+  isPostgresUniqueViolation,
+  normalizeCvrDigits,
+} from '@/lib/cvr'
 
 export function SettingsPage() {
   const { currentCompany, subscription, refresh } = useApp()
@@ -10,6 +15,7 @@ export function SettingsPage() {
   const [cvr, setCvr] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const ok = subscriptionOk(subscription)
 
   useEffect(() => {
@@ -24,13 +30,27 @@ export function SettingsPage() {
     if (!currentCompany) return
     setSaving(true)
     setMessage(null)
+    setSaveError(null)
+    const cvrDigits = normalizeCvrDigits(cvr)
+    const hint = cvrValidationHint(cvrDigits, cvr.trim().length > 0)
+    if (hint) {
+      setSaveError(hint)
+      setSaving(false)
+      return
+    }
     const { error } = await supabase
       .from('companies')
-      .update({ name, cvr: cvr || null })
+      .update({ name: name.trim(), cvr: cvrDigits })
       .eq('id', currentCompany.id)
     setSaving(false)
     if (error) {
-      setMessage(error.message)
+      if (isPostgresUniqueViolation(error)) {
+        setSaveError(
+          'Dette CVR er allerede knyttet til en anden konto. Én virksomhed kan kun have én konto.',
+        )
+      } else {
+        setSaveError(error.message)
+      }
       return
     }
     setMessage('Gemt.')
@@ -80,6 +100,11 @@ export function SettingsPage() {
             onChange={(e) => setCvr(e.target.value)}
           />
         </div>
+        {saveError ? (
+          <p className="text-sm text-red-600" role="alert">
+            {saveError}
+          </p>
+        ) : null}
         {message ? (
           <p className="text-sm text-emerald-700" role="status">
             {message}

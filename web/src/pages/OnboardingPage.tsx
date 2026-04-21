@@ -4,6 +4,11 @@ import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useApp, subscriptionOk } from '@/context/AppProvider'
 import { startStripeCheckout } from '@/lib/edge'
+import {
+  cvrValidationHint,
+  isPostgresUniqueViolation,
+  normalizeCvrDigits,
+} from '@/lib/cvr'
 
 export function OnboardingPage() {
   const {
@@ -14,6 +19,8 @@ export function OnboardingPage() {
     subscription,
     refresh,
     user,
+    platformRole,
+    tenantCompanyCount,
   } = useApp()
   const [searchParams] = useSearchParams()
   const [name, setName] = useState('')
@@ -26,7 +33,8 @@ export function OnboardingPage() {
     setCvrLoading(true)
     setError(null)
     try {
-      const data = await lookupCVR(cvr)
+      const digits = normalizeCvrDigits(cvr)
+      const data = await lookupCVR(digits ?? cvr)
       if (data && data.name) {
         setName(data.name)
       } else {
@@ -48,6 +56,16 @@ export function OnboardingPage() {
     return <Navigate to="/login" replace />
   }
 
+  /* Platform-staff uden eget medlemskab skal ikke sidde fast her (RPC/RLS kan have fejlet før). */
+  if (
+    !loading &&
+    platformRole &&
+    tenantCompanyCount === 0 &&
+    searchParams.get('opret') !== '1'
+  ) {
+    return <Navigate to="/platform/dashboard" replace />
+  }
+
   if (!loading && companies.length > 0 && subscriptionOk(subscription)) {
     return <Navigate to="/app/dashboard" replace />
   }
@@ -57,14 +75,27 @@ export function OnboardingPage() {
     if (!user) return
     setBusy(true)
     setError(null)
+    const cvrDigits = normalizeCvrDigits(cvr)
+    const hint = cvrValidationHint(cvrDigits, cvr.trim().length > 0)
+    if (hint) {
+      setError(hint)
+      setBusy(false)
+      return
+    }
     const { data: company, error: cErr } = await supabase
       .from('companies')
-      .insert({ name, cvr: cvr || null })
+      .insert({ name: name.trim(), cvr: cvrDigits })
       .select('id')
       .single()
     if (cErr || !company) {
       setBusy(false)
-      setError(cErr?.message ?? 'Kunne ikke oprette virksomhed')
+      if (isPostgresUniqueViolation(cErr)) {
+        setError(
+          'Dette CVR er allerede registreret. Én virksomhed kan kun have én konto.',
+        )
+      } else {
+        setError(cErr?.message ?? 'Kunne ikke oprette virksomhed')
+      }
       return
     }
     const { error: mErr } = await supabase.from('company_members').insert({
@@ -160,8 +191,8 @@ export function OnboardingPage() {
                 value={cvr}
                 onChange={(e) => setCvr(e.target.value)}
                 placeholder="12345678"
-                maxLength={8}
-                pattern="[0-9]{8}"
+                inputMode="numeric"
+                autoComplete="off"
               />
               <button
                 type="button"

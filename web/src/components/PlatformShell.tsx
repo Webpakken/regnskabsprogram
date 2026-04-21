@@ -8,7 +8,7 @@ const nav = [
   { to: '/platform/dashboard', label: 'Overblik' },
   { to: '/platform/companies', label: 'Virksomheder' },
   { to: '/platform/support', label: 'Support' },
-  { to: '/platform/settings', label: 'Indstillinger' },
+  { to: '/platform/settings/public', label: 'Indstillinger' },
   { to: '/platform/staff', label: 'Team', superadminOnly: true },
 ]
 

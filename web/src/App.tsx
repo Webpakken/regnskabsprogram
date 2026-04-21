@@ -8,6 +8,7 @@ import { PlatformShell } from '@/components/PlatformShell'
 import { RequireSubscription } from '@/components/RequireSubscription'
 import { HomeRedirect } from '@/components/HomeRedirect'
 import { LandingPage } from '@/pages/LandingPage'
+import { SupportHoursPage } from '@/pages/SupportHoursPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { SignupPage } from '@/pages/SignupPage'
 import { OnboardingPage } from '@/pages/OnboardingPage'
@@ -27,7 +28,9 @@ import { SupportPage } from '@/pages/SupportPage'
 import { PlatformDashboardPage } from '@/pages/platform/PlatformDashboardPage'
 import { PlatformCompaniesPage } from '@/pages/platform/PlatformCompaniesPage'
 import { PlatformSupportPage } from '@/pages/platform/PlatformSupportPage'
-import { PlatformSettingsPage } from '@/pages/platform/PlatformSettingsPage'
+import { PlatformSettingsLayout } from '@/pages/platform/PlatformSettingsLayout'
+import { PlatformPublicSettingsPage } from '@/pages/platform/PlatformPublicSettingsPage'
+import { PlatformSmtpSettingsPage } from '@/pages/platform/PlatformSmtpSettingsPage'
 import { PlatformStaffPage } from '@/pages/platform/PlatformStaffPage'
 
 function MissingConfigPage() {
@@ -67,6 +70,7 @@ export default function App() {
       <AppProvider>
         <Routes>
           <Route path="/" element={<LandingPage />} />
+          <Route path="/support-tider" element={<SupportHoursPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route element={<ProtectedRoute />}>
@@ -75,7 +79,14 @@ export default function App() {
                 <Route path="/platform/dashboard" element={<PlatformDashboardPage />} />
                 <Route path="/platform/companies" element={<PlatformCompaniesPage />} />
                 <Route path="/platform/support" element={<PlatformSupportPage />} />
-                <Route path="/platform/settings" element={<PlatformSettingsPage />} />
+                <Route path="/platform/settings" element={<PlatformSettingsLayout />}>
+                  <Route
+                    index
+                    element={<Navigate to="/platform/settings/public" replace />}
+                  />
+                  <Route path="public" element={<PlatformPublicSettingsPage />} />
+                  <Route path="smtp" element={<PlatformSmtpSettingsPage />} />
+                </Route>
                 <Route path="/platform/staff" element={<PlatformStaffPage />} />
               </Route>
             </Route>
