@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useApp } from '@/context/AppProvider'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 import { formatDkk } from '@/lib/format'
@@ -131,7 +131,10 @@ type PublicSettings = Database['public']['Tables']['platform_public_settings']['
 
 export function LandingPage() {
   const { session, loading } = useApp()
+  const [searchParams] = useSearchParams()
   const [pub, setPub] = useState<PublicSettings | null>(null)
+  /** Loggede brugere kan se forsiden via /?forside=1 (fx. fra onboarding). */
+  const showMarketingWhileLoggedIn = searchParams.get('forside') === '1'
 
   useEffect(() => {
     if (!isSupabaseConfigured) return
@@ -145,7 +148,7 @@ export function LandingPage() {
       })
   }, [])
 
-  if (!loading && session) {
+  if (!loading && session && !showMarketingWhileLoggedIn) {
     return <Navigate to="/home" replace />
   }
 

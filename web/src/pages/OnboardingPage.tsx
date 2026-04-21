@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { lookupCVR } from '@/lib/cvrLookup'
-import { Navigate, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useApp, subscriptionOk } from '@/context/AppProvider'
 import { startStripeCheckout } from '@/lib/edge'
@@ -110,6 +110,14 @@ export function OnboardingPage() {
 
   return (
     <div className="mx-auto max-w-lg px-4 py-16">
+      <div className="mb-6">
+        <Link
+          to="/?forside=1"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800 hover:underline"
+        >
+          <span aria-hidden>←</span> Gå til forsiden
+        </Link>
+      </div>
       <h1 className="text-2xl font-semibold text-slate-900">Kom i gang</h1>
       <p className="mt-2 text-sm text-slate-600">
         Opret din virksomhed og aktiver månedsabonnement. Data er isoleret per
