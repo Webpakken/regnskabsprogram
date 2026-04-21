@@ -35,6 +35,7 @@ export interface Database {
           name: string
           cvr: string | null
           base_currency: string
+          invoice_attach_pdf_to_email: boolean
           created_at: string
           updated_at: string
         }
@@ -43,11 +44,13 @@ export interface Database {
           name: string
           cvr?: string | null
           base_currency?: string
+          invoice_attach_pdf_to_email?: boolean
         }
         Update: {
           name?: string
           cvr?: string | null
           base_currency?: string
+          invoice_attach_pdf_to_email?: boolean
         }
       }
       company_members: {
@@ -341,6 +344,7 @@ export interface Database {
           pricing_features: string | null
           pricing_cta_label: string | null
           pricing_corner_badge: string | null
+          email_templates: Json | null
           updated_at: string
         }
         Insert: {
@@ -365,6 +369,7 @@ export interface Database {
           pricing_features?: string | null
           pricing_cta_label?: string | null
           pricing_corner_badge?: string | null
+          email_templates?: Json | null
         }
         Update: {
           contact_email?: string | null
@@ -387,6 +392,7 @@ export interface Database {
           pricing_features?: string | null
           pricing_cta_label?: string | null
           pricing_corner_badge?: string | null
+          email_templates?: Json | null
         }
       }
       platform_smtp_profiles: {

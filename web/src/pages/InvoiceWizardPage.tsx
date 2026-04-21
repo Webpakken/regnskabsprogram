@@ -3,7 +3,10 @@ import { supabase } from '@/lib/supabase'
 import { Link, useMatch, useNavigate, useParams } from 'react-router-dom'
 import { useApp } from '@/context/AppProvider'
 import { logActivity } from '@/lib/activity'
+import { blobToBase64 } from '@/lib/blobToBase64'
+import { invokePlatformEmail } from '@/lib/edge'
 import { formatDkk } from '@/lib/format'
+import { generateInvoicePdfBlob } from '@/lib/invoicePdf'
 import { lineAmounts, totalsFromLines, type DraftLine } from '@/lib/invoiceMath'
 import type { Database } from '@/types/database'
 
@@ -35,6 +38,38 @@ type View =
   | { kind: 'settings' }
 
 type CvrCompany = { vat: number; name: string; email: string | null }
+
+async function sendInvoiceSentEmailWithOptionalPdf(opts: {
+  companyId: string
+  companyName: string
+  attachPdf: boolean
+  invoiceId: string
+}) {
+  const { companyId, companyName, attachPdf, invoiceId } = opts
+  const payload: Record<string, unknown> = { invoice_id: invoiceId }
+  if (attachPdf) {
+    try {
+      const { data: inv, error: e1 } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('id', invoiceId)
+        .eq('company_id', companyId)
+        .single()
+      const { data: li } = await supabase
+        .from('invoice_line_items')
+        .select('*')
+        .eq('invoice_id', invoiceId)
+        .order('sort_order', { ascending: true })
+      if (!e1 && inv && li) {
+        const blob = generateInvoicePdfBlob(companyName, inv, li as LineRow[])
+        payload.invoice_pdf_base64 = await blobToBase64(blob)
+      }
+    } catch {
+      /* e-mail sendes uden vedhæftning */
+    }
+  }
+  await invokePlatformEmail('invoice_sent', payload)
+}
 
 function useCvrSearch(query: string, active: boolean) {
   const [results, setResults] = useState<CvrCompany[]>([])
@@ -331,6 +366,14 @@ export function InvoiceWizardPage() {
           `Faktura ${inv.invoice_number} oprettet`,
           { invoice_id: inv.id },
         )
+        if (st === 'sent') {
+          void sendInvoiceSentEmailWithOptionalPdf({
+            companyId: currentCompany.id,
+            companyName: currentCompany.name,
+            attachPdf: currentCompany.invoice_attach_pdf_to_email !== false,
+            invoiceId: inv.id,
+          }).catch(() => {})
+        }
         navigate(`/app/invoices/${inv.id}`, { replace: true })
       } else {
         const { error: uErr } = await supabase
@@ -378,6 +421,12 @@ export function InvoiceWizardPage() {
             `Faktura ${invoiceNumber} sendt`,
             { invoice_id: invoiceId },
           )
+          void sendInvoiceSentEmailWithOptionalPdf({
+            companyId: currentCompany.id,
+            companyName: currentCompany.name,
+            attachPdf: currentCompany.invoice_attach_pdf_to_email !== false,
+            invoiceId,
+          }).catch(() => {})
         }
       }
       setStatus(st)

@@ -13,6 +13,7 @@ export function SettingsPage() {
   const { currentCompany, subscription, refresh } = useApp()
   const [name, setName] = useState('')
   const [cvr, setCvr] = useState('')
+  const [attachInvoicePdf, setAttachInvoicePdf] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -22,6 +23,7 @@ export function SettingsPage() {
     if (currentCompany) {
       setName(currentCompany.name)
       setCvr(currentCompany.cvr ?? '')
+      setAttachInvoicePdf(currentCompany.invoice_attach_pdf_to_email !== false)
     }
   }, [currentCompany])
 
@@ -40,7 +42,11 @@ export function SettingsPage() {
     }
     const { error } = await supabase
       .from('companies')
-      .update({ name: name.trim(), cvr: cvrDigits })
+      .update({
+        name: name.trim(),
+        cvr: cvrDigits,
+        invoice_attach_pdf_to_email: attachInvoicePdf,
+      })
       .eq('id', currentCompany.id)
     setSaving(false)
     if (error) {
@@ -100,6 +106,23 @@ export function SettingsPage() {
             onChange={(e) => setCvr(e.target.value)}
           />
         </div>
+        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-3">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600"
+            checked={attachInvoicePdf}
+            onChange={(e) => setAttachInvoicePdf(e.target.checked)}
+          />
+          <span>
+            <span className="text-sm font-medium text-slate-900">
+              Vedhæft faktura som PDF i e-mail til kunden
+            </span>
+            <span className="mt-0.5 block text-xs text-slate-600">
+              Når en faktura sendes pr. e-mail, medfølger PDF som standard. Slå fra, hvis I kun vil
+              sende teksten i mailen.
+            </span>
+          </span>
+        </label>
         {saveError ? (
           <p className="text-sm text-red-600" role="alert">
             {saveError}

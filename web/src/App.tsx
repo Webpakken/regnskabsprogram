@@ -33,6 +33,7 @@ import { PlatformPublicContactPage } from '@/pages/platform/PlatformPublicContac
 import { PlatformPublicHoursPage } from '@/pages/platform/PlatformPublicHoursPage'
 import { PlatformPublicPricePage } from '@/pages/platform/PlatformPublicPricePage'
 import { PlatformSmtpSettingsPage } from '@/pages/platform/PlatformSmtpSettingsPage'
+import { PlatformEmailTemplateSectionPage } from '@/pages/platform/PlatformEmailTemplateSectionPage'
 import { PlatformStaffPage } from '@/pages/platform/PlatformStaffPage'
 
 function MissingConfigPage() {
@@ -101,7 +102,19 @@ export default function App() {
                   <Route path="aabning" element={<PlatformPublicHoursPage />} />
                   <Route path="pris" element={<PlatformPublicPricePage />} />
                 </Route>
-                <Route path="smtp" element={<PlatformSmtpSettingsPage />} />
+                <Route
+                  path="smtp"
+                  element={<Navigate to="/platform/settings/smtp/marketing" replace />}
+                />
+                <Route path="smtp/:profileId" element={<PlatformSmtpSettingsPage />} />
+                <Route
+                  path="emails"
+                  element={<Navigate to="/platform/settings/emails/velkomst-ny-bruger" replace />}
+                />
+                <Route
+                  path="emails/:templateSlug"
+                  element={<PlatformEmailTemplateSectionPage />}
+                />
               </Route>
               <Route path="staff" element={<PlatformStaffPage />} />
             </Route>

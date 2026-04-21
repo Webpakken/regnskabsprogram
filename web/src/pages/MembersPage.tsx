@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { invokePlatformEmail } from '@/lib/edge'
 import { supabase } from '@/lib/supabase'
 import { ROLE_LABELS, hasRole, useApp } from '@/context/AppProvider'
 import type { CompanyRole } from '@/types/database'
@@ -136,6 +137,15 @@ export function MembersPage() {
     if (err) {
       setError(err.message)
       return
+    }
+    try {
+      await invokePlatformEmail('company_member_invite', {
+        company_id: currentCompany.id,
+        invitee_email: email,
+        role: inviteRole,
+      })
+    } catch {
+      /* invitation er oprettet; mail er valgfri */
     }
     setInviteEmail('')
     setInviteRole('bookkeeper')

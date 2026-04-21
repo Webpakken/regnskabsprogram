@@ -130,7 +130,7 @@ export function PlatformSupportPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6 lg:flex-row">
+    <div className="flex w-full flex-col gap-6 lg:flex-row">
       <div className="lg:w-80 lg:shrink-0">
         <h1 className="text-2xl font-semibold text-slate-900">Support</h1>
         <p className="mt-1 text-sm text-slate-600">Én tråd pr. virksomhed.</p>

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
+import { PlatformSettingsSideNav } from '@/components/PlatformSettingsSideNav'
 import { useApp } from '@/context/AppProvider'
 import { logoutToLanding } from '@/lib/logoutToLanding'
 
@@ -8,7 +9,6 @@ const nav = [
   { to: '/platform/dashboard', label: 'Overblik' },
   { to: '/platform/companies', label: 'Virksomheder' },
   { to: '/platform/support', label: 'Support' },
-  { to: '/platform/settings/public/kontakt', label: 'Indstillinger' },
   { to: '/platform/staff', label: 'Team', superadminOnly: true },
 ]
 
@@ -22,16 +22,37 @@ export function PlatformShell({ children }: { children?: ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-slate-100">
-      <aside className="hidden w-52 shrink-0 flex-col border-r border-slate-200 bg-slate-900 text-slate-100 md:flex">
+      <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-slate-900 text-slate-100 md:flex">
         <div className="border-b border-slate-800 px-4 py-5">
           <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
             Bilago
           </div>
           <div className="mt-0.5 text-sm font-semibold text-white">Platform</div>
         </div>
-        <nav className="flex flex-1 flex-col gap-0.5 p-2">
+        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2">
           {nav
             .filter((item) => !item.superadminOnly || platformRole === 'superadmin')
+            .slice(0, 3)
+            .map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  clsx(
+                    'rounded-lg px-3 py-2 text-sm font-medium transition',
+                    isActive
+                      ? 'bg-slate-800 text-white'
+                      : 'text-slate-400 hover:bg-slate-800/80 hover:text-white',
+                  )
+                }
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          <PlatformSettingsSideNav />
+          {nav
+            .filter((item) => !item.superadminOnly || platformRole === 'superadmin')
+            .slice(3)
             .map((item) => (
               <NavLink
                 key={item.to}
@@ -93,8 +114,15 @@ export function PlatformShell({ children }: { children?: ReactNode }) {
             </button>
           </div>
           <nav className="flex gap-1 overflow-x-auto border-t border-slate-100 px-2 py-2 text-xs font-medium">
-            {nav
-              .filter((item) => !item.superadminOnly || platformRole === 'superadmin')
+            {[
+              ...nav.slice(0, 3),
+              { to: '/platform/settings/public/kontakt', label: 'Indstillinger' },
+              ...nav.slice(3),
+            ]
+              .filter(
+                (item: { superadminOnly?: boolean }) =>
+                  !item.superadminOnly || platformRole === 'superadmin',
+              )
               .map((item) => (
                 <NavLink
                   key={item.to}

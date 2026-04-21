@@ -43,3 +43,9 @@ verify_jwt = true
 # Vi validerer JWT inde i funktionen via GET /auth/v1/user.
 [functions.smtp-test]
 verify_jwt = false
+
+[functions.platform-email]
+verify_jwt = false
+
+[functions.auth-password-reset]
+verify_jwt = false

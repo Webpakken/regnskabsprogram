@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Navigate, useParams } from 'react-router-dom'
 import type { Database } from '@/types/database'
+import { isSmtpProfileId } from '@/lib/platformSettingsNav'
 import { supabase } from '@/lib/supabase'
 import { useApp } from '@/context/AppProvider'
 import { invokeSmtpTest } from '@/lib/edge'
@@ -12,6 +14,7 @@ function stripSmtpPassword(rows: SmtpProfile[]): SmtpProfile[] {
 }
 
 export function PlatformSmtpSettingsPage() {
+  const { profileId } = useParams<{ profileId: string }>()
   const { user } = useApp()
   const [smtp, setSmtp] = useState<SmtpProfile[]>([])
   /** Kun klient — sendes ved gem; vises aldrig tilbage fra API */
@@ -102,6 +105,12 @@ export function PlatformSmtpSettingsPage() {
     )
   }
 
+  if (!profileId || !isSmtpProfileId(profileId)) {
+    return <Navigate to="/platform/settings/smtp/marketing" replace />
+  }
+
+  const activeProfile = smtp.find((r) => r.id === profileId)
+
   return (
     <div className="space-y-6">
       {error ? (
@@ -116,10 +125,9 @@ export function PlatformSmtpSettingsPage() {
       ) : null}
 
       <p className="text-sm text-slate-600">
-        Tre faste profiler. Profilen <strong>Faktura og kundemails</strong> bruger
-        automatisk <strong>den enkelte virksomheds navn</strong> som afsendernavn til
-        kunden — ikke et fast felt her. Adgangskode gemmes i databasen (kun platform-staff);
-        efter gem vises den ikke igen.
+        Adgangskode gemmes i databasen (kun platform-staff); efter gem vises den ikke igen.
+        Profilen <strong>Faktura og kundemails</strong> bruger automatisk virksomhedens navn som
+        afsender til kunden.
       </p>
 
       {smtp.length === 0 ? (
@@ -138,35 +146,32 @@ export function PlatformSmtpSettingsPage() {
             {seeding ? 'Opretter…' : 'Opret standard SMTP-profiler'}
           </button>
         </div>
-      ) : null}
-
-      <div className="space-y-6">
-        {smtp.map((row) => (
-          <SmtpCard
-            key={row.id}
-            profile={row}
-            userEmail={user?.email}
-            passwordDraft={passwordDraftById[row.id] ?? ''}
-            onPasswordDraftChange={(v) =>
-              setPasswordDraftById((d) => ({ ...d, [row.id]: v }))
+      ) : !activeProfile ? (
+        <p className="text-sm text-rose-700">Profilen findes ikke.</p>
+      ) : (
+        <SmtpCard
+          profile={activeProfile}
+          userEmail={user?.email}
+          passwordDraft={passwordDraftById[activeProfile.id] ?? ''}
+          onPasswordDraftChange={(v) =>
+            setPasswordDraftById((d) => ({ ...d, [activeProfile.id]: v }))
+          }
+          saving={saving}
+          onSave={() => void saveSmtp(activeProfile)}
+          onChange={(next) =>
+            setSmtp((list) => list.map((r) => (r.id === activeProfile.id ? next : r)))
+          }
+          onNotify={(kind, text) => {
+            if (kind === 'success') {
+              setMessage(text)
+              setError(null)
+            } else {
+              setError(text)
+              setMessage(null)
             }
-            saving={saving}
-            onSave={() => void saveSmtp(row)}
-            onChange={(next) =>
-              setSmtp((list) => list.map((r) => (r.id === row.id ? next : r)))
-            }
-            onNotify={(kind, text) => {
-              if (kind === 'success') {
-                setMessage(text)
-                setError(null)
-              } else {
-                setError(text)
-                setMessage(null)
-              }
-            }}
-          />
-        ))}
-      </div>
+          }}
+        />
+      )}
     </div>
   )
 }

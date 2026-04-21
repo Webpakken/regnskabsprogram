@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { invokePlatformEmail } from '@/lib/edge'
 import { supabase } from '@/lib/supabase'
 import { useApp } from '@/context/AppProvider'
 
@@ -20,7 +21,7 @@ export function SignupPage() {
     e.preventDefault()
     setBusy(true)
     setError(null)
-    const { error: err } = await supabase.auth.signUp({
+    const { data, error: err } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { full_name: fullName } },
@@ -29,6 +30,13 @@ export function SignupPage() {
     if (err) {
       setError(err.message)
       return
+    }
+    if (data.session) {
+      try {
+        await invokePlatformEmail('welcome_new_user')
+      } catch {
+        /* valgfri velkomst — fortsæt onboarding */
+      }
     }
     navigate('/onboarding')
   }

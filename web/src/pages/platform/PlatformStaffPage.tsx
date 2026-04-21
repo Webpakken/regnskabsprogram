@@ -74,7 +74,7 @@ export function PlatformStaffPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-8">
+    <div className="w-full space-y-8">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Platform-team</h1>
         <p className="mt-1 text-sm text-slate-600">

@@ -126,3 +126,42 @@ export async function invokeSmtpTest(
     throw new Error('SMTP-test fejlede')
   }
 }
+
+export async function invokePlatformEmail(
+  kind: 'welcome_new_user' | 'company_member_invite' | 'invoice_sent',
+  payload: Record<string, unknown> = {},
+) {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const token = sessionData.session?.access_token
+  if (!token) throw new Error('Ikke logget ind')
+
+  const anon = import.meta.env.VITE_SUPABASE_ANON_KEY as string
+  const res = await fetch(fnUrl('platform-email'), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      apikey: anon,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ kind, ...payload }),
+  })
+  const json = (await res.json()) as { ok?: boolean; skipped?: boolean; error?: string }
+  if (!res.ok) throw new Error(json.error ?? 'E-mail-funktion fejlede')
+  return json
+}
+
+/** Glemt adgangskode — kaldes uden login. */
+export async function invokeAuthPasswordReset(email: string) {
+  const anon = import.meta.env.VITE_SUPABASE_ANON_KEY as string
+  const res = await fetch(fnUrl('auth-password-reset'), {
+    method: 'POST',
+    headers: {
+      apikey: anon,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ email: email.trim().toLowerCase() }),
+  })
+  const json = (await res.json()) as { ok?: boolean; error?: string }
+  if (!res.ok) throw new Error(json.error ?? 'Kunne ikke sende nulstillingsmail')
+  return json
+}
