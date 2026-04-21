@@ -7,7 +7,8 @@ import { resolvePricingCornerBadge } from '@/lib/pricingCornerBadge'
 import { applyLandingSeoToDocument, mergeLandingSeo } from '@/lib/landingSeo'
 import { PRICING_DEFAULTS } from '@/lib/pricingPublicDefaults'
 import type { Database } from '@/types/database'
-import { BrandMark } from '@/components/BrandMark'
+import { MarketingFooter } from '@/components/MarketingFooter'
+import { MarketingHeader } from '@/components/MarketingHeader'
 
 function PricingPitchParagraph({
   template,
@@ -262,39 +263,7 @@ export function LandingPage() {
 
   return (
     <div className="min-h-screen bg-white text-slate-900">
-      <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link to="/" className="flex items-center gap-2">
-            <BrandMark size="sm" />
-            <span className="text-lg font-semibold">Bilago</span>
-          </Link>
-          <nav className="hidden items-center gap-8 text-sm text-slate-600 md:flex">
-            <a href="#features" className="hover:text-slate-900">
-              Funktioner
-            </a>
-            <a href="#pricing" className="hover:text-slate-900">
-              Priser
-            </a>
-            <a href="#faq" className="hover:text-slate-900">
-              FAQ
-            </a>
-            <Link to="/support-tider" className="hover:text-slate-900">
-              Support
-            </Link>
-          </nav>
-          <div className="flex items-center gap-3 text-sm">
-            <Link to="/login" className="hidden text-slate-600 hover:text-slate-900 sm:inline">
-              Log ind
-            </Link>
-            <Link
-              to="/signup"
-              className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700"
-            >
-              Kom i gang
-            </Link>
-          </div>
-        </div>
-      </header>
+      <MarketingHeader />
 
       <section className="relative overflow-hidden">
         <div
@@ -606,72 +575,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      <footer className="border-t border-slate-200 bg-white">
-        <div className="mx-auto grid max-w-6xl gap-10 px-6 py-14 sm:grid-cols-2 lg:grid-cols-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <BrandMark size="sm" />
-              <span className="text-lg font-semibold">Bilago</span>
-            </div>
-            <p className="mt-3 text-sm text-slate-600">
-              Dansk regnskab, bygget enkelt.
-            </p>
-          </div>
-          <div>
-            <div className="text-sm font-semibold text-slate-900">Produkt</div>
-            <ul className="mt-3 space-y-2 text-sm text-slate-600">
-              <li><a href="#features" className="hover:text-slate-900">Funktioner</a></li>
-              <li><a href="#pricing" className="hover:text-slate-900">Priser</a></li>
-              <li><a href="#faq" className="hover:text-slate-900">FAQ</a></li>
-              <li><Link to="/support-tider" className="hover:text-slate-900">Support og åbningstider</Link></li>
-            </ul>
-          </div>
-          <div>
-            <div className="text-sm font-semibold text-slate-900">Konto</div>
-            <ul className="mt-3 space-y-2 text-sm text-slate-600">
-              <li><Link to="/login" className="hover:text-slate-900">Log ind</Link></li>
-              <li><Link to="/signup" className="hover:text-slate-900">Opret konto</Link></li>
-            </ul>
-          </div>
-          <div>
-            <div className="text-sm font-semibold text-slate-900">Kontakt</div>
-            <ul className="mt-3 space-y-2 text-sm text-slate-600">
-              {pub?.contact_email ? (
-                <li>
-                  <a href={`mailto:${pub.contact_email}`} className="hover:text-slate-900">
-                    {pub.contact_email}
-                  </a>
-                </li>
-              ) : (
-                <li>support@bilago.dk</li>
-              )}
-              {pub?.contact_phone ? <li>{pub.contact_phone}</li> : null}
-              {pub?.support_hours ? (
-                <li className="whitespace-pre-line text-xs text-slate-500">
-                  {pub.support_hours}
-                </li>
-              ) : null}
-              {pub?.terms_url ? (
-                <li>
-                  <a href={pub.terms_url} className="hover:text-slate-900" target="_blank" rel="noreferrer">
-                    Vilkår
-                  </a>
-                </li>
-              ) : null}
-              {pub?.privacy_url ? (
-                <li>
-                  <a href={pub.privacy_url} className="hover:text-slate-900" target="_blank" rel="noreferrer">
-                    Privatliv
-                  </a>
-                </li>
-              ) : null}
-            </ul>
-          </div>
-        </div>
-        <div className="border-t border-slate-100 py-6 text-center text-xs text-slate-500">
-          © {new Date().getFullYear()} Bilago. Alle rettigheder forbeholdes.
-        </div>
-      </footer>
+      <MarketingFooter pub={pub} />
     </div>
   )
 }

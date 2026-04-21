@@ -16,7 +16,7 @@ export function BrandMark({
       width={64}
       height={64}
       className={clsx(
-        'shrink-0 rounded-2xl object-cover',
+        'shrink-0 rounded-[22%] object-cover',
         size === 'sm' ? 'h-8 w-8' : 'h-9 w-9',
         className,
       )}

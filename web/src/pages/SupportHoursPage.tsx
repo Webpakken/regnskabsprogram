@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { MarketingFooter } from '@/components/MarketingFooter'
+import { MarketingHeader } from '@/components/MarketingHeader'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 import type { Database } from '@/types/database'
 
@@ -29,25 +30,10 @@ export function SupportHoursPage() {
   const hasContact = Boolean(pub?.contact_email || pub?.contact_phone)
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 text-slate-900">
-      <header className="border-b border-slate-200/80 bg-white/90 backdrop-blur">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
-          <Link to="/" className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 text-sm font-semibold text-white shadow-sm shadow-indigo-600/20">
-              B
-            </span>
-            <span className="text-lg font-semibold tracking-tight">Bilago</span>
-          </Link>
-          <Link
-            to="/"
-            className="rounded-lg px-3 py-2 text-sm font-medium text-indigo-700 transition hover:bg-indigo-50"
-          >
-            Forside
-          </Link>
-        </div>
-      </header>
+    <div className="flex min-h-screen flex-col bg-white text-slate-900">
+      <MarketingHeader />
 
-      <main className="mx-auto max-w-4xl px-6 pb-16 pt-12 sm:pt-16">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-6 pb-16 pt-12 sm:pt-16">
         <div className="max-w-2xl">
           <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">
             Kundeservice
@@ -100,7 +86,7 @@ export function SupportHoursPage() {
 
             <article className="flex flex-col rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm shadow-slate-200/50 sm:p-8">
               <div className="flex items-start gap-4">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700">
                   <HeadsetIcon className="h-5 w-5" />
                 </span>
                 <div className="min-w-0 flex-1">
@@ -159,25 +145,9 @@ export function SupportHoursPage() {
           </div>
         )}
 
-        <div className="mt-12 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 rounded-2xl border border-slate-200 bg-white/80 px-6 py-5 text-sm text-slate-600 shadow-sm">
-          <span className="text-slate-500">Allerede kunde?</span>
-          <Link
-            to="/login"
-            className="font-semibold text-indigo-700 underline-offset-2 hover:text-indigo-900 hover:underline"
-          >
-            Log ind
-          </Link>
-          <span className="hidden text-slate-300 sm:inline" aria-hidden>
-            |
-          </span>
-          <Link
-            to="/signup"
-            className="font-semibold text-indigo-700 underline-offset-2 hover:text-indigo-900 hover:underline"
-          >
-            Opret konto
-          </Link>
-        </div>
       </main>
+
+      <MarketingFooter pub={pub} />
     </div>
   )
 }

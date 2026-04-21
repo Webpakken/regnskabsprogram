@@ -5,7 +5,7 @@ import { useApp } from '@/context/AppProvider'
 import { logActivity } from '@/lib/activity'
 import { formatDateOnly, formatDkk } from '@/lib/format'
 import { formatParsedNotes, parseDanishReceiptText } from '@/lib/receiptParse'
-import { ocrImageOrPdfFile } from '@/lib/voucherOcr'
+import { canAttemptVoucherOcr, ocrImageOrPdfFile } from '@/lib/voucherOcr'
 import type { Database } from '@/types/database'
 
 type Voucher = Database['public']['Tables']['vouchers']['Row']
@@ -136,10 +136,7 @@ export function VouchersPage() {
     setOcrWarning(null)
     setOcrProgress(null)
 
-    const canOcr =
-      file.type === 'application/pdf' ||
-      file.type.startsWith('image/') ||
-      file.name.toLowerCase().endsWith('.pdf')
+    const canOcr = canAttemptVoucherOcr(file)
 
     let titleForDb = title.trim() || file.name.replace(/\.[^.]+$/, '')
     let expenseDateForDb = expenseDate
@@ -167,8 +164,8 @@ export function VouchersPage() {
       } catch (e) {
         console.warn('[bilag OCR]', e)
         setOcrWarning(
-          'Kunne ikke læse bilaget automatisk (fx ved HEIC, beskyttet PDF eller meget store filer). ' +
-            'Udfyld beløb og dato manuelt — filen uploades alligevel. På mobil kan «Scan bilag» virke bedre.',
+          'Kunne ikke læse bilaget automatisk (fx beskadiget fil, beskyttet PDF eller meget store filer). ' +
+            'Udfyld beløb og dato manuelt — filen uploades alligevel. HEIC konverteres i browseren når det er muligt; ellers eksporter som JPEG eller brug «Scan bilag» på mobil.',
         )
       }
     }
