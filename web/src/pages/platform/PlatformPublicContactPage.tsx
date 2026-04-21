@@ -14,6 +14,7 @@ export function PlatformPublicContactPage() {
         postal_code: pub.postal_code || null,
         city: pub.city || null,
         org_cvr: pub.org_cvr || null,
+        support_hours: pub.support_hours || null,
         terms_url: pub.terms_url || null,
         privacy_url: pub.privacy_url || null,
       },
@@ -46,7 +47,8 @@ export function PlatformPublicContactPage() {
       >
         <h2 className="text-sm font-semibold text-slate-900">Kontakt & links</h2>
         <p className="text-xs text-slate-500">
-          Vises på forsiden og i sidens fod.
+          Vises på forsiden og i sidens fod. Brug Enter i felterne nedenfor for nye linjer
+          — de vises også på websitet.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field
@@ -59,9 +61,19 @@ export function PlatformPublicContactPage() {
             value={pub.contact_phone ?? ''}
             onChange={(v) => setPub((p) => ({ ...p, contact_phone: v }))}
           />
-          <Field
+          <TextArea
+            label="Åbningstider og noter"
+            hint="Samme tekst som under fanen «Åbningstider». Flere linjer vises på forsiden og under Kontakt."
+            className="sm:col-span-2"
+            rows={5}
+            value={pub.support_hours ?? ''}
+            onChange={(v) => setPub((p) => ({ ...p, support_hours: v }))}
+            placeholder={'Fx Mandag – torsdag 9–15 Fredag 9–12\nWeekend lukket'}
+          />
+          <TextArea
             label="Adresse"
             className="sm:col-span-2"
+            rows={3}
             value={pub.address_line ?? ''}
             onChange={(v) => setPub((p) => ({ ...p, address_line: v }))}
           />
@@ -120,6 +132,38 @@ function Field({
       <input
         type="text"
         className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  )
+}
+
+function TextArea({
+  label,
+  hint,
+  value,
+  onChange,
+  className = '',
+  rows = 4,
+  placeholder,
+}: {
+  label: string
+  hint?: string
+  value: string
+  onChange: (v: string) => void
+  className?: string
+  rows?: number
+  placeholder?: string
+}) {
+  return (
+    <div className={className}>
+      <label className="text-xs font-medium text-slate-600">{label}</label>
+      {hint ? <p className="mt-0.5 text-[11px] text-slate-500">{hint}</p> : null}
+      <textarea
+        rows={rows}
+        placeholder={placeholder}
+        className="mt-1 w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />

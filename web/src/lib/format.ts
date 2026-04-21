@@ -6,6 +6,12 @@ export function formatDkk(cents: number, currency = 'DKK') {
   }).format(cents / 100)
 }
 
+/** Marketing: 9900 → «99 kr./md» */
+export function formatKrPerMonth(cents: number): string {
+  const kr = Math.round(cents / 100)
+  return `${kr} kr./md`
+}
+
 export function formatDate(iso: string) {
   return new Intl.DateTimeFormat('da-DK', {
     year: 'numeric',

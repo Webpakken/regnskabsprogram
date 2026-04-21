@@ -331,6 +331,15 @@ export interface Database {
           terms_url: string | null
           privacy_url: string | null
           monthly_price_cents: number | null
+          pricing_title: string | null
+          pricing_subtitle: string | null
+          pricing_badge: string | null
+          pricing_plan_name: string | null
+          pricing_compare_cents: number | null
+          pricing_amount_cents: number | null
+          pricing_pitch: string | null
+          pricing_features: string | null
+          pricing_cta_label: string | null
           updated_at: string
         }
         Insert: {
@@ -345,6 +354,15 @@ export interface Database {
           terms_url?: string | null
           privacy_url?: string | null
           monthly_price_cents?: number | null
+          pricing_title?: string | null
+          pricing_subtitle?: string | null
+          pricing_badge?: string | null
+          pricing_plan_name?: string | null
+          pricing_compare_cents?: number | null
+          pricing_amount_cents?: number | null
+          pricing_pitch?: string | null
+          pricing_features?: string | null
+          pricing_cta_label?: string | null
         }
         Update: {
           contact_email?: string | null
@@ -357,6 +375,15 @@ export interface Database {
           terms_url?: string | null
           privacy_url?: string | null
           monthly_price_cents?: number | null
+          pricing_title?: string | null
+          pricing_subtitle?: string | null
+          pricing_badge?: string | null
+          pricing_plan_name?: string | null
+          pricing_compare_cents?: number | null
+          pricing_amount_cents?: number | null
+          pricing_pitch?: string | null
+          pricing_features?: string | null
+          pricing_cta_label?: string | null
         }
       }
       platform_smtp_profiles: {

@@ -29,89 +29,195 @@ export function SupportHoursPage() {
   const hasContact = Boolean(pub?.contact_email || pub?.contact_phone)
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-2xl items-center justify-between px-6 py-4">
-          <Link to="/" className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-sm font-semibold text-white">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 text-slate-900">
+      <header className="border-b border-slate-200/80 bg-white/90 backdrop-blur">
+        <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
+          <Link to="/" className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 text-sm font-semibold text-white shadow-sm shadow-indigo-600/20">
               B
             </span>
-            <span className="text-lg font-semibold">Bilago</span>
+            <span className="text-lg font-semibold tracking-tight">Bilago</span>
           </Link>
           <Link
             to="/"
-            className="text-sm font-medium text-indigo-600 hover:text-indigo-800"
+            className="rounded-lg px-3 py-2 text-sm font-medium text-indigo-700 transition hover:bg-indigo-50"
           >
             Forside
           </Link>
         </div>
       </header>
 
-      <main className="mx-auto max-w-2xl px-6 py-12">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-          Support og åbningstider
-        </h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Sådan kan du få fat i os — svartider gælder inden for disse rammer.
-        </p>
+      <main className="mx-auto max-w-4xl px-6 pb-16 pt-12 sm:pt-16">
+        <div className="max-w-2xl">
+          <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">
+            Kundeservice
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+            Support og åbningstider
+          </h1>
+          <p className="mt-4 text-base leading-relaxed text-slate-600">
+            Her finder du vores telefontider og direkte kontaktoplysninger. Svartid på e-mail
+            afhænger af henvendelsens omfang; vi bestræber os på at svare inden for
+            åbningstiderne.
+          </p>
+        </div>
 
         {loading ? (
-          <p className="mt-8 text-sm text-slate-500">Indlæser…</p>
+          <div className="mt-12 flex items-center gap-3 text-sm text-slate-500">
+            <span
+              className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600"
+              aria-hidden
+            />
+            Indlæser oplysninger…
+          </div>
         ) : (
-          <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            {hours ? (
-              <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800">
-                {hours}
+          <div className="mt-12 grid gap-6 lg:grid-cols-2 lg:items-stretch">
+            <article className="flex flex-col rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm shadow-slate-200/50 sm:p-8">
+              <div className="flex items-start gap-4">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700">
+                  <ClockIcon className="h-5 w-5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-base font-semibold text-slate-900">Åbningstider</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Telefon og hurtig henvendelse
+                  </p>
+                </div>
               </div>
-            ) : (
-              <p className="text-sm text-slate-600">
-                Vi har ikke lagt faste åbningstider ind endnu. Skriv eller ring, så
-                vender vi tilbage hurtigst muligt.
-              </p>
-            )}
+              <div className="mt-6 flex-1 border-t border-slate-100 pt-6">
+                {hours ? (
+                  <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800">
+                    {hours}
+                  </div>
+                ) : (
+                  <p className="text-sm leading-relaxed text-slate-600">
+                    Vi har ikke offentliggjort faste telefon-tider endnu. Skriv på e-mail eller
+                    ring — vi vender tilbage så hurtigt som muligt.
+                  </p>
+                )}
+              </div>
+            </article>
 
-            {hasContact ? (
-              <div className="mt-8 border-t border-slate-100 pt-6">
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Kontakt
-                </h2>
-                <ul className="mt-3 space-y-2 text-sm text-slate-700">
-                  {pub?.contact_email ? (
-                    <li>
-                      <a
-                        href={`mailto:${pub.contact_email}`}
-                        className="font-medium text-indigo-600 hover:underline"
-                      >
-                        {pub.contact_email}
-                      </a>
-                    </li>
-                  ) : null}
-                  {pub?.contact_phone ? (
-                    <li>
-                      <a
-                        href={`tel:${pub.contact_phone.replace(/\s/g, '')}`}
-                        className="font-medium text-indigo-600 hover:underline"
-                      >
-                        {pub.contact_phone}
-                      </a>
-                    </li>
-                  ) : null}
-                </ul>
+            <article className="flex flex-col rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm shadow-slate-200/50 sm:p-8">
+              <div className="flex items-start gap-4">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+                  <HeadsetIcon className="h-5 w-5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-base font-semibold text-slate-900">Kontakt</h2>
+                  <p className="mt-1 text-sm text-slate-500">Skriv eller ring til os</p>
+                </div>
               </div>
-            ) : null}
+              <div className="mt-6 flex-1 border-t border-slate-100 pt-6">
+                {hasContact ? (
+                  <ul className="space-y-5">
+                    {pub?.contact_email ? (
+                      <li className="flex gap-4">
+                        <span className="mt-0.5 text-slate-400" aria-hidden>
+                          <MailIcon className="h-5 w-5" />
+                        </span>
+                        <div>
+                          <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                            E-mail
+                          </div>
+                          <a
+                            href={`mailto:${pub.contact_email}`}
+                            className="mt-1 inline-block text-base font-medium text-indigo-700 underline-offset-2 hover:text-indigo-900 hover:underline"
+                          >
+                            {pub.contact_email}
+                          </a>
+                        </div>
+                      </li>
+                    ) : null}
+                    {pub?.contact_phone ? (
+                      <li className="flex gap-4">
+                        <span className="mt-0.5 text-slate-400" aria-hidden>
+                          <PhoneIcon className="h-5 w-5" />
+                        </span>
+                        <div>
+                          <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                            Telefon
+                          </div>
+                          <a
+                            href={`tel:${pub.contact_phone.replace(/\s/g, '')}`}
+                            className="mt-1 inline-block text-base font-medium text-indigo-700 underline-offset-2 hover:text-indigo-900 hover:underline"
+                          >
+                            {pub.contact_phone}
+                          </a>
+                        </div>
+                      </li>
+                    ) : null}
+                  </ul>
+                ) : (
+                  <p className="text-sm leading-relaxed text-slate-600">
+                    Kontaktoplysninger opdateres snarest. Opret en konto og brug support i appen,
+                    eller skriv til os via de kanaler, der fremgår af din velkomstmail.
+                  </p>
+                )}
+              </div>
+            </article>
           </div>
         )}
 
-        <p className="mt-8 text-center text-sm text-slate-500">
-          <Link to="/login" className="text-indigo-600 hover:underline">
+        <div className="mt-12 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 rounded-2xl border border-slate-200 bg-white/80 px-6 py-5 text-sm text-slate-600 shadow-sm">
+          <span className="text-slate-500">Allerede kunde?</span>
+          <Link
+            to="/login"
+            className="font-semibold text-indigo-700 underline-offset-2 hover:text-indigo-900 hover:underline"
+          >
             Log ind
           </Link>
-          {' · '}
-          <Link to="/signup" className="text-indigo-600 hover:underline">
+          <span className="hidden text-slate-300 sm:inline" aria-hidden>
+            |
+          </span>
+          <Link
+            to="/signup"
+            className="font-semibold text-indigo-700 underline-offset-2 hover:text-indigo-900 hover:underline"
+          >
             Opret konto
           </Link>
-        </p>
+        </div>
       </main>
     </div>
+  )
+}
+
+function ClockIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function HeadsetIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path d="M4 14v1a4 4 0 0 0 4 4h1" strokeLinecap="round" />
+      <path d="M20 14v1a4 4 0 0 1-4 4h-1" strokeLinecap="round" />
+      <path d="M6 14h-.5A2.5 2.5 0 0 1 3 11.5V10a9 9 0 0 1 18 0v1.5A2.5 2.5 0 0 1 18.5 14H18" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function MailIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path d="M4 6h16v12H4z" strokeLinejoin="round" />
+      <path d="m4 7 8 6 8-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function PhoneIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path
+        d="M15 3h3a2 2 0 0 1 2 2v2a2 2 0 0 1-1.1 1.8l-2.4 1.2a12 12 0 0 1-5.3 5.3l-1.2 2.4A2 2 0 0 1 9 19H7a2 2 0 0 1-2-2v-3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   )
 }
