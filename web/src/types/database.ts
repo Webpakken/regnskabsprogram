@@ -345,6 +345,7 @@ export interface Database {
           pricing_cta_label: string | null
           pricing_corner_badge: string | null
           email_templates: Json | null
+          landing_seo: Json | null
           updated_at: string
         }
         Insert: {
@@ -370,6 +371,7 @@ export interface Database {
           pricing_cta_label?: string | null
           pricing_corner_badge?: string | null
           email_templates?: Json | null
+          landing_seo?: Json | null
         }
         Update: {
           contact_email?: string | null
@@ -393,6 +395,7 @@ export interface Database {
           pricing_cta_label?: string | null
           pricing_corner_badge?: string | null
           email_templates?: Json | null
+          landing_seo?: Json | null
         }
       }
       platform_smtp_profiles: {

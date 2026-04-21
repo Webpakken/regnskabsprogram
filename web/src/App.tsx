@@ -35,6 +35,7 @@ import { PlatformPublicPricePage } from '@/pages/platform/PlatformPublicPricePag
 import { PlatformSmtpSettingsPage } from '@/pages/platform/PlatformSmtpSettingsPage'
 import { PlatformEmailTemplateSectionPage } from '@/pages/platform/PlatformEmailTemplateSectionPage'
 import { PlatformStaffPage } from '@/pages/platform/PlatformStaffPage'
+import { PlatformSeoPage } from '@/pages/platform/PlatformSeoPage'
 
 function MissingConfigPage() {
   return (
@@ -86,6 +87,7 @@ export default function App() {
               <Route path="dashboard" element={<PlatformDashboardPage />} />
               <Route path="companies" element={<PlatformCompaniesPage />} />
               <Route path="support" element={<PlatformSupportPage />} />
+              <Route path="seo" element={<PlatformSeoPage />} />
               <Route path="settings" element={<PlatformSettingsLayout />}>
                 <Route
                   index

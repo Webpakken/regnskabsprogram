@@ -4,6 +4,7 @@ import { useApp } from '@/context/AppProvider'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 import { formatDkk, formatKrPerMonth } from '@/lib/format'
 import { resolvePricingCornerBadge } from '@/lib/pricingCornerBadge'
+import { applyLandingSeoToDocument, mergeLandingSeo } from '@/lib/landingSeo'
 import { PRICING_DEFAULTS } from '@/lib/pricingPublicDefaults'
 import type { Database } from '@/types/database'
 
@@ -248,6 +249,11 @@ export function LandingPage() {
         if (data) setPub(data)
       })
   }, [])
+
+  useEffect(() => {
+    const seo = mergeLandingSeo(pub?.landing_seo)
+    return applyLandingSeoToDocument(seo)
+  }, [pub])
 
   if (!loading && session && !showMarketingWhileLoggedIn) {
     return <Navigate to="/home" replace />
