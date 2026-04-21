@@ -19,7 +19,9 @@ import { InvoicePdfPage } from '@/pages/InvoicePdfPage'
 import { VouchersPage } from '@/pages/VouchersPage'
 import { ScanBilagPage } from '@/pages/ScanBilagPage'
 import { BankPage } from '@/pages/BankPage'
-import { SettingsPage } from '@/pages/SettingsPage'
+import { SettingsLayout } from '@/pages/settings/SettingsLayout'
+import { SettingsGeneralPage } from '@/pages/settings/SettingsGeneralPage'
+import { SettingsInvoicePage } from '@/pages/settings/SettingsInvoicePage'
 import { MembersPage } from '@/pages/MembersPage'
 import { VatPage } from '@/pages/VatPage'
 import { MorePage } from '@/pages/MorePage'
@@ -124,7 +126,14 @@ export default function App() {
             <Route path="/onboarding" element={<OnboardingPage />} />
             <Route element={<AppShell />}>
               <Route path="/app/dashboard" element={<DashboardPage />} />
-              <Route path="/app/settings" element={<SettingsPage />} />
+              <Route path="/app/settings" element={<SettingsLayout />}>
+                <Route
+                  index
+                  element={<Navigate to="/app/settings/general" replace />}
+                />
+                <Route path="general" element={<SettingsGeneralPage />} />
+                <Route path="invoice" element={<SettingsInvoicePage />} />
+              </Route>
               <Route path="/app/more" element={<MorePage />} />
               <Route path="/app/members" element={<MembersPage />} />
               <Route element={<RequireSubscription />}>

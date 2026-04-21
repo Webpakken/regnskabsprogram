@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useApp } from '@/context/AppProvider'
+import { fetchCompanyLogoDataUrl } from '@/lib/invoiceBranding'
 import { generateInvoicePdfBlob } from '@/lib/invoicePdf'
 import type { Database } from '@/types/database'
 
@@ -57,10 +58,12 @@ export function InvoicePdfPage() {
         }
         return
       }
+      const logo = await fetchCompanyLogoDataUrl(currentCompany.invoice_logo_path)
       const blob = generateInvoicePdfBlob(
-        currentCompany.name,
+        currentCompany,
         inv as Invoice,
         (li ?? []) as LineRow[],
+        logo,
       )
       const url = URL.createObjectURL(blob)
       objectUrlRef.current = url

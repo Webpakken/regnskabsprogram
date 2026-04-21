@@ -9,11 +9,13 @@ import {
   normalizeCvrDigits,
 } from '@/lib/cvr'
 
-export function SettingsPage() {
+export function SettingsGeneralPage() {
   const { currentCompany, subscription, refresh } = useApp()
   const [name, setName] = useState('')
   const [cvr, setCvr] = useState('')
-  const [attachInvoicePdf, setAttachInvoicePdf] = useState(true)
+  const [street, setStreet] = useState('')
+  const [postalCode, setPostalCode] = useState('')
+  const [city, setCity] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -23,7 +25,9 @@ export function SettingsPage() {
     if (currentCompany) {
       setName(currentCompany.name)
       setCvr(currentCompany.cvr ?? '')
-      setAttachInvoicePdf(currentCompany.invoice_attach_pdf_to_email !== false)
+      setStreet(currentCompany.street_address ?? '')
+      setPostalCode(currentCompany.postal_code ?? '')
+      setCity(currentCompany.city ?? '')
     }
   }, [currentCompany])
 
@@ -45,7 +49,9 @@ export function SettingsPage() {
       .update({
         name: name.trim(),
         cvr: cvrDigits,
-        invoice_attach_pdf_to_email: attachInvoicePdf,
+        street_address: street.trim() || null,
+        postal_code: postalCode.trim() || null,
+        city: city.trim() || null,
       })
       .eq('id', currentCompany.id)
     setSaving(false)
@@ -65,24 +71,20 @@ export function SettingsPage() {
 
   if (!currentCompany) {
     return (
-      <p className="text-slate-600">
-        Opret virksomhed under onboarding først.
-      </p>
+      <p className="text-slate-600">Opret virksomhed under onboarding først.</p>
     )
   }
 
   return (
-    <div className="mx-auto max-w-xl space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Indstillinger</h1>
-        <p className="text-sm text-slate-600">Virksomhed og abonnement</p>
-      </div>
-
+    <div className="space-y-8">
       <form
         onSubmit={(e) => void saveCompany(e)}
         className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
       >
         <h2 className="text-lg font-medium text-slate-900">Virksomhed</h2>
+        <p className="text-sm text-slate-600">
+          Stamdata og adresse — bruges bl.a. på fakturaer (se fanen Faktura).
+        </p>
         <div>
           <label className="text-sm font-medium text-slate-700" htmlFor="sname">
             Navn
@@ -106,23 +108,42 @@ export function SettingsPage() {
             onChange={(e) => setCvr(e.target.value)}
           />
         </div>
-        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-3">
+        <div>
+          <label className="text-sm font-medium text-slate-700" htmlFor="sstreet">
+            Adresse
+          </label>
           <input
-            type="checkbox"
-            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600"
-            checked={attachInvoicePdf}
-            onChange={(e) => setAttachInvoicePdf(e.target.checked)}
+            id="sstreet"
+            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            value={street}
+            onChange={(e) => setStreet(e.target.value)}
+            placeholder="Gade og nr."
           />
-          <span>
-            <span className="text-sm font-medium text-slate-900">
-              Vedhæft faktura som PDF i e-mail til kunden
-            </span>
-            <span className="mt-0.5 block text-xs text-slate-600">
-              Når en faktura sendes pr. e-mail, medfølger PDF som standard. Slå fra, hvis I kun vil
-              sende teksten i mailen.
-            </span>
-          </span>
-        </label>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="text-sm font-medium text-slate-700" htmlFor="spost">
+              Postnr.
+            </label>
+            <input
+              id="spost"
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              value={postalCode}
+              onChange={(e) => setPostalCode(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700" htmlFor="scity">
+              By
+            </label>
+            <input
+              id="scity"
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+            />
+          </div>
+        </div>
         {saveError ? (
           <p className="text-sm text-red-600" role="alert">
             {saveError}
@@ -138,7 +159,7 @@ export function SettingsPage() {
           disabled={saving}
           className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
         >
-          {saving ? 'Gemmer…' : 'Gem virksomhed'}
+          {saving ? 'Gemmer…' : 'Gem'}
         </button>
       </form>
 

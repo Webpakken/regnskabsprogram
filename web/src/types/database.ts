@@ -36,6 +36,17 @@ export interface Database {
           cvr: string | null
           base_currency: string
           invoice_attach_pdf_to_email: boolean
+          street_address: string | null
+          postal_code: string | null
+          city: string | null
+          invoice_email: string | null
+          invoice_phone: string | null
+          invoice_website: string | null
+          bank_reg_number: string | null
+          bank_account_number: string | null
+          iban: string | null
+          invoice_footer_note: string | null
+          invoice_logo_path: string | null
           created_at: string
           updated_at: string
         }
@@ -45,12 +56,34 @@ export interface Database {
           cvr?: string | null
           base_currency?: string
           invoice_attach_pdf_to_email?: boolean
+          street_address?: string | null
+          postal_code?: string | null
+          city?: string | null
+          invoice_email?: string | null
+          invoice_phone?: string | null
+          invoice_website?: string | null
+          bank_reg_number?: string | null
+          bank_account_number?: string | null
+          iban?: string | null
+          invoice_footer_note?: string | null
+          invoice_logo_path?: string | null
         }
         Update: {
           name?: string
           cvr?: string | null
           base_currency?: string
           invoice_attach_pdf_to_email?: boolean
+          street_address?: string | null
+          postal_code?: string | null
+          city?: string | null
+          invoice_email?: string | null
+          invoice_phone?: string | null
+          invoice_website?: string | null
+          bank_reg_number?: string | null
+          bank_account_number?: string | null
+          iban?: string | null
+          invoice_footer_note?: string | null
+          invoice_logo_path?: string | null
         }
       }
       company_members: {

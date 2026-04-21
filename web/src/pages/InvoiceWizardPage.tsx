@@ -6,6 +6,7 @@ import { logActivity } from '@/lib/activity'
 import { blobToBase64 } from '@/lib/blobToBase64'
 import { invokePlatformEmail } from '@/lib/edge'
 import { formatDkk } from '@/lib/format'
+import { fetchCompanyLogoDataUrl } from '@/lib/invoiceBranding'
 import { generateInvoicePdfBlob } from '@/lib/invoicePdf'
 import { lineAmounts, totalsFromLines, type DraftLine } from '@/lib/invoiceMath'
 import type { Database } from '@/types/database'
@@ -41,14 +42,18 @@ type CvrCompany = { vat: number; name: string; email: string | null }
 
 async function sendInvoiceSentEmailWithOptionalPdf(opts: {
   companyId: string
-  companyName: string
   attachPdf: boolean
   invoiceId: string
 }) {
-  const { companyId, companyName, attachPdf, invoiceId } = opts
+  const { companyId, attachPdf, invoiceId } = opts
   const payload: Record<string, unknown> = { invoice_id: invoiceId }
   if (attachPdf) {
     try {
+      const { data: company, error: ce } = await supabase
+        .from('companies')
+        .select('*')
+        .eq('id', companyId)
+        .single()
       const { data: inv, error: e1 } = await supabase
         .from('invoices')
         .select('*')
@@ -60,8 +65,9 @@ async function sendInvoiceSentEmailWithOptionalPdf(opts: {
         .select('*')
         .eq('invoice_id', invoiceId)
         .order('sort_order', { ascending: true })
-      if (!e1 && inv && li) {
-        const blob = generateInvoicePdfBlob(companyName, inv, li as LineRow[])
+      if (!ce && !e1 && company && inv && li) {
+        const logo = await fetchCompanyLogoDataUrl(company.invoice_logo_path)
+        const blob = generateInvoicePdfBlob(company, inv, li as LineRow[], logo)
         payload.invoice_pdf_base64 = await blobToBase64(blob)
       }
     } catch {
@@ -369,7 +375,6 @@ export function InvoiceWizardPage() {
         if (st === 'sent') {
           void sendInvoiceSentEmailWithOptionalPdf({
             companyId: currentCompany.id,
-            companyName: currentCompany.name,
             attachPdf: currentCompany.invoice_attach_pdf_to_email !== false,
             invoiceId: inv.id,
           }).catch(() => {})
@@ -423,7 +428,6 @@ export function InvoiceWizardPage() {
           )
           void sendInvoiceSentEmailWithOptionalPdf({
             companyId: currentCompany.id,
-            companyName: currentCompany.name,
             attachPdf: currentCompany.invoice_attach_pdf_to_email !== false,
             invoiceId,
           }).catch(() => {})

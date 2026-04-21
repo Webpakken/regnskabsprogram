@@ -27,6 +27,8 @@ export function VouchersPage() {
   const [error, setError] = useState<string | null>(null)
   const [ocrWarning, setOcrWarning] = useState<string | null>(null)
   const [ocrProgress, setOcrProgress] = useState<number | null>(null)
+  const [dragActive, setDragActive] = useState(false)
+  const overlayDragDepthRef = useRef(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   function openDesktopFilePicker() {
@@ -52,9 +54,8 @@ export function VouchersPage() {
     void load()
   }, [currentCompany])
 
-  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file || !currentCompany || !user) return
+  async function uploadVoucherFile(file: File) {
+    if (!currentCompany || !user) return
     setUploading(true)
     setError(null)
     setOcrWarning(null)
@@ -111,7 +112,7 @@ export function VouchersPage() {
     if (upErr) {
       setError(upErr.message)
       setUploading(false)
-      e.target.value = ''
+      if (fileInputRef.current) fileInputRef.current.value = ''
       return
     }
     const { error: dbErr } = await supabase.from('vouchers').insert({
@@ -132,7 +133,7 @@ export function VouchersPage() {
     if (dbErr) {
       setError(dbErr.message)
       setUploading(false)
-      e.target.value = ''
+      if (fileInputRef.current) fileInputRef.current.value = ''
       return
     }
     await logActivity(currentCompany.id, 'voucher_upload', `Bilag uploadet: ${file.name}`)
@@ -141,9 +142,56 @@ export function VouchersPage() {
     setGrossKr('')
     setVatRate('25')
     setExpenseDate(todayIso())
-    e.target.value = ''
+    if (fileInputRef.current) fileInputRef.current.value = ''
     setUploading(false)
     await load()
+  }
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    await uploadVoucherFile(file)
+  }
+
+  function onPageDragEnter(e: React.DragEvent) {
+    e.preventDefault()
+    if (uploading) return
+    if (!e.dataTransfer.types.includes('Files')) return
+    setDragActive(true)
+  }
+
+  function onPageDragOver(e: React.DragEvent) {
+    if (!e.dataTransfer.types.includes('Files')) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+  }
+
+  function onOverlayDragEnter(e: React.DragEvent) {
+    e.preventDefault()
+    overlayDragDepthRef.current += 1
+  }
+
+  function onOverlayDragLeave(e: React.DragEvent) {
+    e.preventDefault()
+    overlayDragDepthRef.current -= 1
+    if (overlayDragDepthRef.current <= 0) {
+      overlayDragDepthRef.current = 0
+      setDragActive(false)
+    }
+  }
+
+  function onOverlayDragOver(e: React.DragEvent) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+  }
+
+  function onOverlayDrop(e: React.DragEvent) {
+    e.preventDefault()
+    overlayDragDepthRef.current = 0
+    setDragActive(false)
+    if (uploading) return
+    const file = e.dataTransfer.files?.[0]
+    if (file) void uploadVoucherFile(file)
   }
 
   async function openSigned(v: Voucher) {
@@ -162,16 +210,40 @@ export function VouchersPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div
+      className="relative min-h-[60vh] space-y-6"
+      onDragEnter={onPageDragEnter}
+      onDragOver={onPageDragOver}
+    >
+      {dragActive ? (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-indigo-600/20 backdrop-blur-[2px]"
+          onDragEnter={onOverlayDragEnter}
+          onDragLeave={onOverlayDragLeave}
+          onDragOver={onOverlayDragOver}
+          onDrop={onOverlayDrop}
+          aria-live="polite"
+          role="presentation"
+        >
+          <div className="pointer-events-none mx-4 max-w-lg rounded-2xl border-4 border-dashed border-indigo-500 bg-white/95 px-8 py-10 text-center shadow-2xl">
+            <p className="text-lg font-semibold text-indigo-900">Slip filen her</p>
+            <p className="mt-2 text-sm text-slate-600">
+              Bilaget uploades med de felter du har udfyldt ovenfor (titel, dato, beløb …).
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Bilag</h1>
           <p className="text-sm text-slate-600">
             <span className="md:hidden">
-              Scan med kamera eller vælg fil — kun synligt for denne virksomhed.
+              Scan, træk fil ind på siden eller vælg fil — kun synligt for denne virksomhed.
             </span>
             <span className="hidden md:inline">
-              Vedhæft filer fra din computer — kun synligt for denne virksomhed.
+              Træk filer ind et vilkårligt sted på siden, eller vælg fil — kun synligt for denne
+              virksomhed.
             </span>
           </p>
         </div>
