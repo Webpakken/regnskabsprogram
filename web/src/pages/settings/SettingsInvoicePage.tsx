@@ -14,6 +14,8 @@ export function SettingsInvoicePage() {
   const [bankAccount, setBankAccount] = useState('')
   const [iban, setIban] = useState('')
   const [footerNote, setFooterNote] = useState('')
+  const [invoiceStartingNumber, setInvoiceStartingNumber] = useState(1)
+  const [invoiceDigitWidth, setInvoiceDigitWidth] = useState(4)
   const [saving, setSaving] = useState(false)
   const [logoBusy, setLogoBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -30,6 +32,16 @@ export function SettingsInvoicePage() {
       setBankAccount(currentCompany.bank_account_number ?? '')
       setIban(currentCompany.iban ?? '')
       setFooterNote(currentCompany.invoice_footer_note ?? '')
+      setInvoiceStartingNumber(
+        typeof currentCompany.invoice_starting_number === 'number'
+          ? currentCompany.invoice_starting_number
+          : 1,
+      )
+      setInvoiceDigitWidth(
+        typeof currentCompany.invoice_number_digit_width === 'number'
+          ? currentCompany.invoice_number_digit_width
+          : 4,
+      )
     }
   }, [currentCompany])
 
@@ -57,6 +69,8 @@ export function SettingsInvoicePage() {
     setSaving(true)
     setError(null)
     setMessage(null)
+    const start = Math.max(1, Math.floor(Number(invoiceStartingNumber)) || 1)
+    const width = Math.min(12, Math.max(2, Math.floor(Number(invoiceDigitWidth)) || 4))
     const { error: saveErr } = await supabase
       .from('companies')
       .update({
@@ -68,6 +82,8 @@ export function SettingsInvoicePage() {
         bank_account_number: bankAccount.trim() || null,
         iban: iban.trim() || null,
         invoice_footer_note: footerNote.trim() || null,
+        invoice_starting_number: start,
+        invoice_number_digit_width: width,
       })
       .eq('id', currentCompany.id)
     setSaving(false)
@@ -173,6 +189,45 @@ export function SettingsInvoicePage() {
             </span>
           </span>
         </label>
+
+        <div className="border-t border-slate-100 pt-5">
+          <h3 className="text-sm font-semibold text-slate-900">Fakturanummer</h3>
+          <p className="mt-1 text-xs text-slate-600">
+            Første nummer bruges når serien oprettes ved jeres første faktura. Efterfølgende
+            fortsætter nummerserien automatisk. Antal cifre styrer fx 0001 mod 000001.
+          </p>
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="text-sm font-medium text-slate-700" htmlFor="invstart">
+                Start ved nummer
+              </label>
+              <input
+                id="invstart"
+                type="number"
+                min={1}
+                step={1}
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                value={invoiceStartingNumber}
+                onChange={(e) => setInvoiceStartingNumber(Number(e.target.value))}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-slate-700" htmlFor="invdigits">
+                Minimum cifre (2–12)
+              </label>
+              <input
+                id="invdigits"
+                type="number"
+                min={2}
+                max={12}
+                step={1}
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                value={invoiceDigitWidth}
+                onChange={(e) => setInvoiceDigitWidth(Number(e.target.value))}
+              />
+            </div>
+          </div>
+        </div>
 
         <div className="border-t border-slate-100 pt-5">
           <h3 className="text-sm font-semibold text-slate-900">Logo på faktura</h3>

@@ -47,6 +47,8 @@ export interface Database {
           iban: string | null
           invoice_footer_note: string | null
           invoice_logo_path: string | null
+          invoice_starting_number: number
+          invoice_number_digit_width: number
           created_at: string
           updated_at: string
         }
@@ -67,6 +69,8 @@ export interface Database {
           iban?: string | null
           invoice_footer_note?: string | null
           invoice_logo_path?: string | null
+          invoice_starting_number?: number
+          invoice_number_digit_width?: number
         }
         Update: {
           name?: string
@@ -84,6 +88,8 @@ export interface Database {
           iban?: string | null
           invoice_footer_note?: string | null
           invoice_logo_path?: string | null
+          invoice_starting_number?: number
+          invoice_number_digit_width?: number
         }
       }
       company_members: {
