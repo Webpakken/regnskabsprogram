@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { MarketingDashboardShowcase } from '@/components/MarketingDashboardShowcase'
 import { MarketingShell } from '@/components/MarketingShell'
 import { marketingFaqs } from '@/marketing/marketingData'
 
@@ -23,6 +24,8 @@ export function FaqPage() {
           </p>
         </div>
       </section>
+
+      <MarketingDashboardShowcase />
 
       <section className="mx-auto max-w-3xl px-6 py-16 sm:py-20">
         <div className="divide-y divide-slate-200 rounded-2xl border border-slate-200 bg-white shadow-sm">

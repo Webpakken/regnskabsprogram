@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { MarketingDashboardShowcase } from '@/components/MarketingDashboardShowcase'
 import { MarketingPricingSection } from '@/components/MarketingPricingSection'
 import { MarketingShell, useMarketingPublicSettings } from '@/components/MarketingShell'
 import { CheckIcon } from '@/marketing/MarketingIcons'
@@ -36,6 +37,12 @@ function PricingContent() {
           </p>
         </div>
       </section>
+
+      <MarketingDashboardShowcase
+        kicker="Hvad du får"
+        title="Samme overblik som alle andre funktioner"
+        subtitle="Ét abonnement giver adgang til dashboard, fakturering og de mails dine kunder modtager."
+      />
 
       <section className="bg-slate-50">
         <MarketingPricingSection pub={pub} />

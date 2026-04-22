@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { MarketingDashboardShowcase } from '@/components/MarketingDashboardShowcase'
 import { MarketingShell } from '@/components/MarketingShell'
 import { CheckIcon } from '@/marketing/MarketingIcons'
 import { marketingFeatureCards } from '@/marketing/featureCards'
@@ -48,6 +49,12 @@ export function FeaturesPage() {
           </div>
         </div>
       </section>
+
+      <MarketingDashboardShowcase
+        kicker="Indblik i produktet"
+        title="Sådan ser regnskabet ud for dig"
+        subtitle="Se overblik, fakturaer og kundemails — præcis som i en rigtig konto i Bilago."
+      />
 
       <section className="border-b border-slate-100 bg-slate-50">
         <div className="mx-auto grid max-w-6xl grid-cols-2 gap-8 px-6 py-12 text-center sm:grid-cols-4">

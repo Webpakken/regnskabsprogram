@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { MarketingDashboardShowcase } from '@/components/MarketingDashboardShowcase'
 import { MarketingFooter } from '@/components/MarketingFooter'
 import { MarketingHeader } from '@/components/MarketingHeader'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
@@ -47,6 +48,13 @@ export function SupportHoursPage() {
             åbningstiderne.
           </p>
         </div>
+
+        <MarketingDashboardShowcase
+          className="mt-8"
+          kicker="Bilago i brug"
+          title="Så arbejder du i regnskabet"
+          subtitle="Når du skriver til os, er det i samme platform — her er et lille kig på dashboard og kundefakturaer."
+        />
 
         {loading ? (
           <div className="mt-12 flex items-center gap-3 text-sm text-slate-500">
