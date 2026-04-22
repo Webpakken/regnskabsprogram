@@ -30,6 +30,10 @@ export type InvoiceWizardDraftV1 = {
   priceMode: 'excl' | 'incl'
   status: InvoiceStatus
   lines: WizardLine[]
+  /** Kreditnota: oprindelig faktura-id (til `credited_invoice_id` ved gem). */
+  credit_source_invoice_id?: string | null
+  /** Kreditnota: maks. brutto der må krediteres (øre), = oprindelig fakturas brutto. */
+  credit_source_max_gross_cents?: number | null
 }
 
 const PREFIX = 'bilago:invoice-wizard-draft:'
@@ -134,20 +138,41 @@ export function readInvoiceWizardDraft(
     if (data.v !== 1) return null
     const lines = parseLines(data.lines)
     const view = parseView(data.view, lines.length)
+    const title = typeof data.title === 'string' ? data.title : 'Faktura'
+    let tab = parseTab(data.tab)
+    if (title === 'Kreditnota' && tab === 'kunde') {
+      tab = 'produkter'
+    }
+    const creditId =
+      typeof data.credit_source_invoice_id === 'string'
+        ? data.credit_source_invoice_id
+        : data.credit_source_invoice_id === null
+          ? null
+          : undefined
+    const creditMax =
+      typeof data.credit_source_max_gross_cents === 'number' &&
+      Number.isFinite(data.credit_source_max_gross_cents)
+        ? data.credit_source_max_gross_cents
+        : data.credit_source_max_gross_cents === null
+          ? null
+          : undefined
+
     const parsed: InvoiceWizardDraftV1 = {
       v: 1,
-      tab: parseTab(data.tab),
+      tab,
       view,
       customerName: typeof data.customerName === 'string' ? data.customerName : '',
       customerEmail: typeof data.customerEmail === 'string' ? data.customerEmail : '',
       customerQuery: typeof data.customerQuery === 'string' ? data.customerQuery : '',
       issueDate: typeof data.issueDate === 'string' ? data.issueDate : '',
       dueDate: typeof data.dueDate === 'string' ? data.dueDate : '',
-      title: typeof data.title === 'string' ? data.title : 'Faktura',
+      title,
       notes: typeof data.notes === 'string' ? data.notes : '',
       priceMode: data.priceMode === 'incl' ? 'incl' : 'excl',
       status: parseStatus(data.status),
       lines,
+      ...(creditId !== undefined ? { credit_source_invoice_id: creditId } : {}),
+      ...(creditMax !== undefined ? { credit_source_max_gross_cents: creditMax } : {}),
     }
     try {
       sessionStorage.setItem(

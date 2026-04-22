@@ -458,8 +458,8 @@ export function InvoicePdfPage() {
         </div>
         <p className="text-xs text-slate-500 sm:text-sm">
           {isCreditNote
-            ? 'Kreditnota: du ser først den oprindelige faktura, derefter kreditnotaen. Standard er hele siden i skærmens bredde; brug +/− for at zoome. Data gemmes som linjer; PDF genereres til visning og download. En afsendt faktura kan ikke ændres — kredit følger efterbetalingsmønsteret.'
-            : 'Standard vises hele fakturaen i skærmens bredde; brug +/− for at zoome ind. Samme PDF som ved download — data gemmes som linjer. En afsendt faktura kan ikke ændres — brug kredit hvis nødvendigt.'}
+            ? 'Kreditnota: du ser først den oprindelige faktura, derefter kreditnotaen. PDF vises i fuld bredde (browserens egen visning). Data gemmes som linjer; samme PDF som ved download. En afsendt faktura kan ikke ændres — kredit følger efterbetalingsmønsteret.'
+            : 'PDF vises i fuld bredde (browserens egen visning). Samme PDF som ved download — data gemmes som linjer. En afsendt faktura kan ikke ændres — brug kredit hvis nødvendigt.'}
         </p>
         {mailNotice ? (
           <p className="text-sm text-slate-700" role="status">

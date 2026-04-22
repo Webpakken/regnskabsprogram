@@ -208,7 +208,8 @@ export async function invokePlatformEmail(
       apikey: anon,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ kind, ...payload }),
+    // `kind` sidst så evt. felter i payload aldrig overskriver skabelon-kind.
+    body: JSON.stringify({ ...payload, kind }),
   })
   const json = (await res.json()) as { ok?: boolean; skipped?: boolean; error?: string }
   if (!res.ok) throw new Error(json.error ?? 'E-mail-funktion fejlede')

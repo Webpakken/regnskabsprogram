@@ -258,6 +258,8 @@ export function InvoiceWizardPage() {
   const isNew = useMatch({ path: '/app/invoices/new', end: true }) !== null
   const invoiceId = isNew ? null : (params.id ?? null)
   const creditSourceIdRef = useRef<string | null>(null)
+  /** Maks. brutto (øre) på oprindelig faktura — kreditnota må ikke overstige dette beløb. */
+  const creditSourceMaxGrossCentsRef = useRef<number | null>(null)
   const creditDataLoadedRef = useRef(false)
   const [isCreditDraft, setIsCreditDraft] = useState(false)
 
@@ -294,6 +296,12 @@ export function InvoiceWizardPage() {
   const isCreditNotaFlow = Boolean(creditForParam) || isCreditDraft
   const accent = useMemo(() => wizardAccent(isCreditNotaFlow), [isCreditNotaFlow])
 
+  useLayoutEffect(() => {
+    if (isCreditNotaFlow && tab === 'kunde') {
+      setTab('produkter')
+    }
+  }, [isCreditNotaFlow, tab])
+
   const canPersistInvoiceDraft = useRef(false)
   const skipNextInvoiceDraftPersist = useRef(true)
   const latestInvoiceDraftRef = useRef({
@@ -309,6 +317,8 @@ export function InvoiceWizardPage() {
     priceMode: 'excl' as 'excl' | 'incl',
     status: 'draft' as Invoice['status'],
     lines: [] as WizardLine[],
+    credit_source_invoice_id: null as string | null,
+    credit_source_max_gross_cents: null as number | null,
   })
 
   useLayoutEffect(() => {
@@ -320,7 +330,7 @@ export function InvoiceWizardPage() {
       canPersistInvoiceDraft.current = true
       skipNextInvoiceDraftPersist.current = true
       setIsCreditDraft(true)
-      setTab('kunde')
+      setTab('produkter')
       setView({ kind: 'wizard' })
       setCustomerName('')
       setCustomerEmail('')
@@ -354,6 +364,15 @@ export function InvoiceWizardPage() {
       setPriceMode(draft.priceMode)
       setStatus(draft.status)
       setLines(draft.lines.length > 0 ? draft.lines : [])
+      if (draft.title === 'Kreditnota') {
+        setIsCreditDraft(true)
+        if (draft.credit_source_invoice_id) {
+          creditSourceIdRef.current = draft.credit_source_invoice_id
+        }
+        if (typeof draft.credit_source_max_gross_cents === 'number') {
+          creditSourceMaxGrossCentsRef.current = draft.credit_source_max_gross_cents
+        }
+      }
     } else {
       setTab('kunde')
       setView({ kind: 'wizard' })
@@ -470,8 +489,10 @@ export function InvoiceWizardPage() {
           : [emptyLine()],
       )
       creditSourceIdRef.current = creditForParam
+      creditSourceMaxGrossCentsRef.current = Math.max(0, Number(src.gross_cents ?? 0))
       creditDataLoadedRef.current = true
       setIsCreditDraft(true)
+      setTab('produkter')
       setSearchParams({}, { replace: true })
     })()
     return () => {
@@ -564,12 +585,13 @@ export function InvoiceWizardPage() {
     vat_rate: number
   }) {
     const newIndex = lines.length
+    const unit = isCreditNotaFlow ? -Math.abs(p.unit_price_cents) : p.unit_price_cents
     setLines((prev) => [
       ...prev,
       {
         ...emptyLine(),
         description: p.description,
-        unit_price_cents: p.unit_price_cents,
+        unit_price_cents: unit,
         vat_rate: p.vat_rate,
       },
     ])
@@ -591,7 +613,7 @@ export function InvoiceWizardPage() {
       setTab('produkter')
       return
     }
-    if (!customerName.trim()) {
+    if (!isCreditNotaFlow && !customerName.trim()) {
       setError('Vælg en kunde')
       setSaving(false)
       setTab('kunde')
@@ -600,6 +622,42 @@ export function InvoiceWizardPage() {
     const drafts = effective.map(effectiveDraft)
     const t = totalsFromLines(drafts)
     const st = nextStatus ?? status
+
+    const creditId = creditSourceIdRef.current
+    let creditMax = creditSourceMaxGrossCentsRef.current
+    if (creditId && (creditMax == null || creditMax <= 0)) {
+      const { data: srcInv, error: srcErr } = await supabase
+        .from('invoices')
+        .select('gross_cents')
+        .eq('id', creditId)
+        .eq('company_id', currentCompany.id)
+        .maybeSingle()
+      if (srcErr || !srcInv) {
+        setError('Kunne ikke hente oprindelig faktura til kreditloft.')
+        setSaving(false)
+        return
+      }
+      creditMax = Math.max(0, Number(srcInv.gross_cents ?? 0))
+      creditSourceMaxGrossCentsRef.current = creditMax
+    }
+    if (creditId && creditMax != null && creditMax > 0) {
+      if (t.gross_cents > 0) {
+        setError(
+          'Kreditnota må have negativ eller nul total — justér linjerne (negative beløb som ved kredit).',
+        )
+        setSaving(false)
+        setTab('produkter')
+        return
+      }
+      if (Math.abs(t.gross_cents) > creditMax) {
+        setError(
+          `Samlet kredit (${formatDkk(Math.abs(t.gross_cents))}) må ikke overstige oprindelig faktura (${formatDkk(creditMax)}).`,
+        )
+        setSaving(false)
+        setTab('produkter')
+        return
+      }
+    }
 
     try {
       if (isNew || !invoiceId) {
@@ -656,6 +714,7 @@ export function InvoiceWizardPage() {
           { invoice_id: inv.id },
         )
         creditSourceIdRef.current = null
+        creditSourceMaxGrossCentsRef.current = null
         creditDataLoadedRef.current = false
         if (st === 'sent') {
           void sendInvoiceSentEmailWithOptionalPdf({
@@ -743,6 +802,8 @@ export function InvoiceWizardPage() {
       priceMode,
       status,
       lines,
+      credit_source_invoice_id: creditSourceIdRef.current,
+      credit_source_max_gross_cents: creditSourceMaxGrossCentsRef.current,
     }
   }
 
@@ -784,6 +845,7 @@ export function InvoiceWizardPage() {
           <WizardView
             heading={heading}
             accent={accent}
+            creditWizard={isCreditNotaFlow}
             tab={tab}
             setTab={setTab}
             onClose={() => navigate('/app/invoices')}
@@ -862,6 +924,8 @@ export function InvoiceWizardPage() {
 type WizardViewProps = {
   heading: string
   accent: WizardAccent
+  /** Kreditnota: ingen kundetrin — kun Produkter + Overblik. */
+  creditWizard: boolean
   tab: Tab
   setTab: (t: Tab) => void
   onClose: () => void
@@ -900,7 +964,10 @@ type WizardViewProps = {
 }
 
 function WizardView(p: WizardViewProps) {
-  const { accent } = p
+  const { accent, creditWizard } = p
+  const tabs = creditWizard ? (['produkter', 'overblik'] as const) : (['kunde', 'produkter', 'overblik'] as const)
+  /** Kredit: aldrig vis kundetrin — behandl evt. gammel `kunde`-state som Produkter. */
+  const step = creditWizard && p.tab === 'kunde' ? 'produkter' : p.tab
   const filtered = p.customerQuery.trim()
     ? p.recentCustomers.filter((c) =>
         c.name.toLowerCase().includes(p.customerQuery.toLowerCase()),
@@ -922,9 +989,14 @@ function WizardView(p: WizardViewProps) {
         title={p.heading}
       />
 
-      <div className="grid shrink-0 grid-cols-3 border-b border-slate-200 bg-white text-[15px]">
-        {(['kunde', 'produkter', 'overblik'] as const).map((t) => {
-          const active = p.tab === t
+      <div
+        className={
+          'grid shrink-0 border-b border-slate-200 bg-white text-[15px] ' +
+          (creditWizard ? 'grid-cols-2' : 'grid-cols-3')
+        }
+      >
+        {tabs.map((t) => {
+          const active = step === t
           const label = t === 'kunde' ? 'Kunde' : t === 'produkter' ? 'Produkter' : 'Overblik'
           return (
             <button
@@ -949,7 +1021,7 @@ function WizardView(p: WizardViewProps) {
       </div>
 
       <div className={invoiceWizardBodyClass}>
-        {p.tab === 'kunde' && (
+        {step === 'kunde' && (
           <CustomerTab
             accent={accent}
             customerName={p.customerName}
@@ -961,7 +1033,7 @@ function WizardView(p: WizardViewProps) {
             recent={filtered}
           />
         )}
-        {p.tab === 'produkter' && (
+        {step === 'produkter' && (
           <ProductsTab
             accent={accent}
             lines={p.lines}
@@ -972,7 +1044,7 @@ function WizardView(p: WizardViewProps) {
             onRemove={p.onRemoveLine}
           />
         )}
-        {p.tab === 'overblik' && (
+        {step === 'overblik' && (
           <OverviewTab
             accent={accent}
             customerName={p.customerName}
@@ -998,7 +1070,7 @@ function WizardView(p: WizardViewProps) {
         ) : null}
 
         <div className="mt-6 border-t border-slate-200/90 pt-4">
-          {p.tab === 'kunde' ? (
+          {step === 'kunde' ? (
             <PrimaryButton
               accent={accent}
               disabled={!p.customerName.trim()}
@@ -1006,7 +1078,7 @@ function WizardView(p: WizardViewProps) {
             >
               Videre
             </PrimaryButton>
-          ) : p.tab === 'produkter' ? (
+          ) : step === 'produkter' ? (
             <PrimaryButton
               accent={accent}
               disabled={p.lines.filter((l) => l.description.trim()).length === 0}

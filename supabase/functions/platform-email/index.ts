@@ -115,14 +115,20 @@ serve(async (req) => {
     return jsonResponse({ error: 'Invalid JSON' }, 400)
   }
 
-  const kind = body.kind
-  if (
-    kind !== 'welcome_new_user' &&
-    kind !== 'company_member_invite' &&
-    kind !== 'invoice_sent' &&
-    kind !== 'invoice_reminder' &&
-    kind !== 'invoice_dunning'
-  ) {
+  const kindRaw = body.kind
+  const kind =
+    typeof kindRaw === 'string'
+      ? (kindRaw.trim() as Kind)
+      : (kindRaw as Kind | undefined)
+
+  const allowedKinds: Kind[] = [
+    'welcome_new_user',
+    'company_member_invite',
+    'invoice_sent',
+    'invoice_reminder',
+    'invoice_dunning',
+  ]
+  if (!kind || !allowedKinds.includes(kind)) {
     return jsonResponse({ error: 'Ugyldig kind' }, 400)
   }
 
