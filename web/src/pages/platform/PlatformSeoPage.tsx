@@ -240,15 +240,32 @@ export function PlatformSeoPage() {
           <p className="mt-1 text-sm text-slate-600">
             Bruges når siden deles på LinkedIn, Facebook, WhatsApp m.m. Billede bør helst være ca. 1200×630 px.
           </p>
-          <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
-            <strong className="text-slate-800">Vigtigt:</strong> WhatsApp og mange andre henter kun den statiske{' '}
-            <code className="text-[11px]">index.html</code> uden JavaScript — derfor ligger der nu standard OG-tags i
-            repoets <code className="text-[11px]">index.html</code>. Besøgende på forsiden får stadig jeres gemte tekster
-            fra databasen i browseren. Efter ændring her kan et opdateret forhåndsvisning hos
-            WhatsApp kræve nyt link eller tid (cache). Tjek at <code className="text-[11px]">og-image.png</code> findes på
-            serveren under den URL I angiver. Opdater også <code className="text-[11px]">web/index.html</code> ved større
-            lanceringstekster, så crawlers ser samme budskab.
-          </p>
+          <div className="mt-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2.5 text-xs leading-relaxed text-slate-600">
+            <p className="font-medium text-slate-800">Link-forhåndsvisning (uden JavaScript)</p>
+            <p className="mt-1.5">
+              Sociale medier læser kun <strong>første HTML</strong> — ikke den indlæste app. Derfor:
+            </p>
+            <ul className="mt-1.5 list-inside list-disc space-y-1">
+              <li>
+                Klik <strong>Gem SEO</strong> (upload sætter bare URL’en; databasen opdateres ved gem).
+              </li>
+              <li>
+                På <strong>Netlify</strong> skal <code className="text-[11px]">VITE_SUPABASE_URL</code> og{' '}
+                <code className="text-[11px]">VITE_SUPABASE_ANON_KEY</code> være sat som miljøvariabler og
+                gælde for <strong>edge functions</strong> (Site settings → Build &amp; deploy →
+                Environment). Uden det falder svar tilbage til standard i <code className="text-[11px]">index.html</code>.
+              </li>
+              <li>
+                <strong>Deploy</strong> efter ændringer. Brug Facebook &quot;Sharing Debugger&quot; til at opdatere cache;
+                WhatsApp kan være langsom.
+              </li>
+            </ul>
+            <p className="mt-1.5 text-slate-500">
+              Edge-kilde: <code className="text-[11px]">web/netlify/edge-functions/landing-seo-inject.ts</code>. Andre
+              hosts (fx kun Vercel) har ikke denne krog — så brug tilsvarende server-injektion eller opdater
+              <code className="text-[11px]"> web/index.html</code> manuelt.
+            </p>
+          </div>
           <div className="mt-4 space-y-4">
             <Field
               label="OG titel"
