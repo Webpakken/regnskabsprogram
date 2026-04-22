@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useApp } from '@/context/AppProvider'
-import { MarketingAppPhoneFrame } from '@/components/MarketingAppPhoneMockup'
 import { MarketingFooter } from '@/components/MarketingFooter'
 import { MarketingHeader } from '@/components/MarketingHeader'
 import { MarketingPricingSection } from '@/components/MarketingPricingSection'
@@ -98,18 +97,73 @@ export function LandingPage() {
             </ul>
           </div>
 
-          <div className="relative flex flex-col items-center justify-center gap-6 lg:max-w-none lg:flex-row lg:items-start lg:justify-end lg:gap-5">
-            <div className="w-full max-w-[min(100%,300px)]">
-              <p className="mb-2 text-center text-xs text-slate-500 lg:text-left">
-                Overblik i PWA
-              </p>
-              <MarketingAppPhoneFrame variant="home" />
+          <div className="relative">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xl shadow-indigo-100/60">
+              <div className="flex items-center gap-1.5 border-b border-slate-100 pb-3">
+                <span className="h-2.5 w-2.5 rounded-full bg-rose-300" aria-hidden />
+                <span className="h-2.5 w-2.5 rounded-full bg-amber-300" aria-hidden />
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" aria-hidden />
+                <span className="ml-3 text-xs text-slate-400">bilago.dk/dashboard</span>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                {[
+                  { label: 'Omsætning', value: '124.500 kr.' },
+                  { label: 'Udestående', value: '18.200 kr.' },
+                  { label: 'Bilag', value: '47' },
+                ].map((s) => (
+                  <div key={s.label} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                    <div className="text-xs text-slate-500">{s.label}</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">{s.value}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 rounded-xl border border-slate-100 p-4">
+                <div className="flex items-center justify-between text-xs text-slate-500">
+                  <span>Seneste fakturaer</span>
+                  <span>Status</span>
+                </div>
+                <ul className="mt-3 space-y-2 text-sm">
+                  {[
+                    {
+                      name: 'Acme ApS',
+                      amount: '12.400 kr.',
+                      status: 'Betalt',
+                      tone: 'text-emerald-700 bg-emerald-50',
+                    },
+                    {
+                      name: 'Nordlys A/S',
+                      amount: '8.750 kr.',
+                      status: 'Afventer',
+                      tone: 'text-amber-700 bg-amber-50',
+                    },
+                    {
+                      name: 'Fjord Studio',
+                      amount: '3.200 kr.',
+                      status: 'Kladde',
+                      tone: 'text-slate-700 bg-slate-100',
+                    },
+                  ].map((r) => (
+                    <li key={r.name} className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 font-medium text-slate-800">{r.name}</span>
+                      <span className="flex shrink-0 items-center gap-3 text-slate-600">
+                        {r.amount}
+                        <span className={`rounded-md px-2 py-0.5 text-xs ${r.tone}`}>{r.status}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
-            <div className="w-full max-w-[min(100%,300px)]">
-              <p className="mb-2 text-center text-xs text-slate-500 lg:text-left">
-                Fakturaer — andre beløb end i demo
-              </p>
-              <MarketingAppPhoneFrame variant="invoices" />
+            <div className="absolute -bottom-6 -left-6 hidden rounded-xl border border-slate-200 bg-white p-4 shadow-lg lg:block">
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                  <CheckIcon className="h-5 w-5" />
+                </span>
+                <div>
+                  <div className="text-sm font-semibold text-slate-900">Bank-match fundet</div>
+                  <div className="text-xs text-slate-500">Acme ApS · 12.400 kr.</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

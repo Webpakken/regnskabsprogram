@@ -11,7 +11,7 @@ export function MarketingHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/80 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <Link to="/" className="flex min-w-0 items-center">
+        <Link to="/" className="flex min-w-0 items-center gap-0">
           <BrandLogo variant="header" />
         </Link>
         <nav className="hidden items-center gap-8 text-sm md:flex">
