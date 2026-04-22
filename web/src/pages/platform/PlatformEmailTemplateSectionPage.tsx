@@ -17,6 +17,8 @@ const ORDER: EmailTemplateKey[] = [
   'password_reset',
   'company_member_invite',
   'invoice_sent',
+  'invoice_reminder',
+  'invoice_dunning',
 ]
 
 export function PlatformEmailTemplateSectionPage() {
@@ -115,6 +117,22 @@ export function PlatformEmailTemplateSectionPage() {
         company_name: 'Eksempel ApS',
         notes_block:
           '<p style="margin:12px 0 0;color:#475569;font-size:14px;">Ekstra bemærkning fra fakturaen.</p>',
+      },
+      invoice_reminder: {
+        customer_name: 'Kunde A/S',
+        invoice_number: '000042',
+        gross_amount: '1.250,00 kr.',
+        due_date: '1. maj 2026',
+        company_name: 'Eksempel ApS',
+        notes_block: '',
+      },
+      invoice_dunning: {
+        customer_name: 'Kunde A/S',
+        invoice_number: '000042',
+        gross_amount: '1.250,00 kr.',
+        due_date: '1. maj 2026',
+        company_name: 'Eksempel ApS',
+        notes_block: '',
       },
     }
     const out: Partial<Record<EmailTemplateKey, string>> = {}

@@ -1,14 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
-import { Link, useMatch, useNavigate, useParams } from 'react-router-dom'
+import { Link, useMatch, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useApp } from '@/context/AppProvider'
 import { logActivity } from '@/lib/activity'
-import { blobToBase64 } from '@/lib/blobToBase64'
-import { functionsHttpErrorMessage, invokePlatformEmail } from '@/lib/edge'
+import { functionsHttpErrorMessage } from '@/lib/edge'
+import { sendInvoiceToCustomerEmail } from '@/lib/invoiceCustomerEmail'
 import { formatDkk } from '@/lib/format'
-import { fetchCompanyLogoDataUrl } from '@/lib/invoiceBranding'
-import { generateInvoicePdfBlob } from '@/lib/invoicePdf'
 import {
   clearInvoiceWizardDraft,
   readInvoiceWizardDraft,
@@ -82,39 +80,19 @@ function noticeForCvrInvokeFailure(error: unknown, data: unknown): string {
 
 async function sendInvoiceSentEmailWithOptionalPdf(opts: {
   companyId: string
-  attachPdf: boolean
   invoiceId: string
 }) {
-  const { companyId, attachPdf, invoiceId } = opts
-  const payload: Record<string, unknown> = { invoice_id: invoiceId }
-  if (attachPdf) {
-    try {
-      const { data: company, error: ce } = await supabase
-        .from('companies')
-        .select('*')
-        .eq('id', companyId)
-        .single()
-      const { data: inv, error: e1 } = await supabase
-        .from('invoices')
-        .select('*')
-        .eq('id', invoiceId)
-        .eq('company_id', companyId)
-        .single()
-      const { data: li } = await supabase
-        .from('invoice_line_items')
-        .select('*')
-        .eq('invoice_id', invoiceId)
-        .order('sort_order', { ascending: true })
-      if (!ce && !e1 && company && inv && li) {
-        const logo = await fetchCompanyLogoDataUrl(company.invoice_logo_path)
-        const blob = generateInvoicePdfBlob(company, inv, li as LineRow[], logo)
-        payload.invoice_pdf_base64 = await blobToBase64(blob)
-      }
-    } catch {
-      /* e-mail sendes uden vedhæftning */
-    }
-  }
-  await invokePlatformEmail('invoice_sent', payload)
+  const { data: company, error: ce } = await supabase
+    .from('companies')
+    .select('*')
+    .eq('id', opts.companyId)
+    .single()
+  if (ce || !company) return
+  await sendInvoiceToCustomerEmail({
+    company,
+    invoiceId: opts.invoiceId,
+    kind: 'invoice_sent',
+  })
 }
 
 function useCvrSearch(query: string, active: boolean) {
@@ -203,10 +181,10 @@ function useCvrSearch(query: string, active: boolean) {
 }
 
 function effectiveDraft(line: WizardLine): DraftLine {
-  const adjusted = Math.max(
-    0,
-    Math.round(line.unit_price_cents * (1 - line.discount_pct / 100)),
+  const raw = Math.round(
+    line.unit_price_cents * (1 - line.discount_pct / 100),
   )
+  const adjusted = line.unit_price_cents < 0 ? raw : Math.max(0, raw)
   return {
     description: line.description,
     quantity: line.quantity,
@@ -219,8 +197,13 @@ export function InvoiceWizardPage() {
   const { currentCompany, user } = useApp()
   const navigate = useNavigate()
   const params = useParams()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const creditForParam = searchParams.get('creditFor')
   const isNew = useMatch({ path: '/app/invoices/new', end: true }) !== null
   const invoiceId = isNew ? null : (params.id ?? null)
+  const creditSourceIdRef = useRef<string | null>(null)
+  const creditDataLoadedRef = useRef(false)
+  const [isCreditDraft, setIsCreditDraft] = useState(false)
 
   const [loading, setLoading] = useState(!isNew)
   const [invoiceNumber, setInvoiceNumber] = useState('')
@@ -274,6 +257,28 @@ export function InvoiceWizardPage() {
       canPersistInvoiceDraft.current = false
       return
     }
+    if (creditForParam) {
+      canPersistInvoiceDraft.current = true
+      skipNextInvoiceDraftPersist.current = true
+      setIsCreditDraft(true)
+      setTab('kunde')
+      setView({ kind: 'wizard' })
+      setCustomerName('')
+      setCustomerEmail('')
+      setCustomerQuery('')
+      setIssueDate(defaultIssueDateIso())
+      setDueDate(defaultDueDateIso())
+      setTitle('Kreditnota')
+      setNotes('')
+      setPriceMode('excl')
+      setStatus('draft')
+      setLines([])
+      return
+    }
+    if (creditDataLoadedRef.current) {
+      canPersistInvoiceDraft.current = true
+      return
+    }
     canPersistInvoiceDraft.current = false
     skipNextInvoiceDraftPersist.current = true
     const draft = readInvoiceWizardDraft(currentCompany.id)
@@ -305,7 +310,7 @@ export function InvoiceWizardPage() {
       setLines([])
     }
     canPersistInvoiceDraft.current = true
-  }, [isNew, currentCompany?.id])
+  }, [isNew, currentCompany?.id, creditForParam])
 
   useEffect(() => {
     if (!isNew || !currentCompany?.id || !canPersistInvoiceDraft.current) return
@@ -363,6 +368,59 @@ export function InvoiceWizardPage() {
   }, [currentCompany])
 
   useEffect(() => {
+    if (!isNew || !currentCompany || !creditForParam) return
+    let cancelled = false
+    void (async () => {
+      const { data: src, error: e1 } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('id', creditForParam)
+        .eq('company_id', currentCompany.id)
+        .maybeSingle()
+      if (cancelled) return
+      if (e1 || !src) {
+        setError('Kunne ikke indlæse faktura til kreditering')
+        return
+      }
+      if (src.credited_invoice_id) {
+        setError('Denne post er allerede en kreditnota — vælg en almindelig faktura')
+        return
+      }
+      const { data: li } = await supabase
+        .from('invoice_line_items')
+        .select('*')
+        .eq('invoice_id', creditForParam)
+        .order('sort_order', { ascending: true })
+      if (cancelled) return
+      setCustomerName(src.customer_name)
+      setCustomerEmail(src.customer_email ?? '')
+      setIssueDate(defaultIssueDateIso())
+      setNotes(`Krediterer faktura ${src.invoice_number}.`)
+      setTitle('Kreditnota')
+      setLines(
+        (li as LineRow[] | null)?.length
+          ? (li as LineRow[]).map((r) => ({
+              description: r.description,
+              quantity: Number(r.quantity),
+              unit_price_cents: -r.unit_price_cents,
+              vat_rate: Number(r.vat_rate),
+              discount_pct: 0,
+              comment: '',
+              account: DEFAULT_ACCOUNT,
+            }))
+          : [emptyLine()],
+      )
+      creditSourceIdRef.current = creditForParam
+      creditDataLoadedRef.current = true
+      setIsCreditDraft(true)
+      setSearchParams({}, { replace: true })
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [isNew, currentCompany, creditForParam, setSearchParams])
+
+  useEffect(() => {
     if (!invoiceId || !currentCompany) {
       setLoading(false)
       return
@@ -395,6 +453,10 @@ export function InvoiceWizardPage() {
       setDueDate(inv.due_date)
       setNotes(inv.notes ?? '')
       setStatus(inv.status)
+      setIsCreditDraft(!!inv.credited_invoice_id)
+      if (inv.credited_invoice_id) {
+        setTitle('Kreditnota')
+      }
       setInvoiceNumber(
         typeof inv.invoice_number === 'string'
           ? inv.invoice_number
@@ -505,6 +567,7 @@ export function InvoiceWizardPage() {
             gross_cents: t.gross_cents,
             notes: notes || null,
             sent_at: st === 'sent' ? new Date().toISOString() : null,
+            credited_invoice_id: creditSourceIdRef.current,
           })
           .select('id, invoice_number')
           .single()
@@ -533,10 +596,11 @@ export function InvoiceWizardPage() {
           `Faktura ${inv.invoice_number} oprettet`,
           { invoice_id: inv.id },
         )
+        creditSourceIdRef.current = null
+        creditDataLoadedRef.current = false
         if (st === 'sent') {
           void sendInvoiceSentEmailWithOptionalPdf({
             companyId: currentCompany.id,
-            attachPdf: currentCompany.invoice_attach_pdf_to_email !== false,
             invoiceId: inv.id,
           }).catch(() => {})
         }
@@ -594,7 +658,6 @@ export function InvoiceWizardPage() {
           )
           void sendInvoiceSentEmailWithOptionalPdf({
             companyId: currentCompany.id,
-            attachPdf: currentCompany.invoice_attach_pdf_to_email !== false,
             invoiceId,
           }).catch(() => {})
         }
@@ -697,6 +760,9 @@ export function InvoiceWizardPage() {
             }}
             onSave={() => setView({ kind: 'wizard' })}
             priceMode={priceMode}
+            allowNegativePrice={
+              isCreditDraft || lines.some((l) => l.unit_price_cents < 0)
+            }
           />
         )}
 
@@ -1417,6 +1483,7 @@ function LineEditorView({
   onDelete,
   onSave,
   priceMode,
+  allowNegativePrice,
 }: {
   line: WizardLine
   onBack: () => void
@@ -1425,6 +1492,7 @@ function LineEditorView({
   onDelete: () => void
   onSave: () => void
   priceMode: 'excl' | 'incl'
+  allowNegativePrice: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -1497,6 +1565,7 @@ function LineEditorView({
             <CurrencyInput
               cents={line.unit_price_cents}
               onChange={(c) => onChange({ unit_price_cents: c })}
+              allowNegative={allowNegativePrice}
             />
           </label>
 
@@ -1750,9 +1819,11 @@ function PrimaryButton({
 function CurrencyInput({
   cents,
   onChange,
+  allowNegative = false,
 }: {
   cents: number
   onChange: (cents: number) => void
+  allowNegative?: boolean
 }) {
   const [text, setText] = useState(() => (cents / 100).toFixed(2).replace('.', ','))
   useEffect(() => {
@@ -1767,7 +1838,8 @@ function CurrencyInput({
       onBlur={() => {
         const n = Number(text.replace(/\./g, '').replace(',', '.'))
         if (Number.isFinite(n)) {
-          onChange(Math.max(0, Math.round(n * 100)))
+          const c = Math.round(n * 100)
+          onChange(allowNegative ? c : Math.max(0, c))
         } else {
           setText((cents / 100).toFixed(2).replace('.', ','))
         }

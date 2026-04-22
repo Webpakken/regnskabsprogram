@@ -6,6 +6,7 @@ import { loadSmtpProfile, sendSmtpHtml } from '../_shared/smtpMail.ts'
 import {
   mergeEmailTemplates,
   renderFinalEmail,
+  type TemplateKey,
 } from '../_shared/emailTemplateConfig.ts'
 import { resolveAppPublicUrl } from '../_shared/appUrl.ts'
 
@@ -58,7 +59,12 @@ function base64ToUint8Array(b64: string): Uint8Array | null {
   }
 }
 
-type Kind = 'welcome_new_user' | 'company_member_invite' | 'invoice_sent'
+type Kind =
+  | 'welcome_new_user'
+  | 'company_member_invite'
+  | 'invoice_sent'
+  | 'invoice_reminder'
+  | 'invoice_dunning'
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -113,7 +119,9 @@ serve(async (req) => {
   if (
     kind !== 'welcome_new_user' &&
     kind !== 'company_member_invite' &&
-    kind !== 'invoice_sent'
+    kind !== 'invoice_sent' &&
+    kind !== 'invoice_reminder' &&
+    kind !== 'invoice_dunning'
   ) {
     return jsonResponse({ error: 'Ugyldig kind' }, 400)
   }
@@ -268,8 +276,14 @@ serve(async (req) => {
     : ''
 
   const invoiceNum = String(inv.invoice_number ?? '').trim()
+  const templateKey: Extract<TemplateKey, 'invoice_sent' | 'invoice_reminder' | 'invoice_dunning'> =
+    kind === 'invoice_reminder'
+      ? 'invoice_reminder'
+      : kind === 'invoice_dunning'
+        ? 'invoice_dunning'
+        : 'invoice_sent'
   const rendered = renderFinalEmail(
-    'invoice_sent',
+    templateKey,
     templates,
     {
       customer_name: inv.customer_name?.trim() || 'Kunde',

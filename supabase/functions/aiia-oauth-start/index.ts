@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
+import { fetchAuthV1User } from '../_shared/authV1User.ts'
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts'
 
 function randomState() {
@@ -37,13 +38,14 @@ serve(async (req) => {
     return jsonResponse({ error: 'Unauthorized' }, 401)
   }
 
+  const auth = await fetchAuthV1User(supabaseUrl, anon, authHeader)
+  if (!auth.ok) {
+    return jsonResponse({ error: 'Unauthorized' }, 401)
+  }
+  const authed = auth.user
   const userClient = createClient(supabaseUrl, anon, {
     global: { headers: { Authorization: authHeader } },
   })
-  const { data: userData, error: userErr } = await userClient.auth.getUser()
-  if (userErr || !userData.user) {
-    return jsonResponse({ error: 'Unauthorized' }, 401)
-  }
 
   let body: { company_id?: string }
   try {
@@ -60,7 +62,7 @@ serve(async (req) => {
     .from('company_members')
     .select('id')
     .eq('company_id', companyId)
-    .eq('user_id', userData.user.id)
+    .eq('user_id', authed.id)
     .maybeSingle()
 
   if (memErr || !member) {
@@ -71,7 +73,7 @@ serve(async (req) => {
   const expires = new Date(Date.now() + 15 * 60 * 1000).toISOString()
   const admin = createClient(supabaseUrl, serviceKey)
   const { error: insErr } = await admin.from('oauth_states').insert({
-    user_id: userData.user.id,
+    user_id: authed.id,
     company_id: companyId,
     state,
     expires_at: expires,

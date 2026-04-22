@@ -5,6 +5,8 @@ export type TemplateKey =
   | 'password_reset'
   | 'company_member_invite'
   | 'invoice_sent'
+  | 'invoice_reminder'
+  | 'invoice_dunning'
 
 export type TemplateBlock = {
   enabled: boolean
@@ -56,6 +58,27 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<TemplateKey, TemplateBlock> = {
 {{notes_block}}
 <p style="margin:16px 0 0;color:#64748b;font-size:13px;">Med venlig hilsen<br/><strong>{{company_name}}</strong></p>`,
   },
+  invoice_reminder: {
+    enabled: true,
+    subject: 'Påmindelse: faktura {{invoice_number}} — {{company_name}}',
+    html: `<p style="margin:0 0 16px;">Kære {{customer_name}},</p>
+<p style="margin:0 0 16px;">Vi skriver for at minde om faktura <strong>{{invoice_number}}</strong> fra <strong>{{company_name}}</strong> med forfald <strong>{{due_date}}</strong>.</p>
+<table style="width:100%;border-collapse:collapse;margin:16px 0;background:#f8fafc;border-radius:10px;overflow:hidden;">
+  <tr><td style="padding:14px 16px;color:#64748b;font-size:13px;">Beløb inkl. moms</td><td style="padding:14px 16px;text-align:right;font-weight:700;color:#0f172a;">{{gross_amount}}</td></tr>
+  <tr><td style="padding:14px 16px;color:#64748b;font-size:13px;border-top:1px solid #e2e8f0;">Forfaldsdato</td><td style="padding:14px 16px;text-align:right;border-top:1px solid #e2e8f0;">{{due_date}}</td></tr>
+</table>
+{{notes_block}}
+<p style="margin:16px 0 0;color:#64748b;font-size:13px;">Med venlig hilsen<br/><strong>{{company_name}}</strong></p>`,
+  },
+  invoice_dunning: {
+    enabled: true,
+    subject: 'Rykker: faktura {{invoice_number}} forfalden — {{company_name}}',
+    html: `<p style="margin:0 0 16px;">Kære {{customer_name}},</p>
+<p style="margin:0 0 16px;">Faktura <strong>{{invoice_number}}</strong> fra <strong>{{company_name}}</strong> er forfalden (forfald <strong>{{due_date}}</strong>, beløb <strong>{{gross_amount}}</strong>).</p>
+<p style="margin:0 0 16px;">Betal venligst snarest, eller tag kontakt til os hvis der er spørgsmål.</p>
+{{notes_block}}
+<p style="margin:16px 0 0;color:#64748b;font-size:13px;">Med venlig hilsen<br/><strong>{{company_name}}</strong></p>`,
+  },
 }
 
 export function mergeEmailTemplates(db: unknown): Record<TemplateKey, TemplateBlock> {
@@ -67,6 +90,8 @@ export function mergeEmailTemplates(db: unknown): Record<TemplateKey, TemplateBl
     'password_reset',
     'company_member_invite',
     'invoice_sent',
+    'invoice_reminder',
+    'invoice_dunning',
   ]
   for (const k of keys) {
     const p = o[k]

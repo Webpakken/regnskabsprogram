@@ -177,37 +177,30 @@ export function VouchersPage() {
     if (file) void uploadVoucherFile(file)
   }
 
-  function openSigned(v: Voucher) {
-    const w = window.open('about:blank', '_blank', 'noopener,noreferrer')
-    void (async () => {
+  /**
+   * Åbner fil i ny fane. Brug ikke «about:blank» + sæt location efter `await` — flere
+   * browsere blokerer så navigation (tab forbliver tom).
+   */
+  async function openSigned(v: Voucher) {
+    setError(null)
+    let url: string
+    try {
       const { data, error: err } = await supabase.storage
         .from('vouchers')
         .createSignedUrl(v.storage_path, 3600)
       if (err || !data?.signedUrl) {
-        try {
-          w?.close()
-        } catch {
-          /* ignore */
-        }
         setError(err?.message ?? 'Kunne ikke åbne fil')
         return
       }
-      const url = data.signedUrl
-      if (w) {
-        try {
-          w.location.href = url
-        } catch {
-          try {
-            w.close()
-          } catch {
-            /* ignore */
-          }
-          window.location.assign(url)
-        }
-      } else {
-        window.location.assign(url)
-      }
-    })()
+      url = data.signedUrl
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Kunne ikke åbne fil')
+      return
+    }
+    const w = window.open(url, '_blank', 'noopener,noreferrer')
+    if (w) return
+    // Pop op blokeret: åbn i samme fane så brugeren ikke får en tom fane
+    window.location.assign(url)
   }
 
   if (!currentCompany) {

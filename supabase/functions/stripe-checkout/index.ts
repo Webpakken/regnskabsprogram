@@ -2,6 +2,7 @@ import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
 import Stripe from 'https://esm.sh/stripe@17.5.0?target=deno'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { resolveAppPublicUrl } from '../_shared/appUrl.ts'
+import { fetchAuthV1User } from '../_shared/authV1User.ts'
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts'
 
 function stripeErrorMessage(err: unknown): string {
@@ -57,13 +58,11 @@ serve(async (req) => {
       return jsonResponse({ error: 'Unauthorized' }, 401)
     }
 
-    const userClient = createClient(supabaseUrl, anon, {
-      global: { headers: { Authorization: authHeader } },
-    })
-    const { data: userData, error: userErr } = await userClient.auth.getUser()
-    if (userErr || !userData.user) {
+    const auth = await fetchAuthV1User(supabaseUrl, anon, authHeader)
+    if (!auth.ok) {
       return jsonResponse({ error: 'Unauthorized' }, 401)
     }
+    const user = auth.user
 
     let body: { company_id?: string; return_path?: 'dashboard' | 'onboarding' }
     try {
@@ -77,18 +76,18 @@ serve(async (req) => {
     }
     const returnPath = body.return_path === 'onboarding' ? 'onboarding' : 'dashboard'
 
-    const { data: member, error: memErr } = await userClient
+    const admin = createClient(supabaseUrl, serviceKey)
+
+    const { data: member, error: memErr } = await admin
       .from('company_members')
       .select('role')
       .eq('company_id', companyId)
-      .eq('user_id', userData.user.id)
+      .eq('user_id', user.id)
       .maybeSingle()
 
     if (memErr || !member) {
       return jsonResponse({ error: 'Forbidden' }, 403)
     }
-
-    const admin = createClient(supabaseUrl, serviceKey)
 
     const { data: company } = await admin
       .from('companies')
@@ -105,9 +104,9 @@ serve(async (req) => {
     let customerId = subRow?.stripe_customer_id as string | undefined
     if (!customerId) {
       const customer = await stripe.customers.create({
-        email: userData.user.email ?? undefined,
+        email: user.email ?? undefined,
         name: company?.name,
-        metadata: { company_id: companyId, user_id: userData.user.id },
+        metadata: { company_id: companyId, user_id: user.id },
       })
       customerId = customer.id
       await admin.from('subscriptions').upsert(

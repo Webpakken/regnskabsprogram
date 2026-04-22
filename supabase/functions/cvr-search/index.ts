@@ -1,5 +1,5 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
+import { fetchAuthV1User } from '../_shared/authV1User.ts'
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts'
 
 /**
@@ -44,11 +44,8 @@ serve(async (req) => {
     return jsonResponse({ error: 'Unauthorized' }, 401)
   }
 
-  const userClient = createClient(supabaseUrl, anon, {
-    global: { headers: { Authorization: authHeader } },
-  })
-  const { data: userData, error: userErr } = await userClient.auth.getUser()
-  if (userErr || !userData.user) {
+  const auth = await fetchAuthV1User(supabaseUrl, anon, authHeader)
+  if (!auth.ok) {
     return jsonResponse({ error: 'Unauthorized' }, 401)
   }
 

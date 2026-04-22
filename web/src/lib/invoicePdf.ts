@@ -134,11 +134,19 @@ function footerSplitLineHeightMm(doc: jsPDF, text: string, contentW: number): nu
  * Faktura-PDF: kunde øverst til venstre, udsteder med logo øverst til højre,
  * linjetabel fuld bredde, betalingsblok i bunden af siden.
  */
+export type InvoicePdfOptions = {
+  /** Standard: «Faktura»; kreditnota: «Kreditnota». */
+  heading?: string
+  /** Vises under overskriften, fx «Krediterer faktura 00042». */
+  creditReferenceLine?: string | null
+}
+
 export function generateInvoicePdfBlob(
   company: CompanyRow,
   invoice: Invoice,
   lines: LineRow[],
   logoDataUrl?: string | null,
+  pdfOptions?: InvoicePdfOptions,
 ): Blob {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageW = doc.internal.pageSize.getWidth()
@@ -214,19 +222,28 @@ export function generateInvoicePdfBlob(
   y = Math.max(leftBlockEndY, ry) + 10
 
   const titleY = y
+  const mainHeading = (pdfOptions?.heading ?? 'Faktura').trim() || 'Faktura'
   doc.setFontSize(20)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(30, 30, 40)
-  doc.text('Faktura', MARGIN, titleY)
+  doc.text(mainHeading, MARGIN, titleY)
+  let dateRowY = titleY
+  if (pdfOptions?.creditReferenceLine?.trim()) {
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(90, 90, 100)
+    doc.text(pdfOptions.creditReferenceLine.trim(), MARGIN, titleY + 5.2)
+    dateRowY = titleY + 5.2
+  }
 
   doc.setFontSize(9)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(55, 55, 65)
   doc.text(`Dato ${formatDateLongNoTime(invoice.issue_date)}`, rightX, titleY, { align: 'right' })
   const invNo = String(invoice.invoice_number ?? '—')
-  doc.text(`Fakturanr. ${invNo}`, rightX, titleY + 4.5, { align: 'right' })
+  doc.text(`Fakturanr. ${invNo}`, rightX, dateRowY + 4.5, { align: 'right' })
 
-  y = titleY + Math.max(12, 4.5 + 5)
+  y = dateRowY + Math.max(12, 4.5 + 5)
 
   if (invoice.notes?.trim()) {
     doc.setFontSize(9)

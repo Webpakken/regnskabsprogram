@@ -29,6 +29,8 @@ export const EMAIL_TEMPLATE_NAV: {
     label: 'Invitation til virksomhed',
   },
   { slug: 'sendt-faktura-til-kunde', key: 'invoice_sent', label: 'Sendt faktura til kunde' },
+  { slug: 'betalingspaamindelse', key: 'invoice_reminder', label: 'Betalingspåmindelse' },
+  { slug: 'rykker', key: 'invoice_dunning', label: 'Rykker' },
 ]
 
 export function emailTemplateSlugToKey(slug: string | undefined): EmailTemplateKey | null {

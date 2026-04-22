@@ -149,6 +149,8 @@ export interface Database {
           gross_cents: number
           notes: string | null
           sent_at: string | null
+          /** Når sat: kreditnota for denne faktura */
+          credited_invoice_id: string | null
           created_at: string
           updated_at: string
         }
@@ -167,6 +169,7 @@ export interface Database {
           gross_cents?: number
           notes?: string | null
           sent_at?: string | null
+          credited_invoice_id?: string | null
         }
         Update: {
           customer_name?: string
@@ -180,6 +183,7 @@ export interface Database {
           gross_cents?: number
           notes?: string | null
           sent_at?: string | null
+          credited_invoice_id?: string | null
         }
       }
       invoice_line_items: {

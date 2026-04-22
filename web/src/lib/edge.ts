@@ -188,7 +188,12 @@ export async function invokeSmtpTest(
 }
 
 export async function invokePlatformEmail(
-  kind: 'welcome_new_user' | 'company_member_invite' | 'invoice_sent',
+  kind:
+    | 'welcome_new_user'
+    | 'company_member_invite'
+    | 'invoice_sent'
+    | 'invoice_reminder'
+    | 'invoice_dunning',
   payload: Record<string, unknown> = {},
 ) {
   const { data: sessionData } = await supabase.auth.getSession()
