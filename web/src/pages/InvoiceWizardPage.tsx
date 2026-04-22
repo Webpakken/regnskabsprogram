@@ -18,6 +18,7 @@ import {
   type WizardLine,
 } from '@/lib/invoiceWizardDraft'
 import { lineAmounts, totalsFromLines, type DraftLine } from '@/lib/invoiceMath'
+import { searchCvrFromApicvr, type CvrCompany } from '@/lib/cvrSearchClient'
 import type { Database } from '@/types/database'
 
 type Invoice = Database['public']['Tables']['invoices']['Row']
@@ -47,8 +48,6 @@ function defaultDueDateIso() {
   d.setDate(d.getDate() + 14)
   return d.toISOString().slice(0, 10)
 }
-
-type CvrCompany = { vat: number; name: string; email: string | null }
 
 function noticeForCvrInvokeFailure(error: unknown, data: unknown): string {
   const fromBody = data as { error?: string } | null
@@ -139,42 +138,56 @@ function useCvrSearch(query: string, active: boolean) {
         body: { q },
       })
       if (cancelled) return
-      setLoading(false)
-      if (error) {
-        setResults([])
-        let msg: string
-        if (error instanceof FunctionsHttpError) {
-          try {
-            msg = await functionsHttpErrorMessage(error)
-            if (!msg.trim()) msg = noticeForCvrInvokeFailure(error, data)
-          } catch {
-            msg = noticeForCvrInvokeFailure(error, data)
-          }
-        } else {
+      if (!error) {
+        setLoading(false)
+        const payload = data as {
+          companies?: CvrCompany[]
+          disabled?: boolean
+          message?: string
+        }
+        if (payload.disabled && payload.message) {
+          setNotice(payload.message)
+          setResults([])
+          return
+        }
+        setResults(payload.companies ?? [])
+        return
+      }
+
+      let msg: string
+      if (error instanceof FunctionsHttpError) {
+        try {
+          msg = await functionsHttpErrorMessage(error)
+          if (!msg.trim()) msg = noticeForCvrInvokeFailure(error, data)
+        } catch {
           msg = noticeForCvrInvokeFailure(error, data)
         }
-        const low = msg.toLowerCase()
-        if (
-          low.includes('unauthorized') ||
-          msg === 'Unauthorized' ||
-          msg === 'JWT expired'
-        ) {
-          msg = 'Log ind igen for at søge i CVR.'
-        }
-        setNotice(msg)
-        return
+      } else {
+        msg = noticeForCvrInvokeFailure(error, data)
       }
-      const payload = data as {
-        companies?: CvrCompany[]
-        disabled?: boolean
-        message?: string
-      }
-      if (payload.disabled && payload.message) {
-        setNotice(payload.message)
+      const low = msg.toLowerCase()
+      if (
+        low.includes('unauthorized') ||
+        msg === 'Unauthorized' ||
+        msg === 'JWT expired'
+      ) {
+        setLoading(false)
         setResults([])
+        setNotice('Log ind igen for at søge i CVR.')
         return
       }
-      setResults(payload.companies ?? [])
+
+      try {
+        const companies = await searchCvrFromApicvr(q)
+        if (cancelled) return
+        setResults(companies)
+        setNotice(null)
+      } catch {
+        if (cancelled) return
+        setResults([])
+        setNotice(msg)
+      }
+      setLoading(false)
     }, 400)
     return () => {
       cancelled = true
