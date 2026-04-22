@@ -53,8 +53,8 @@ export function SupportHoursPage() {
           variant="support"
           className="mt-8"
           kicker="Bilago i brug"
-          title="Support i appen"
-          subtitle="Eksempel på kort tråd med dansk team — rigtige sager findes når du er logget ind."
+          title="Support i produktet"
+          subtitle="Eksempel på tråd i samme stil som forsiden — rigtige sager når du er logget ind."
         />
 
         {loading ? (

@@ -41,8 +41,8 @@ function PricingContent() {
       <MarketingDashboardShowcase
         variant="pricing"
         kicker="Hvad du betaler for"
-        title="Abonnement i mobilen"
-        subtitle="Samme pris og prøveperiode som på web — her med eksempel på kampagnepris og næste korttræk (fiktive datoer)."
+        title="Abonnement i produktet"
+        subtitle="Samme kort-stil som forsiden — eksempel på kampagnepris og næste korttræk (fiktive datoer)."
       />
 
       <section className="bg-slate-50">
