@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { PlatformSettingsSideNav } from '@/components/PlatformSettingsSideNav'
 import { RegisterPushNotifications } from '@/components/RegisterPushNotifications'
+import { PLATFORM_MAIN_SCROLL_ID } from '@/components/ScrollToTop'
 import { useApp } from '@/context/AppProvider'
 import { logoutToLanding } from '@/lib/logoutToLanding'
 
@@ -144,7 +145,7 @@ export function PlatformShell({ children }: { children?: ReactNode }) {
               ))}
           </nav>
         </header>
-        <main className="flex-1 overflow-auto px-4 py-6 md:px-8">
+        <main id={PLATFORM_MAIN_SCROLL_ID} className="flex-1 overflow-auto px-4 py-6 md:px-8">
           {children ?? <Outlet />}
         </main>
       </div>

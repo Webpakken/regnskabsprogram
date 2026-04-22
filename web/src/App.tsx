@@ -41,6 +41,7 @@ import { PlatformSmtpSettingsPage } from '@/pages/platform/PlatformSmtpSettingsP
 import { PlatformEmailTemplateSectionPage } from '@/pages/platform/PlatformEmailTemplateSectionPage'
 import { PlatformStaffPage } from '@/pages/platform/PlatformStaffPage'
 import { PlatformSeoPage } from '@/pages/platform/PlatformSeoPage'
+import { ScrollToTop } from '@/components/ScrollToTop'
 import { CookieConsentBanner } from '@/components/CookieConsentBanner'
 import { SupportUnreadProvider } from '@/context/SupportUnreadContext'
 
@@ -83,6 +84,7 @@ export default function App() {
   }
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <AppProvider>
         <CookieConsentBanner />
         <Routes>

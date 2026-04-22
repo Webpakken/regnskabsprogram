@@ -102,7 +102,6 @@ function ScreenFaq() {
         </div>
         <ul className="space-y-2 text-sm">
           {[
-            'Opsigelse & betaling',
             'Bogføringsloven (kort)',
             'CVR-opslag på kunder',
             'Skifte fra andet system',
