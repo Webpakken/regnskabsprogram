@@ -124,6 +124,14 @@ export function InvoicePdfCanvasViewer({
     })()
   }, [renderAllPages, useIframeFallback])
 
+  // Efter React har committet ny zoom (userZoomRef synkroniseres i render), genmal canvas —
+  // undgår race hvor queueMicrotask kører før ref matcher state (især på mobil).
+  useEffect(() => {
+    if (useIframeFallback) return
+    if (!pdfRef.current) return
+    scheduleRepaint()
+  }, [userZoom, useIframeFallback, scheduleRepaint])
+
   // Hent / skift PDF
   useEffect(() => {
     setUseIframeFallback(false)
@@ -202,13 +210,12 @@ export function InvoicePdfCanvasViewer({
         Math.max(ZOOM_MIN, Math.round((z + delta) * 100) / 100),
       )
       userZoomRef.current = n
-      queueMicrotask(() => scheduleRepaint())
       return n
     })
   }
 
   return (
-    <div className={className}>
+    <div className={`flex min-h-0 flex-1 flex-col ${className}`}>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 bg-white/90 px-2 py-1.5">
         <span className="text-xs text-slate-600">Forhåndsvisning</span>
         <div className="flex items-center gap-1">
@@ -226,7 +233,6 @@ export function InvoicePdfCanvasViewer({
             onClick={() => {
               setUserZoom(1)
               userZoomRef.current = 1
-              if (pdfRef.current && !useIframeFallback) scheduleRepaint()
             }}
             className="max-w-[12rem] rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-center text-xs font-medium text-slate-700 hover:bg-slate-100"
             title="Vis hele fakturaen i skærmens bredde"
@@ -253,11 +259,12 @@ export function InvoicePdfCanvasViewer({
         style={{ touchAction: 'manipulation' }}
       >
         {useIframeFallback ? (
-          <iframe
-            title={title}
-            src={pdfUrl}
-            className="h-full min-h-[60vh] w-full border-0"
-          />
+          <div
+            className="h-full min-h-[60vh] w-full overflow-auto"
+            style={{ zoom: userZoom }}
+          >
+            <iframe title={title} src={pdfUrl} className="h-full min-h-[60vh] w-full border-0" />
+          </div>
         ) : status === 'error' ? (
           <p className="p-4 text-sm text-rose-700">Kunne ikke vise PDF. Brug download.</p>
         ) : (

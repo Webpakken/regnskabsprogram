@@ -258,7 +258,7 @@ export function InvoicePdfPage() {
   const canCredit = !isCreditNote
 
   return (
-    <div className="flex min-h-[calc(100vh-8rem)] flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="space-y-3 border-b border-slate-200 bg-white px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
