@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { DesktopListCardsToggle } from '@/components/DesktopListCardsToggle'
 import { useDesktopListViewPreference } from '@/hooks/useDesktopListViewPreference'
@@ -23,7 +23,28 @@ export function InvoicesPage() {
   const { currentCompany } = useApp()
   const [rows, setRows] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState('')
   const [desktopView, setDesktopView] = useDesktopListViewPreference(INVOICES_VIEW_KEY, 'list')
+
+  const filteredRows = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return rows
+    const tokens = q.split(/\s+/).filter(Boolean)
+    return rows.filter((inv) => {
+      const hay = [
+        inv.invoice_number,
+        inv.customer_name,
+        inv.customer_email ?? '',
+        statusDa[inv.status],
+        inv.issue_date,
+        inv.notes ?? '',
+        formatDkk(inv.gross_cents, inv.currency),
+      ]
+        .join(' ')
+        .toLowerCase()
+      return tokens.every((t) => hay.includes(t))
+    })
+  }, [rows, searchQuery])
 
   useEffect(() => {
     if (!currentCompany) return
@@ -68,6 +89,18 @@ export function InvoicesPage() {
         </div>
       </div>
 
+      <label className="block">
+        <span className="sr-only">Søg i fakturaer</span>
+        <input
+          type="search"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Søg efter nr., kunde, e-mail, status, beløb …"
+          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+          autoComplete="off"
+        />
+      </label>
+
       <div
         className={`grid grid-cols-1 gap-3 ${desktopView === 'list' ? 'md:hidden' : 'md:grid-cols-2 lg:grid-cols-3'}`}
       >
@@ -79,8 +112,12 @@ export function InvoicesPage() {
           <p className="col-span-full rounded-2xl border border-slate-200 bg-white py-10 text-center text-sm text-slate-500 shadow-sm">
             Ingen fakturaer endnu.
           </p>
+        ) : filteredRows.length === 0 ? (
+          <p className="col-span-full rounded-2xl border border-slate-200 bg-white py-10 text-center text-sm text-slate-500 shadow-sm">
+            Ingen fakturaer matcher søgningen.
+          </p>
         ) : (
-          rows.map((inv) => (
+          filteredRows.map((inv) => (
             <button
               key={inv.id}
               type="button"
@@ -133,8 +170,14 @@ export function InvoicesPage() {
                   Ingen fakturaer endnu.
                 </td>
               </tr>
+            ) : filteredRows.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                  Ingen fakturaer matcher søgningen.
+                </td>
+              </tr>
             ) : (
-              rows.map((inv) => (
+              filteredRows.map((inv) => (
                 <tr
                   key={inv.id}
                   role="button"

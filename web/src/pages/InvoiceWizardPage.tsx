@@ -38,6 +38,62 @@ const emptyLine = (): WizardLine => ({
   account: DEFAULT_ACCOUNT,
 })
 
+/** Accentfarver: indigo til almindelig faktura, rosenrød til kreditnota-flow. */
+type WizardAccent = {
+  link: string
+  tabActive: string
+  tabUnderline: string
+  sendBtnClass: string
+  primaryBtnClasses: string
+  inputFocusRing: string
+  inputFocusBorder: string
+  cvrCardRing: string
+  cvrCardRingHover: string
+  recentCardHoverRing: string
+  productRowHoverRing: string
+  priceModeActive: string
+  checkIcon: string
+}
+
+function wizardAccent(isCreditNota: boolean): WizardAccent {
+  if (isCreditNota) {
+    return {
+      link: 'text-rose-700',
+      tabActive: 'font-semibold text-rose-700',
+      tabUnderline: 'bg-rose-600',
+      sendBtnClass:
+        'rounded-full bg-rose-600 py-3.5 text-[15px] font-semibold text-white hover:bg-rose-700 disabled:opacity-60',
+      primaryBtnClasses:
+        'w-full rounded-full bg-rose-600 py-3.5 text-[15px] font-semibold text-white transition hover:bg-rose-700 disabled:opacity-50 ',
+      inputFocusRing: 'focus:ring-rose-500',
+      inputFocusBorder: 'focus:border-rose-500',
+      cvrCardRing: 'ring-rose-200',
+      cvrCardRingHover: 'hover:ring-rose-400',
+      recentCardHoverRing: 'hover:ring-rose-300',
+      productRowHoverRing: 'hover:ring-rose-300',
+      priceModeActive: 'text-rose-700',
+      checkIcon: 'text-rose-600',
+    }
+  }
+  return {
+    link: 'text-indigo-600',
+    tabActive: 'font-semibold text-indigo-600',
+    tabUnderline: 'bg-indigo-600',
+    sendBtnClass:
+      'rounded-full bg-indigo-600 py-3.5 text-[15px] font-semibold text-white hover:bg-indigo-700 disabled:opacity-60',
+    primaryBtnClasses:
+      'w-full rounded-full bg-indigo-600 py-3.5 text-[15px] font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50 ',
+    inputFocusRing: 'focus:ring-indigo-500',
+    inputFocusBorder: 'focus:border-indigo-500',
+    cvrCardRing: 'ring-indigo-200',
+    cvrCardRingHover: 'hover:ring-indigo-400',
+    recentCardHoverRing: 'hover:ring-indigo-300',
+    productRowHoverRing: 'hover:ring-indigo-300',
+    priceModeActive: 'text-indigo-600',
+    checkIcon: 'text-indigo-600',
+  }
+}
+
 type Tab = InvoiceWizardTab
 type View = InvoiceWizardView
 
@@ -234,6 +290,9 @@ export function InvoiceWizardPage() {
 
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  const isCreditNotaFlow = Boolean(creditForParam) || isCreditDraft
+  const accent = useMemo(() => wizardAccent(isCreditNotaFlow), [isCreditNotaFlow])
 
   const canPersistInvoiceDraft = useRef(false)
   const skipNextInvoiceDraftPersist = useRef(true)
@@ -698,12 +757,22 @@ export function InvoiceWizardPage() {
       </p>
     )
   }
-  if (loading) return <p className="text-slate-500">Indlæser faktura…</p>
+  if (loading) {
+    return (
+      <p className="text-slate-500">
+        {isCreditNotaFlow ? 'Indlæser kreditnota…' : 'Indlæser faktura…'}
+      </p>
+    )
+  }
 
   const heading = isNew
-    ? invoiceNumber
-      ? `Opret faktura (${invoiceNumber})`
-      : 'Opret faktura'
+    ? isCreditNotaFlow
+      ? invoiceNumber
+        ? `Opret kreditnota (${invoiceNumber})`
+        : 'Opret kreditnota'
+      : invoiceNumber
+        ? `Opret faktura (${invoiceNumber})`
+        : 'Opret faktura'
     : invoiceNumber.trim()
       ? `Faktura ${invoiceNumber}`
       : 'Faktura'
@@ -714,6 +783,7 @@ export function InvoiceWizardPage() {
         {view.kind === 'wizard' && (
           <WizardView
             heading={heading}
+            accent={accent}
             tab={tab}
             setTab={setTab}
             onClose={() => navigate('/app/invoices')}
@@ -751,6 +821,8 @@ export function InvoiceWizardPage() {
         {view.kind === 'lineEditor' && lines[view.index] && (
           <LineEditorView
             line={lines[view.index]}
+            accent={accent}
+            lineSheetTitle={isCreditNotaFlow ? 'Kreditlinje' : 'Fakturalinje'}
             onBack={() => setView({ kind: 'wizard' })}
             onOpenSettings={() => setView({ kind: 'settings' })}
             onChange={(p) => updateLine(view.index, p)}
@@ -768,6 +840,7 @@ export function InvoiceWizardPage() {
 
         {view.kind === 'settings' && (
           <SettingsView
+            accent={accent}
             onBack={() => setView({ kind: 'wizard' })}
             title={title}
             setTitle={setTitle}
@@ -788,6 +861,7 @@ export function InvoiceWizardPage() {
 
 type WizardViewProps = {
   heading: string
+  accent: WizardAccent
   tab: Tab
   setTab: (t: Tab) => void
   onClose: () => void
@@ -826,6 +900,7 @@ type WizardViewProps = {
 }
 
 function WizardView(p: WizardViewProps) {
+  const { accent } = p
   const filtered = p.customerQuery.trim()
     ? p.recentCustomers.filter((c) =>
         c.name.toLowerCase().includes(p.customerQuery.toLowerCase()),
@@ -839,7 +914,7 @@ function WizardView(p: WizardViewProps) {
           <button
             type="button"
             onClick={p.onClose}
-            className="text-[15px] font-medium text-indigo-600"
+            className={`text-[15px] font-medium ${accent.link}`}
           >
             Luk
           </button>
@@ -858,16 +933,14 @@ function WizardView(p: WizardViewProps) {
               onClick={() => p.setTab(t)}
               className={
                 'relative py-3 text-center transition ' +
-                (active
-                  ? 'font-semibold text-indigo-600'
-                  : 'text-slate-500 hover:text-slate-700')
+                (active ? accent.tabActive : 'text-slate-500 hover:text-slate-700')
               }
             >
               {label}
               <span
                 className={
                   'absolute inset-x-0 -bottom-px mx-auto h-[3px] rounded-full ' +
-                  (active ? 'bg-indigo-600' : 'bg-transparent')
+                  (active ? accent.tabUnderline : 'bg-transparent')
                 }
               />
             </button>
@@ -878,6 +951,7 @@ function WizardView(p: WizardViewProps) {
       <div className={invoiceWizardBodyClass}>
         {p.tab === 'kunde' && (
           <CustomerTab
+            accent={accent}
             customerName={p.customerName}
             setCustomerName={p.setCustomerName}
             customerEmail={p.customerEmail}
@@ -889,6 +963,7 @@ function WizardView(p: WizardViewProps) {
         )}
         {p.tab === 'produkter' && (
           <ProductsTab
+            accent={accent}
             lines={p.lines}
             onOpen={p.onOpenLine}
             onAdd={p.onAddLine}
@@ -899,6 +974,7 @@ function WizardView(p: WizardViewProps) {
         )}
         {p.tab === 'overblik' && (
           <OverviewTab
+            accent={accent}
             customerName={p.customerName}
             customerEmail={p.customerEmail}
             issueDate={p.issueDate}
@@ -924,6 +1000,7 @@ function WizardView(p: WizardViewProps) {
         <div className="mt-6 border-t border-slate-200/90 pt-4">
           {p.tab === 'kunde' ? (
             <PrimaryButton
+              accent={accent}
               disabled={!p.customerName.trim()}
               onClick={() => p.setTab('produkter')}
             >
@@ -931,6 +1008,7 @@ function WizardView(p: WizardViewProps) {
             </PrimaryButton>
           ) : p.tab === 'produkter' ? (
             <PrimaryButton
+              accent={accent}
               disabled={p.lines.filter((l) => l.description.trim()).length === 0}
               onClick={() => p.setTab('overblik')}
             >
@@ -950,7 +1028,7 @@ function WizardView(p: WizardViewProps) {
                 type="button"
                 disabled={p.saving}
                 onClick={p.onSend}
-                className="rounded-full bg-indigo-600 py-3.5 text-[15px] font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+                className={accent.sendBtnClass}
               >
                 {p.invoiceStatus === 'draft' ? 'Opret og send' : 'Marker sendt'}
               </button>
@@ -963,6 +1041,7 @@ function WizardView(p: WizardViewProps) {
 }
 
 function CustomerTab({
+  accent,
   customerName,
   setCustomerName,
   customerEmail,
@@ -971,6 +1050,7 @@ function CustomerTab({
   setQuery,
   recent,
 }: {
+  accent: WizardAccent
   customerName: string
   setCustomerName: (v: string) => void
   customerEmail: string
@@ -1014,7 +1094,7 @@ function CustomerTab({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Navn, firma eller CVR"
-          className="w-full rounded-xl border-0 bg-white px-4 py-3.5 text-[15px] shadow-sm ring-1 ring-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className={`w-full rounded-xl border-0 bg-white px-4 py-3.5 text-[15px] shadow-sm ring-1 ring-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 ${accent.inputFocusRing}`}
         />
       )}
 
@@ -1028,7 +1108,7 @@ function CustomerTab({
                 setQuery('')
               }
             }}
-            className="flex w-full items-center gap-3 text-[15px] font-medium text-indigo-600"
+            className={`flex w-full items-center gap-3 text-[15px] font-medium ${accent.link}`}
           >
             <PlusIcon />
             Opret ny kontakt
@@ -1056,7 +1136,7 @@ function CustomerTab({
                     setCustomerEmail(row.email ?? '')
                     setQuery('')
                   }}
-                  className="flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-3.5 text-left shadow-sm ring-1 ring-indigo-200 hover:ring-indigo-400"
+                  className={`flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-3.5 text-left shadow-sm ring-1 ${accent.cvrCardRing} ${accent.cvrCardRingHover}`}
                 >
                   <FactoryIcon />
                   <div className="min-w-0 flex-1">
@@ -1086,7 +1166,7 @@ function CustomerTab({
                     setCustomerName(c.name)
                     setCustomerEmail(c.email ?? '')
                   }}
-                  className="flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-3.5 text-left shadow-sm ring-1 ring-slate-200 hover:ring-indigo-300"
+                  className={`flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-3.5 text-left shadow-sm ring-1 ring-slate-200 ${accent.recentCardHoverRing}`}
                 >
                   <FactoryIcon />
                   <div className="min-w-0 flex-1">
@@ -1115,7 +1195,7 @@ function CustomerTab({
               value={customerEmail}
               onChange={(e) => setCustomerEmail(e.target.value)}
               placeholder="kunde@firma.dk"
-              className="mt-1 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2 text-[15px] focus:border-indigo-500 focus:outline-none focus:ring-0"
+              className={`mt-1 w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2 text-[15px] ${accent.inputFocusBorder} focus:outline-none focus:ring-0`}
             />
           </label>
         </div>
@@ -1136,6 +1216,7 @@ function popularProductKey(p: PopularProductRow) {
 }
 
 function ProductsTab({
+  accent,
   lines,
   onOpen,
   onAdd,
@@ -1143,6 +1224,7 @@ function ProductsTab({
   companyId,
   onRemove,
 }: {
+  accent: WizardAccent
   lines: WizardLine[]
   onOpen: (i: number) => void
   onAdd: () => void
@@ -1205,7 +1287,7 @@ function ProductsTab({
 
       <input
         placeholder="Hvad har du solgt?"
-        className="w-full rounded-xl border-0 bg-white px-4 py-3.5 text-[15px] shadow-sm ring-1 ring-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        className={`w-full rounded-xl border-0 bg-white px-4 py-3.5 text-[15px] shadow-sm ring-1 ring-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 ${accent.inputFocusRing}`}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && e.currentTarget.value.trim()) {
             onAdd()
@@ -1216,7 +1298,7 @@ function ProductsTab({
       <button
         type="button"
         onClick={onAdd}
-        className="flex w-full items-center gap-3 text-[15px] font-medium text-indigo-600"
+        className={`flex w-full items-center gap-3 text-[15px] font-medium ${accent.link}`}
       >
         <PlusIcon />
         Opret fakturalinje
@@ -1243,7 +1325,7 @@ function ProductsTab({
                     vat_rate: Number(row.vat_rate),
                   })
                 }
-                className="flex w-full flex-col gap-0.5 rounded-2xl bg-white px-4 py-3 text-left shadow-sm ring-1 ring-slate-200 transition hover:ring-indigo-300"
+                className={`flex w-full flex-col gap-0.5 rounded-2xl bg-white px-4 py-3 text-left shadow-sm ring-1 ring-slate-200 transition ${accent.productRowHoverRing}`}
               >
                 <span className="text-[15px] font-semibold leading-snug text-slate-900">
                   {row.description}
@@ -1275,7 +1357,7 @@ function ProductsTab({
                     vat_rate: Number(row.vat_rate),
                   })
                 }
-                className="flex w-full flex-col gap-0.5 rounded-2xl bg-white px-4 py-3 text-left shadow-sm ring-1 ring-slate-200 transition hover:ring-indigo-300"
+                className={`flex w-full flex-col gap-0.5 rounded-2xl bg-white px-4 py-3 text-left shadow-sm ring-1 ring-slate-200 transition ${accent.productRowHoverRing}`}
               >
                 <span className="text-[15px] font-semibold leading-snug text-slate-900">
                   {row.description}
@@ -1332,6 +1414,7 @@ function ProductsTab({
 }
 
 function OverviewTab({
+  accent,
   customerName,
   customerEmail,
   issueDate,
@@ -1346,6 +1429,7 @@ function OverviewTab({
   invoiceNumber,
   showInvoiceNumber,
 }: {
+  accent: WizardAccent
   customerName: string
   customerEmail: string
   issueDate: string
@@ -1380,7 +1464,7 @@ function OverviewTab({
           <button
             type="button"
             onClick={onOpenSettings}
-            className="text-[13px] font-medium text-indigo-600"
+            className={`text-[13px] font-medium ${accent.link}`}
           >
             Rediger
           </button>
@@ -1477,6 +1561,8 @@ function OverviewTab({
 
 function LineEditorView({
   line,
+  accent,
+  lineSheetTitle,
   onBack,
   onOpenSettings,
   onChange,
@@ -1486,6 +1572,8 @@ function LineEditorView({
   allowNegativePrice,
 }: {
   line: WizardLine
+  accent: WizardAccent
+  lineSheetTitle: string
   onBack: () => void
   onOpenSettings: () => void
   onChange: (p: Partial<WizardLine>) => void
@@ -1510,18 +1598,18 @@ function LineEditorView({
           <button
             type="button"
             onClick={onBack}
-            className="flex items-center gap-1 text-[15px] font-medium text-indigo-600"
+            className={`flex items-center gap-1 text-[15px] font-medium ${accent.link}`}
           >
             <ChevronIcon className="h-4 w-4 rotate-180" /> Tilbage
           </button>
         }
-        title="Fakturalinje"
+        title={lineSheetTitle}
         right={
           <button
             type="button"
             onClick={onOpenSettings}
             aria-label="Indstillinger"
-            className="text-indigo-600"
+            className={accent.link}
           >
             <SlidersIcon />
           </button>
@@ -1536,7 +1624,7 @@ function LineEditorView({
               rows={2}
               value={line.description}
               onChange={(e) => onChange({ description: e.target.value })}
-              className="mt-1 w-full resize-none border-0 border-b border-slate-300 bg-transparent px-0 py-2 text-[17px] leading-snug text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-0"
+              className={`mt-1 w-full resize-none border-0 border-b border-slate-300 bg-transparent px-0 py-2 text-[17px] leading-snug text-slate-900 ${accent.inputFocusBorder} focus:outline-none focus:ring-0`}
               placeholder="Beskriv ydelsen"
             />
           </label>
@@ -1552,10 +1640,10 @@ function LineEditorView({
                 onChange={(e) =>
                   onChange({ quantity: Number(e.target.value) || 0 })
                 }
-                className="mt-1 w-full rounded-xl bg-white px-4 py-3 text-[17px] shadow-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className={`mt-1 w-full rounded-xl bg-white px-4 py-3 text-[17px] shadow-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 ${accent.inputFocusRing}`}
               />
             </label>
-            <div className="pb-3 text-[15px] font-medium text-indigo-600">Stk.</div>
+            <div className={`pb-3 text-[15px] font-medium ${accent.link}`}>Stk.</div>
           </div>
 
           <label className="block">
@@ -1563,6 +1651,7 @@ function LineEditorView({
               Pris pr. stk.{priceMode === 'incl' ? ' (inkl. moms)' : ''}
             </span>
             <CurrencyInput
+              accent={accent}
               cents={line.unit_price_cents}
               onChange={(c) => onChange({ unit_price_cents: c })}
               allowNegative={allowNegativePrice}
@@ -1572,7 +1661,7 @@ function LineEditorView({
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
-            className="flex w-full items-center justify-center gap-2 py-1 text-[15px] font-medium text-indigo-600"
+            className={`flex w-full items-center justify-center gap-2 py-1 text-[15px] font-medium ${accent.link}`}
           >
             Flere valgmuligheder
             <ChevronIcon className={expanded ? 'h-4 w-4 -rotate-90' : 'h-4 w-4 rotate-90'} />
@@ -1596,7 +1685,7 @@ function LineEditorView({
                       ),
                     })
                   }
-                  className="mt-1 w-full rounded-xl bg-white px-4 py-3 text-[17px] shadow-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className={`mt-1 w-full rounded-xl bg-white px-4 py-3 text-[17px] shadow-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 ${accent.inputFocusRing}`}
                 />
               </label>
 
@@ -1606,7 +1695,7 @@ function LineEditorView({
                   value={line.comment}
                   onChange={(e) => onChange({ comment: e.target.value })}
                   placeholder="Angiv en kommentar til produktet"
-                  className="mt-1 w-full rounded-xl bg-white px-4 py-3 text-[15px] shadow-sm ring-1 ring-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className={`mt-1 w-full rounded-xl bg-white px-4 py-3 text-[15px] shadow-sm ring-1 ring-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 ${accent.inputFocusRing}`}
                 />
               </label>
 
@@ -1614,7 +1703,7 @@ function LineEditorView({
                 <div className="text-xs font-medium text-slate-500">Bogføringskonto</div>
                 <div className="mt-2 flex items-center justify-between gap-3 border-b border-slate-200 pb-3">
                   <div className="text-[15px] text-slate-800">{line.account}</div>
-                  <span className="flex items-center gap-1 text-[15px] font-medium text-indigo-600">
+                  <span className={`flex items-center gap-1 text-[15px] font-medium ${accent.link}`}>
                     Skift konto <ChevronIcon className="h-4 w-4" />
                   </span>
                 </div>
@@ -1648,7 +1737,7 @@ function LineEditorView({
         >
           Slet linje
         </button>
-        <PrimaryButton onClick={onSave} className="flex-1 max-w-xs">
+        <PrimaryButton accent={accent} onClick={onSave} className="flex-1 max-w-xs">
           Gem
         </PrimaryButton>
       </div>
@@ -1657,6 +1746,7 @@ function LineEditorView({
 }
 
 function SettingsView({
+  accent,
   onBack,
   title,
   setTitle,
@@ -1669,6 +1759,7 @@ function SettingsView({
   dueDate,
   setDueDate,
 }: {
+  accent: WizardAccent
   onBack: () => void
   title: string
   setTitle: (v: string) => void
@@ -1688,7 +1779,7 @@ function SettingsView({
           <button
             type="button"
             onClick={onBack}
-            className="flex items-center gap-1 text-[15px] font-medium text-indigo-600"
+            className={`flex items-center gap-1 text-[15px] font-medium ${accent.link}`}
           >
             <ChevronIcon className="h-4 w-4 rotate-180" /> Tilbage
           </button>
@@ -1703,7 +1794,7 @@ function SettingsView({
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
             placeholder="Tilføj kommentar til fakturaen"
-            className="mt-1 w-full resize-none rounded-xl bg-white px-4 py-3 text-[15px] shadow-sm ring-1 ring-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className={`mt-1 w-full resize-none rounded-xl bg-white px-4 py-3 text-[15px] shadow-sm ring-1 ring-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 ${accent.inputFocusRing}`}
           />
         </label>
 
@@ -1712,7 +1803,7 @@ function SettingsView({
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="mt-1 w-full rounded-xl bg-white px-4 py-3 text-[15px] shadow-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className={`mt-1 w-full rounded-xl bg-white px-4 py-3 text-[15px] shadow-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 ${accent.inputFocusRing}`}
           />
         </label>
 
@@ -1723,7 +1814,7 @@ function SettingsView({
               type="date"
               value={issueDate}
               onChange={(e) => setIssueDate(e.target.value)}
-              className="mt-1 w-full rounded-xl bg-white px-4 py-3 text-[15px] shadow-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className={`mt-1 w-full rounded-xl bg-white px-4 py-3 text-[15px] shadow-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 ${accent.inputFocusRing}`}
             />
           </label>
           <label className="block">
@@ -1732,7 +1823,7 @@ function SettingsView({
               type="date"
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
-              className="mt-1 w-full rounded-xl bg-white px-4 py-3 text-[15px] shadow-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className={`mt-1 w-full rounded-xl bg-white px-4 py-3 text-[15px] shadow-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 ${accent.inputFocusRing}`}
             />
           </label>
         </div>
@@ -1745,27 +1836,39 @@ function SettingsView({
               onClick={() => setPriceMode('incl')}
               className="flex w-full items-center justify-between px-4 py-3.5 text-left"
             >
-              <span className={priceMode === 'incl' ? 'text-[15px] font-semibold text-indigo-600' : 'text-[15px] text-slate-700'}>
+              <span
+                className={
+                  priceMode === 'incl'
+                    ? `text-[15px] font-semibold ${accent.priceModeActive}`
+                    : 'text-[15px] text-slate-700'
+                }
+              >
                 Indtast beløb inkl. moms
               </span>
-              {priceMode === 'incl' ? <CheckIcon /> : null}
+              {priceMode === 'incl' ? <CheckIcon accent={accent} /> : null}
             </button>
             <button
               type="button"
               onClick={() => setPriceMode('excl')}
               className="flex w-full items-center justify-between px-4 py-3.5 text-left"
             >
-              <span className={priceMode === 'excl' ? 'text-[15px] font-semibold text-indigo-600' : 'text-[15px] text-slate-700'}>
+              <span
+                className={
+                  priceMode === 'excl'
+                    ? `text-[15px] font-semibold ${accent.priceModeActive}`
+                    : 'text-[15px] text-slate-700'
+                }
+              >
                 Indtast beløb ekskl. moms
               </span>
-              {priceMode === 'excl' ? <CheckIcon /> : null}
+              {priceMode === 'excl' ? <CheckIcon accent={accent} /> : null}
             </button>
           </div>
         </div>
 
         <div className="flex items-center justify-between rounded-2xl bg-white px-4 py-3.5 shadow-sm ring-1 ring-slate-200">
           <span className="text-[15px] text-slate-700">Valuta</span>
-          <span className="text-[15px] font-medium text-indigo-600">Danske kroner (DKK)</span>
+          <span className={`text-[15px] font-medium ${accent.link}`}>Danske kroner (DKK)</span>
         </div>
       </div>
     </div>
@@ -1791,11 +1894,13 @@ function SheetHeader({
 }
 
 function PrimaryButton({
+  accent,
   children,
   onClick,
   disabled,
   className = '',
 }: {
+  accent: WizardAccent
   children: React.ReactNode
   onClick: () => void
   disabled?: boolean
@@ -1806,10 +1911,7 @@ function PrimaryButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={
-        'w-full rounded-full bg-indigo-600 py-3.5 text-[15px] font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50 ' +
-        className
-      }
+      className={accent.primaryBtnClasses + className}
     >
       {children}
     </button>
@@ -1817,10 +1919,12 @@ function PrimaryButton({
 }
 
 function CurrencyInput({
+  accent,
   cents,
   onChange,
   allowNegative = false,
 }: {
+  accent: WizardAccent
   cents: number
   onChange: (cents: number) => void
   allowNegative?: boolean
@@ -1844,7 +1948,7 @@ function CurrencyInput({
           setText((cents / 100).toFixed(2).replace('.', ','))
         }
       }}
-      className="mt-1 w-full rounded-xl bg-white px-4 py-3 text-[17px] shadow-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      className={`mt-1 w-full rounded-xl bg-white px-4 py-3 text-[17px] shadow-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 ${accent.inputFocusRing}`}
     />
   )
 }
@@ -1873,9 +1977,17 @@ function ChevronIcon({ className = 'h-4 w-4' }: { className?: string }) {
   )
 }
 
-function CheckIcon() {
+function CheckIcon({ accent }: { accent: WizardAccent }) {
   return (
-    <svg className="h-5 w-5 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      className={`h-5 w-5 ${accent.checkIcon}`}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="m5 12 5 5L20 7" />
     </svg>
   )

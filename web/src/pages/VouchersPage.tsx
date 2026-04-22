@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { DesktopListCardsToggle } from '@/components/DesktopListCardsToggle'
 import { useDesktopListViewPreference } from '@/hooks/useDesktopListViewPreference'
@@ -22,6 +22,7 @@ export function VouchersPage() {
   const { currentCompany, user } = useApp()
   const [desktopView, setDesktopView] = useDesktopListViewPreference(VOUCHERS_VIEW_KEY, 'list')
   const [rows, setRows] = useState<Voucher[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -45,6 +46,31 @@ export function VouchersPage() {
   useEffect(() => {
     void load()
   }, [currentCompany])
+
+  const filteredRows = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return rows
+    const tokens = q.split(/\s+/).filter(Boolean)
+    return rows.filter((v) => {
+      const dateStr = v.expense_date
+        ? formatDateOnly(v.expense_date)
+        : formatDateOnly(v.uploaded_at)
+      const grossStr = v.gross_cents ? formatDkk(v.gross_cents) : ''
+      const vatStr = v.vat_cents ? formatDkk(v.vat_cents) : ''
+      const hay = [
+        v.title ?? '',
+        v.filename ?? '',
+        v.category ?? '',
+        v.notes ?? '',
+        dateStr,
+        grossStr,
+        vatStr,
+      ]
+        .join(' ')
+        .toLowerCase()
+      return tokens.every((t) => hay.includes(t))
+    })
+  }, [rows, searchQuery])
 
   async function uploadVoucherFile(file: File) {
     if (!currentCompany || !user) return
@@ -281,6 +307,18 @@ export function VouchersPage() {
         <DesktopListCardsToggle mode={desktopView} onChange={setDesktopView} />
       </div>
 
+      <label className="block">
+        <span className="sr-only">Søg i bilag</span>
+        <input
+          type="search"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Søg efter titel, fil, kategori, beløb, dato …"
+          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+          autoComplete="off"
+        />
+      </label>
+
       <div
         className={`grid grid-cols-1 gap-3 ${desktopView === 'list' ? 'md:hidden' : 'md:grid-cols-2 lg:grid-cols-3'}`}
       >
@@ -292,8 +330,12 @@ export function VouchersPage() {
           <p className="col-span-full rounded-2xl border border-slate-200 bg-white py-10 text-center text-sm text-slate-500 shadow-sm">
             Ingen bilag endnu.
           </p>
+        ) : filteredRows.length === 0 ? (
+          <p className="col-span-full rounded-2xl border border-slate-200 bg-white py-10 text-center text-sm text-slate-500 shadow-sm">
+            Ingen bilag matcher søgningen.
+          </p>
         ) : (
-          rows.map((v) => {
+          filteredRows.map((v) => {
             const dateStr = v.expense_date
               ? formatDateOnly(v.expense_date)
               : formatDateOnly(v.uploaded_at)
@@ -358,8 +400,14 @@ export function VouchersPage() {
                   Ingen bilag endnu.
                 </td>
               </tr>
+            ) : filteredRows.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                  Ingen bilag matcher søgningen.
+                </td>
+              </tr>
             ) : (
-              rows.map((v) => (
+              filteredRows.map((v) => (
                 <tr key={v.id} className="border-t border-slate-100">
                   <td className="px-4 py-3 text-slate-600">
                     {v.expense_date

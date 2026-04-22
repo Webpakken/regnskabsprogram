@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useApp } from '@/context/AppProvider'
 import { fetchCompanyLogoDataUrl } from '@/lib/invoiceBranding'
 import { generateInvoicePdfBlob, type InvoicePdfOptions } from '@/lib/invoicePdf'
+import { lineAmounts } from '@/lib/invoiceMath'
 import { sendInvoiceToCustomerEmail } from '@/lib/invoiceCustomerEmail'
 import { InvoicePdfCanvasViewer } from '@/components/InvoicePdfCanvasViewer'
 import type { Database } from '@/types/database'
@@ -31,8 +32,13 @@ export function InvoicePdfPage() {
   const [mailBusy, setMailBusy] = useState<'reminder' | 'dunning' | null>(null)
   const [mailNotice, setMailNotice] = useState<string | null>(null)
   const [actionMenuOpen, setActionMenuOpen] = useState(false)
+  const [invoiceReloadNonce, setInvoiceReloadNonce] = useState(0)
   const actionMenuRef = useRef<HTMLDivElement | null>(null)
   const objectUrlsRef = useRef<string[]>([])
+
+  useEffect(() => {
+    setMailNotice(null)
+  }, [id, currentCompany?.id])
 
   useEffect(() => {
     if (!actionMenuOpen) return
@@ -65,7 +71,6 @@ export function InvoicePdfPage() {
     ;(async () => {
       setLoading(true)
       setError(null)
-      setMailNotice(null)
       revokeAllBlobUrls()
       setBlobUrl(null)
       setOriginalPdf(null)
@@ -167,7 +172,55 @@ export function InvoicePdfPage() {
       cancelled = true
       revokeAllBlobUrls()
     }
-  }, [id, currentCompany])
+  }, [id, currentCompany, invoiceReloadNonce])
+
+  /** 100 kr inkl. 25 % moms → net 80 kr pr. stk. */
+  async function addRykkerGebyrLine(invoiceId: string, companyId: string) {
+    const { data: inv, error: e1 } = await supabase
+      .from('invoices')
+      .select('net_cents, vat_cents, gross_cents')
+      .eq('id', invoiceId)
+      .eq('company_id', companyId)
+      .single()
+    if (e1 || !inv) throw new Error(e1?.message ?? 'Kunne ikke hente faktura')
+    const { data: orderRows, error: e2 } = await supabase
+      .from('invoice_line_items')
+      .select('sort_order')
+      .eq('invoice_id', invoiceId)
+    if (e2) throw new Error(e2.message)
+    const maxOrder = orderRows?.length ? Math.max(...orderRows.map((r) => r.sort_order)) : -1
+    const sort_order = maxOrder + 1
+    const draft = {
+      description: 'Rykkergebyr',
+      quantity: 1,
+      unit_price_cents: 8000,
+      vat_rate: 25,
+    }
+    const { line_net_cents, line_vat_cents, line_gross_cents } = lineAmounts(draft)
+    const { error: e3 } = await supabase.from('invoice_line_items').insert({
+      invoice_id: invoiceId,
+      description: 'Rykkergebyr',
+      quantity: 1,
+      unit_price_cents: 8000,
+      vat_rate: 25,
+      line_net_cents,
+      line_vat_cents,
+      line_gross_cents,
+      sort_order,
+    })
+    if (e3) throw new Error(e3.message)
+    const { error: e4 } = await supabase
+      .from('invoices')
+      .update({
+        net_cents: inv.net_cents + line_net_cents,
+        vat_cents: inv.vat_cents + line_vat_cents,
+        gross_cents: inv.gross_cents + line_gross_cents,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', invoiceId)
+      .eq('company_id', companyId)
+    if (e4) throw new Error(e4.message)
+  }
 
   function downloadUrl(url: string, fileLabel: string) {
     const a = document.createElement('a')
@@ -189,7 +242,10 @@ export function InvoicePdfPage() {
     downloadUrl(originalPdf.url, `faktura-oprindelig-${safe}.pdf`)
   }
 
-  async function sendMail(kind: 'invoice_reminder' | 'invoice_dunning') {
+  async function sendMail(
+    kind: 'invoice_reminder' | 'invoice_dunning',
+    opts?: { addDunningFee?: boolean },
+  ) {
     if (!id || !currentCompany) return
     const to = customerEmail
     if (!to) {
@@ -199,6 +255,8 @@ export function InvoicePdfPage() {
     setMailNotice(null)
     setActionMenuOpen(false)
     setMailBusy(kind === 'invoice_reminder' ? 'reminder' : 'dunning')
+    const addFee = kind === 'invoice_dunning' && opts?.addDunningFee === true
+    let dunningFeeSaved = false
     try {
       const { data: company, error: ce } = await supabase
         .from('companies')
@@ -208,14 +266,31 @@ export function InvoicePdfPage() {
       if (ce || !company) {
         throw new Error(ce?.message ?? 'Kunne ikke hente virksomhed')
       }
+      if (addFee) {
+        await addRykkerGebyrLine(id, currentCompany.id)
+        dunningFeeSaved = true
+      }
       await sendInvoiceToCustomerEmail({ company, invoiceId: id, kind })
+      if (addFee) {
+        setInvoiceReloadNonce((n) => n + 1)
+      }
       setMailNotice(
         kind === 'invoice_reminder'
           ? 'Påmindelse sendt til kunden (hvis skabelon er slået til).'
-          : 'Rykker sendt til kunden (hvis skabelon er slået til).',
+          : addFee
+            ? 'Rykkergebyr på 100 kr (inkl. moms) er tilføjet på fakturaen. Rykker sendt til kunden (hvis skabelon er slået til).'
+            : 'Rykker sendt til kunden (hvis skabelon er slået til).',
       )
     } catch (e) {
-      setMailNotice(e instanceof Error ? e.message : 'Kunne ikke sende e-mail')
+      if (dunningFeeSaved) {
+        setInvoiceReloadNonce((n) => n + 1)
+        const msg = e instanceof Error ? e.message : 'Kunne ikke sende e-mail'
+        setMailNotice(
+          `${msg} Rykkergebyret er tilføjet på fakturaen — du kan prøve at sende rykker igen.`,
+        )
+      } else {
+        setMailNotice(e instanceof Error ? e.message : 'Kunne ikke sende e-mail')
+      }
     } finally {
       setMailBusy(null)
     }
@@ -338,7 +413,16 @@ export function InvoicePdfPage() {
                     role="menuitem"
                     disabled={!!mailBusy}
                     className="w-full px-4 py-3 text-left text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-                    onClick={() => void sendMail('invoice_reminder')}
+                    onClick={() => {
+                      if (
+                        !window.confirm(
+                          'Er du sikker på, at du vil sende en påmindelse via e-mail til kunden?',
+                        )
+                      ) {
+                        return
+                      }
+                      void sendMail('invoice_reminder')
+                    }}
                   >
                     {mailBusy === 'reminder' ? 'Sender påmindelse…' : 'Send påmindelse'}
                   </button>
@@ -349,7 +433,21 @@ export function InvoicePdfPage() {
                     role="menuitem"
                     disabled={!!mailBusy}
                     className="w-full px-4 py-3 text-left text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-                    onClick={() => void sendMail('invoice_dunning')}
+                    onClick={() => {
+                      if (
+                        !window.confirm(
+                          'Er du sikker på, at du vil sende en rykker via e-mail til kunden?',
+                        )
+                      ) {
+                        return
+                      }
+                      const addFee =
+                        !isCreditNote &&
+                        window.confirm(
+                          'Skal der tilføjes 100 kr rykkergebyr (inkl. moms) på fakturaen?',
+                        )
+                      void sendMail('invoice_dunning', { addDunningFee: addFee })
+                    }}
                   >
                     {mailBusy === 'dunning' ? 'Sender rykker…' : 'Send rykker'}
                   </button>
