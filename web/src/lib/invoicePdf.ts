@@ -223,7 +223,8 @@ export function generateInvoicePdfBlob(
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(55, 55, 65)
   doc.text(`Dato ${formatDateLongNoTime(invoice.issue_date)}`, rightX, titleY, { align: 'right' })
-  doc.text(`Fakturanr. ${invoice.invoice_number}`, rightX, titleY + 4.5, { align: 'right' })
+  const invNo = String(invoice.invoice_number ?? '—')
+  doc.text(`Fakturanr. ${invNo}`, rightX, titleY + 4.5, { align: 'right' })
 
   y = titleY + Math.max(12, 4.5 + 5)
 
@@ -329,7 +330,7 @@ export function generateInvoicePdfBlob(
   }
 
   doc.text(
-    `Fakturanr. ${invoice.invoice_number} bedes angivet ved bankoverførsel.`,
+    `Fakturanr. ${invNo} bedes angivet ved bankoverførsel.`,
     MARGIN,
     py,
   )

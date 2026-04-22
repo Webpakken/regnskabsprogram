@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { DesktopListCardsToggle } from '@/components/DesktopListCardsToggle'
 import { useDesktopListViewPreference } from '@/hooks/useDesktopListViewPreference'
@@ -16,22 +16,6 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10)
 }
 
-function voucherDraftKey(companyId: string) {
-  return `bilago:voucher-upload-draft:${companyId}`
-}
-
-function voucherDraftLegacyKey(companyId: string) {
-  return `hisab:voucher-upload-draft:${companyId}`
-}
-
-type VoucherDraft = {
-  title: string
-  category: string
-  expenseDate: string
-  grossKr: string
-  vatRate: string
-}
-
 const VOUCHERS_VIEW_KEY = 'bilago:vouchersDesktopView'
 
 export function VouchersPage() {
@@ -40,34 +24,12 @@ export function VouchersPage() {
   const [rows, setRows] = useState<Voucher[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
-  const [title, setTitle] = useState('')
-  const [category, setCategory] = useState('')
-  const [expenseDate, setExpenseDate] = useState(todayIso())
-  const [grossKr, setGrossKr] = useState('')
-  const [vatRate, setVatRate] = useState('25')
   const [error, setError] = useState<string | null>(null)
   const [ocrWarning, setOcrWarning] = useState<string | null>(null)
   const [ocrProgress, setOcrProgress] = useState<number | null>(null)
   const [dragActive, setDragActive] = useState(false)
   const overlayDragDepthRef = useRef(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  /** Layout sætter true efter kladden er læst — undgå at overskrive sessionStorage for tidligt. */
-  const canPersistVoucherDraft = useRef(false)
-  const latestDraftRef = useRef<VoucherDraft>({
-    title: '',
-    category: '',
-    expenseDate: todayIso(),
-    grossKr: '',
-    vatRate: '25',
-  })
-
-  function openDesktopFilePicker() {
-    document.getElementById('voucher-upload')?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start',
-    })
-    window.setTimeout(() => fileInputRef.current?.click(), 150)
-  }
 
   async function load() {
     if (!currentCompany) return
@@ -84,67 +46,6 @@ export function VouchersPage() {
     void load()
   }, [currentCompany])
 
-  useLayoutEffect(() => {
-    const cid = currentCompany?.id
-    canPersistVoucherDraft.current = false
-    if (!cid) return
-    try {
-      let raw = sessionStorage.getItem(voucherDraftKey(cid))
-      if (!raw) raw = sessionStorage.getItem(voucherDraftLegacyKey(cid))
-      if (raw) {
-        const d = JSON.parse(raw) as Partial<VoucherDraft>
-        if (typeof d.title === 'string') setTitle(d.title)
-        if (typeof d.category === 'string') setCategory(d.category)
-        if (typeof d.expenseDate === 'string') setExpenseDate(d.expenseDate)
-        if (typeof d.grossKr === 'string') setGrossKr(d.grossKr)
-        if (typeof d.vatRate === 'string') setVatRate(d.vatRate)
-        try {
-          sessionStorage.setItem(voucherDraftKey(cid), raw)
-          sessionStorage.removeItem(voucherDraftLegacyKey(cid))
-        } catch {
-          /* ignore */
-        }
-      } else {
-        setTitle('')
-        setCategory('')
-        setExpenseDate(todayIso())
-        setGrossKr('')
-        setVatRate('25')
-      }
-    } catch {
-      setTitle('')
-      setCategory('')
-      setExpenseDate(todayIso())
-      setGrossKr('')
-      setVatRate('25')
-    }
-    canPersistVoucherDraft.current = true
-  }, [currentCompany?.id])
-
-  latestDraftRef.current = {
-    title,
-    category,
-    expenseDate,
-    grossKr,
-    vatRate,
-  }
-
-  useEffect(() => {
-    const cid = currentCompany?.id
-    if (!cid || !canPersistVoucherDraft.current) return
-    const t = window.setTimeout(() => {
-      try {
-        sessionStorage.setItem(
-          voucherDraftKey(cid),
-          JSON.stringify(latestDraftRef.current),
-        )
-      } catch {
-        /* quota el.l. */
-      }
-    }, 0)
-    return () => window.clearTimeout(t)
-  }, [currentCompany?.id, title, category, expenseDate, grossKr, vatRate])
-
   async function uploadVoucherFile(file: File) {
     if (!currentCompany || !user) return
     setUploading(true)
@@ -154,10 +55,10 @@ export function VouchersPage() {
 
     const canOcr = canAttemptVoucherOcr(file)
 
-    let titleForDb = title.trim() || file.name.replace(/\.[^.]+$/, '')
-    let expenseDateForDb = expenseDate
-    let grossKrForDb = grossKr
-    let vatRateForDb = vatRate
+    let titleForDb = file.name.replace(/\.[^.]+$/, '')
+    let expenseDateForDb = todayIso()
+    let grossKrForDb = ''
+    let vatRateForDb = '25'
     let notesForDb: string | null = null
 
     if (canOcr) {
@@ -165,9 +66,7 @@ export function VouchersPage() {
         const text = await ocrImageOrPdfFile(file, (p) => setOcrProgress(p))
         const parsed = parseDanishReceiptText(text)
         notesForDb = formatParsedNotes(parsed)
-        if (!title.trim()) {
-          titleForDb = parsed.merchantGuess ?? titleForDb
-        }
+        titleForDb = parsed.merchantGuess ?? titleForDb
         if (parsed.expenseDateIso) {
           expenseDateForDb = parsed.expenseDateIso
         }
@@ -180,8 +79,7 @@ export function VouchersPage() {
       } catch (e) {
         console.warn('[bilag OCR]', e)
         setOcrWarning(
-          'Kunne ikke læse bilaget automatisk (fx beskadiget fil, beskyttet PDF eller meget store filer). ' +
-            'Udfyld beløb og dato manuelt — filen uploades alligevel. HEIC konverteres i browseren når det er muligt; ellers eksporter som JPEG eller brug «Scan bilag» på mobil.',
+          'Kunne ikke læse bilaget automatisk — det er uploadet; du kan tjekke beløb i listen eller bruge «Scan bilag» til kamera. HEIC: eksporter som JPEG hvis nødvendigt.',
         )
       }
     }
@@ -211,7 +109,7 @@ export function VouchersPage() {
       filename: file.name,
       mime_type: file.type || null,
       title: titleForDb,
-      category: category || null,
+      category: null,
       notes: notesForDb,
       uploaded_by: user.id,
       expense_date: expenseDateForDb,
@@ -227,17 +125,6 @@ export function VouchersPage() {
       return
     }
     await logActivity(currentCompany.id, 'voucher_upload', `Bilag uploadet: ${file.name}`)
-    setTitle('')
-    setCategory('')
-    setGrossKr('')
-    setVatRate('25')
-    setExpenseDate(todayIso())
-    try {
-      sessionStorage.removeItem(voucherDraftKey(currentCompany.id))
-      sessionStorage.removeItem(voucherDraftLegacyKey(currentCompany.id))
-    } catch {
-      /* ignore */
-    }
     if (fileInputRef.current) fileInputRef.current.value = ''
     setUploading(false)
     await load()
@@ -290,10 +177,6 @@ export function VouchersPage() {
     if (file) void uploadVoucherFile(file)
   }
 
-  /**
-   * Safari/PWA blokerer window.open efter await (ikke længere «user gesture»).
-   * Åbn et tomt vindue synkront, sæt location når signeret URL er klar.
-   */
   function openSigned(v: Voucher) {
     const w = window.open('about:blank', '_blank', 'noopener,noreferrer')
     void (async () => {
@@ -350,117 +233,57 @@ export function VouchersPage() {
           <div className="pointer-events-none mx-4 max-w-lg rounded-2xl border-4 border-dashed border-indigo-500 bg-white/95 px-8 py-10 text-center shadow-2xl">
             <p className="text-lg font-semibold text-indigo-900">Slip filen her</p>
             <p className="mt-2 text-sm text-slate-600">
-              Bilaget uploades med de felter du har udfyldt ovenfor (titel, dato, beløb …).
+              Filen uploades; beløb og dato gættes automatisk når det er muligt.
             </p>
           </div>
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Bilag</h1>
           <p className="text-sm text-slate-600">
-            <span className="md:hidden">
-              Scan, træk fil ind på siden eller vælg fil — kun synligt for denne virksomhed.
-            </span>
-            <span className="hidden md:inline">
-              Træk filer ind et vilkårligt sted på siden, eller vælg fil — kun synligt for denne
-              virksomhed.
-            </span>
+            Scan med kamera, upload en fil, eller træk filer ind et vilkårligt sted på siden. Kun
+            denne virksomhed.
           </p>
         </div>
-        <Link
-          to="/app/vouchers/scan"
-          className="shrink-0 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 md:hidden"
-        >
-          Scan bilag
-        </Link>
-        <button
-          type="button"
-          className="hidden shrink-0 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 md:inline-flex"
-          onClick={openDesktopFilePicker}
-        >
-          Vedhæft bilag
-        </button>
-      </div>
-
-      <div
-        id="voucher-upload"
-        className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
-      >
-        <h2 className="text-sm font-semibold text-slate-900">Upload</h2>
-        <div className="mt-4 grid gap-4 md:grid-cols-3">
-          <div>
-            <label className="text-xs text-slate-500">Titel (valgfrit)</label>
+        <div className="flex flex-wrap gap-2 sm:shrink-0 sm:justify-end">
+          <Link
+            to="/app/vouchers/scan"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
+          >
+            Scan bilag
+          </Link>
+          <label
+            className={
+              'inline-flex min-h-[44px] cursor-pointer items-center justify-center rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 ' +
+              (uploading ? 'pointer-events-none opacity-60' : '')
+            }
+          >
+            {uploading
+              ? ocrProgress != null
+                ? `Læser… ${ocrProgress}%`
+                : 'Uploader…'
+              : 'Upload bilag'}
             <input
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              disabled={uploading}
+              onChange={(e) => void onFile(e)}
             />
-          </div>
-          <div>
-            <label className="text-xs text-slate-500">Kategori (valgfrit)</label>
-            <input
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              placeholder="Fx rejse"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-slate-500">Bilagsdato</label>
-            <input
-              type="date"
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-              value={expenseDate}
-              onChange={(e) => setExpenseDate(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-xs text-slate-500">Beløb inkl. moms (kr.)</label>
-            <input
-              inputMode="decimal"
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-              value={grossKr}
-              onChange={(e) => setGrossKr(e.target.value)}
-              placeholder="0,00"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-slate-500">Momssats %</label>
-            <select
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-              value={vatRate}
-              onChange={(e) => setVatRate(e.target.value)}
-            >
-              <option value="25">25 %</option>
-              <option value="0">0 % (moms-fri)</option>
-            </select>
-          </div>
-          <div className="flex items-end">
-            <label className="flex w-full cursor-pointer items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100">
-              {uploading
-                ? ocrProgress != null
-                  ? `Læser bilag… ${ocrProgress}%`
-                  : 'Uploader…'
-                : 'Vælg fil og upload'}
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                disabled={uploading}
-                onChange={(e) => void onFile(e)}
-              />
-            </label>
-          </div>
+          </label>
         </div>
-        {ocrWarning ? (
-          <p className="mt-3 text-sm text-amber-800">{ocrWarning}</p>
-        ) : null}
-        {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
       </div>
 
-      <div className="flex flex-wrap items-end justify-between gap-3 pt-1">
+      {ocrWarning ? (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          {ocrWarning}
+        </p>
+      ) : null}
+      {error ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</p> : null}
+
+      <div className="flex flex-wrap items-end justify-between gap-3 border-t border-slate-200 pt-2">
         <h2 className="text-base font-semibold text-slate-900">Dine bilag</h2>
         <DesktopListCardsToggle mode={desktopView} onChange={setDesktopView} />
       </div>

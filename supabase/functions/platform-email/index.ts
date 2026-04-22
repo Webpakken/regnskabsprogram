@@ -267,12 +267,16 @@ serve(async (req) => {
     ? `<p style="margin:12px 0 0;color:#475569;font-size:14px;line-height:1.5;">${escapeHtml(notesRaw).replace(/\n/g, '<br/>')}</p>`
     : ''
 
+  const invoiceNum = String(inv.invoice_number ?? '').trim()
   const rendered = renderFinalEmail(
     'invoice_sent',
     templates,
     {
       customer_name: inv.customer_name?.trim() || 'Kunde',
-      invoice_number: inv.invoice_number ?? '',
+      invoice_number: invoiceNum,
+      /** Danske pladsholdere i manuelt redigerede skabeloner */
+      faktura_nummer: invoiceNum,
+      fakturanummer: invoiceNum,
       gross_amount: formatDkk(Number(inv.gross_cents ?? 0)),
       due_date: formatDaDate(String(inv.due_date)),
       company_name: companyName,
@@ -296,7 +300,7 @@ serve(async (req) => {
     if (raw.length > 0 && raw.length <= MAX_INVOICE_PDF_BASE64_CHARS) {
       const bytes = base64ToUint8Array(raw)
       if (bytes && bytes.length > 0) {
-        const safeNum = (inv.invoice_number ?? 'faktura').replace(/[^\w.\-]+/g, '_')
+        const safeNum = (invoiceNum || 'faktura').replace(/[^\w.\-]+/g, '_')
         pdfAttachment = {
           filename: `faktura-${safeNum}.pdf`,
           content: bytes,

@@ -26,6 +26,10 @@ type LineRow = Database['public']['Tables']['invoice_line_items']['Row']
 
 const DEFAULT_ACCOUNT = '1000 - Salg af varer/ydelser m/moms'
 
+/** Indhold + handlingsknapper i samme rude; scroller samlet ved lange lister. */
+const invoiceWizardBodyClass =
+  'max-h-[min(82dvh,calc(100dvh-9rem))] overflow-y-auto bg-slate-50 px-5 py-6 pb-[max(1.25rem,env(safe-area-inset-bottom))]'
+
 const emptyLine = (): WizardLine => ({
   description: '',
   quantity: 1,
@@ -363,6 +367,7 @@ export function InvoiceWizardPage() {
       setLoading(false)
       return
     }
+    setLoading(true)
     let c = false
     ;(async () => {
       const { data: inv, error: e1 } = await supabase
@@ -390,7 +395,11 @@ export function InvoiceWizardPage() {
       setDueDate(inv.due_date)
       setNotes(inv.notes ?? '')
       setStatus(inv.status)
-      setInvoiceNumber(inv.invoice_number)
+      setInvoiceNumber(
+        typeof inv.invoice_number === 'string'
+          ? inv.invoice_number
+          : String(inv.invoice_number ?? ''),
+      )
       setLines(
         (li as LineRow[] | null)?.length
           ? (li as LineRow[]).map((r) => ({
@@ -531,6 +540,10 @@ export function InvoiceWizardPage() {
             invoiceId: inv.id,
           }).catch(() => {})
         }
+        const numStr = String(inv.invoice_number ?? '').trim()
+        setInvoiceNumber(numStr)
+        setStatus(st)
+        setTab('overblik')
         clearInvoiceWizardDraft(currentCompany.id)
         navigate(`/app/invoices/${inv.id}`, { replace: true })
       } else {
@@ -628,7 +641,9 @@ export function InvoiceWizardPage() {
     ? invoiceNumber
       ? `Opret faktura (${invoiceNumber})`
       : 'Opret faktura'
-    : `Faktura ${invoiceNumber}`
+    : invoiceNumber.trim()
+      ? `Faktura ${invoiceNumber}`
+      : 'Faktura'
 
   return (
     <div className="-mx-4 -mt-6 md:mx-auto md:mt-0 md:max-w-xl">
@@ -666,6 +681,7 @@ export function InvoiceWizardPage() {
             onSend={() => void persist('sent')}
             isNew={isNew}
             invoiceStatus={status}
+            invoiceNumber={invoiceNumber}
           />
         )}
 
@@ -740,6 +756,7 @@ type WizardViewProps = {
   onSend: () => void
   isNew: boolean
   invoiceStatus: Invoice['status']
+  invoiceNumber: string
 }
 
 function WizardView(p: WizardViewProps) {
@@ -750,7 +767,7 @@ function WizardView(p: WizardViewProps) {
     : p.recentCustomers
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] flex-col md:min-h-[640px]">
+    <div className="flex flex-col">
       <SheetHeader
         left={
           <button
@@ -764,7 +781,7 @@ function WizardView(p: WizardViewProps) {
         title={p.heading}
       />
 
-      <div className="grid grid-cols-3 border-b border-slate-200 bg-white text-[15px]">
+      <div className="grid shrink-0 grid-cols-3 border-b border-slate-200 bg-white text-[15px]">
         {(['kunde', 'produkter', 'overblik'] as const).map((t) => {
           const active = p.tab === t
           const label = t === 'kunde' ? 'Kunde' : t === 'produkter' ? 'Produkter' : 'Overblik'
@@ -792,7 +809,7 @@ function WizardView(p: WizardViewProps) {
         })}
       </div>
 
-      <div className="flex-1 overflow-y-auto bg-slate-50 px-5 py-6">
+      <div className={invoiceWizardBodyClass}>
         {p.tab === 'kunde' && (
           <CustomerTab
             customerName={p.customerName}
@@ -827,51 +844,53 @@ function WizardView(p: WizardViewProps) {
             lines={p.lines}
             totals={p.totals}
             onOpenSettings={p.onOpenSettings}
+            invoiceNumber={p.invoiceNumber}
+            showInvoiceNumber={!p.isNew}
           />
         )}
-      </div>
 
-      {p.error ? (
-        <p className="border-t border-red-100 bg-red-50 px-5 py-3 text-sm text-red-700">
-          {p.error}
-        </p>
-      ) : null}
+        {p.error ? (
+          <p className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-800">
+            {p.error}
+          </p>
+        ) : null}
 
-      <div className="border-t border-slate-200 bg-white px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
-        {p.tab === 'kunde' ? (
-          <PrimaryButton
-            disabled={!p.customerName.trim()}
-            onClick={() => p.setTab('produkter')}
-          >
-            Videre
-          </PrimaryButton>
-        ) : p.tab === 'produkter' ? (
-          <PrimaryButton
-            disabled={p.lines.filter((l) => l.description.trim()).length === 0}
-            onClick={() => p.setTab('overblik')}
-          >
-            Videre
-          </PrimaryButton>
-        ) : (
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              disabled={p.saving}
-              onClick={p.onSave}
-              className="rounded-full border border-slate-300 bg-white py-3.5 text-[15px] font-semibold text-slate-700 disabled:opacity-60"
+        <div className="mt-6 border-t border-slate-200/90 pt-4">
+          {p.tab === 'kunde' ? (
+            <PrimaryButton
+              disabled={!p.customerName.trim()}
+              onClick={() => p.setTab('produkter')}
             >
-              Gem kladde
-            </button>
-            <button
-              type="button"
-              disabled={p.saving}
-              onClick={p.onSend}
-              className="rounded-full bg-indigo-600 py-3.5 text-[15px] font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+              Videre
+            </PrimaryButton>
+          ) : p.tab === 'produkter' ? (
+            <PrimaryButton
+              disabled={p.lines.filter((l) => l.description.trim()).length === 0}
+              onClick={() => p.setTab('overblik')}
             >
-              {p.invoiceStatus === 'draft' ? 'Opret og send' : 'Marker sendt'}
-            </button>
-          </div>
-        )}
+              Videre
+            </PrimaryButton>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                disabled={p.saving}
+                onClick={p.onSave}
+                className="rounded-full border border-slate-300 bg-white py-3.5 text-[15px] font-semibold text-slate-700 disabled:opacity-60"
+              >
+                Gem kladde
+              </button>
+              <button
+                type="button"
+                disabled={p.saving}
+                onClick={p.onSend}
+                className="rounded-full bg-indigo-600 py-3.5 text-[15px] font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+              >
+                {p.invoiceStatus === 'draft' ? 'Opret og send' : 'Marker sendt'}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -1258,6 +1277,8 @@ function OverviewTab({
   lines,
   totals,
   onOpenSettings,
+  invoiceNumber,
+  showInvoiceNumber,
 }: {
   customerName: string
   customerEmail: string
@@ -1270,9 +1291,20 @@ function OverviewTab({
   lines: WizardLine[]
   totals: { net_cents: number; vat_cents: number; gross_cents: number }
   onOpenSettings: () => void
+  invoiceNumber: string
+  showInvoiceNumber: boolean
 }) {
   return (
     <div className="space-y-4">
+      {showInvoiceNumber && invoiceNumber.trim() ? (
+        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+          <div className="text-xs font-medium text-slate-500">Fakturanr.</div>
+          <div className="mt-1 text-[15px] font-semibold tabular-nums text-slate-900">
+            {invoiceNumber}
+          </div>
+        </div>
+      ) : null}
+
       <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
         <div className="flex items-center justify-between">
           <div>
@@ -1404,7 +1436,7 @@ function LineEditorView({
   const displayedTotal = priceMode === 'incl' ? gross : net
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] flex-col md:min-h-[640px]">
+    <div className="flex flex-col">
       <SheetHeader
         left={
           <button
@@ -1428,7 +1460,7 @@ function LineEditorView({
         }
       />
 
-      <div className="flex-1 overflow-y-auto bg-slate-50 px-5 py-6">
+      <div className={invoiceWizardBodyClass}>
         <div className="space-y-5">
           <label className="block">
             <span className="text-xs font-medium text-slate-500">Beskrivelse</span>
@@ -1539,7 +1571,7 @@ function LineEditorView({
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
         <button
           type="button"
           onClick={onDelete}
@@ -1581,7 +1613,7 @@ function SettingsView({
   setDueDate: (v: string) => void
 }) {
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] flex-col md:min-h-[640px]">
+    <div className="flex flex-col">
       <SheetHeader
         left={
           <button
@@ -1594,7 +1626,7 @@ function SettingsView({
         }
         title="Indstillinger"
       />
-      <div className="flex-1 overflow-y-auto bg-slate-50 px-5 py-6 space-y-6">
+      <div className={`${invoiceWizardBodyClass} space-y-6`}>
         <label className="block">
           <span className="text-xs font-medium text-slate-500">Kommentar</span>
           <textarea

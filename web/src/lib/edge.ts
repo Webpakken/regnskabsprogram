@@ -29,10 +29,31 @@ export async function startStripeCheckout(
       return_path: options?.returnPath ?? 'dashboard',
     }),
   })
-  const json = (await res.json()) as { url?: string; error?: string }
-  if (!res.ok) throw new Error(json.error ?? 'Checkout fejlede')
-  if (!json.url) throw new Error('Manglede Stripe URL')
-  return json.url
+  const raw = await res.text()
+  let data = {} as { url?: string; error?: string; message?: string }
+  if (raw) {
+    try {
+      data = JSON.parse(raw) as typeof data
+    } catch {
+      if (!res.ok) {
+        throw new Error(
+          `Betaling (HTTP ${res.status}): ${raw.slice(0, 400).trim() || 'tomt svar'}`,
+        )
+      }
+      throw new Error('Uventet svar fra serveren ved checkout')
+    }
+  }
+  if (!res.ok) {
+    throw new Error(
+      data.error ??
+        data.message ??
+        `Checkout fejlede (HTTP ${res.status})`,
+    )
+  }
+  if (!data.url) {
+    throw new Error(data.error ?? 'Manglede Stripe URL i svaret')
+  }
+  return data.url
 }
 
 /** Starter Stripe Checkout og navigerer væk; viser en kort fejl hvis kaldet fejler (fx manglende deploy/secrets). */
