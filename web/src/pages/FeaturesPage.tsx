@@ -51,9 +51,10 @@ export function FeaturesPage() {
       </section>
 
       <MarketingDashboardShowcase
+        variant="features"
         kicker="Indblik i produktet"
-        title="Sådan ser regnskabet ud for dig"
-        subtitle="Se overblik, fakturaer og kundemails — præcis som i en rigtig konto i Bilago."
+        title="Værktøjer du bruger hver dag"
+        subtitle="CVR på kunder og tydelige bank-linjer — bygget i samme visuelle sprog som forsiden."
       />
 
       <section className="border-b border-slate-100 bg-slate-50">

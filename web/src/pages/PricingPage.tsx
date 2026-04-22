@@ -39,9 +39,10 @@ function PricingContent() {
       </section>
 
       <MarketingDashboardShowcase
-        kicker="Hvad du får"
-        title="Samme overblik som alle andre funktioner"
-        subtitle="Ét abonnement giver adgang til dashboard, fakturering og de mails dine kunder modtager."
+        variant="pricing"
+        kicker="Hvad du betaler for"
+        title="Abonnement og betalinger i ét overblik"
+        subtitle="Se aktiv plan, pris pr. måned og historik — præcis den type skærm du møder efter oprettelse."
       />
 
       <section className="bg-slate-50">

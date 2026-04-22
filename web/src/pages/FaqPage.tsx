@@ -25,7 +25,12 @@ export function FaqPage() {
         </div>
       </section>
 
-      <MarketingDashboardShowcase />
+      <MarketingDashboardShowcase
+        variant="faq"
+        kicker="Hjælp i produktet"
+        title="Find svar som i appen"
+        subtitle="Søgning og emner — så du ved hvordan det føles at lede efter svar, før du læser listen nedenfor."
+      />
 
       <section className="mx-auto max-w-3xl px-6 py-16 sm:py-20">
         <div className="divide-y divide-slate-200 rounded-2xl border border-slate-200 bg-white shadow-sm">

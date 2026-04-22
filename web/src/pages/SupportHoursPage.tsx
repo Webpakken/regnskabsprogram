@@ -50,10 +50,11 @@ export function SupportHoursPage() {
         </div>
 
         <MarketingDashboardShowcase
+          variant="support"
           className="mt-8"
           kicker="Bilago i brug"
-          title="Så arbejder du i regnskabet"
-          subtitle="Når du skriver til os, er det i samme platform — her er et lille kig på dashboard og kundefakturaer."
+          title="Support når du er logget ind"
+          subtitle="Samme danske team — her som en typisk tråd i appen, ikke en generisk chat-bot."
         />
 
         {loading ? (
