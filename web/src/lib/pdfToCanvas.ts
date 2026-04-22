@@ -1,20 +1,11 @@
-import * as pdfjsLib from 'pdfjs-dist'
-import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
-
-let workerConfigured = false
-
-function ensureWorker() {
-  if (workerConfigured) return
-  pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc
-  workerConfigured = true
-}
+import { ensurePdfjsWorker, pdfjsLib } from '@/lib/ensurePdfjsWorker'
 
 /** Første side af PDF som canvas (til OCR). */
 export async function renderPdfFirstPageToCanvas(
   file: File,
   scale = 2,
 ): Promise<HTMLCanvasElement> {
-  ensureWorker()
+  ensurePdfjsWorker()
   const buf = await file.arrayBuffer()
   const loadingTask = pdfjsLib.getDocument({ data: buf })
   const pdf = await loadingTask.promise

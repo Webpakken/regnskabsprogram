@@ -5,6 +5,7 @@ import { useApp } from '@/context/AppProvider'
 import { fetchCompanyLogoDataUrl } from '@/lib/invoiceBranding'
 import { generateInvoicePdfBlob, type InvoicePdfOptions } from '@/lib/invoicePdf'
 import { sendInvoiceToCustomerEmail } from '@/lib/invoiceCustomerEmail'
+import { InvoicePdfCanvasViewer } from '@/components/InvoicePdfCanvasViewer'
 import type { Database } from '@/types/database'
 
 type Invoice = Database['public']['Tables']['invoices']['Row']
@@ -29,7 +30,24 @@ export function InvoicePdfPage() {
   const [loading, setLoading] = useState(true)
   const [mailBusy, setMailBusy] = useState<'reminder' | 'dunning' | null>(null)
   const [mailNotice, setMailNotice] = useState<string | null>(null)
+  const [actionMenuOpen, setActionMenuOpen] = useState(false)
+  const actionMenuRef = useRef<HTMLDivElement | null>(null)
   const objectUrlsRef = useRef<string[]>([])
+
+  useEffect(() => {
+    if (!actionMenuOpen) return
+    const close = (e: PointerEvent) => {
+      if (
+        actionMenuRef.current &&
+        e.target instanceof Node &&
+        !actionMenuRef.current.contains(e.target)
+      ) {
+        setActionMenuOpen(false)
+      }
+    }
+    document.addEventListener('pointerdown', close)
+    return () => document.removeEventListener('pointerdown', close)
+  }, [actionMenuOpen])
 
   function revokeAllBlobUrls() {
     for (const u of objectUrlsRef.current) {
@@ -175,10 +193,11 @@ export function InvoicePdfPage() {
     if (!id || !currentCompany) return
     const to = customerEmail
     if (!to) {
-      setMailNotice('Kunden har ingen e-mail — tilføj den under Rediger faktura.')
+      setMailNotice('Kundens e-mail mangler. Uden e-mail kan påmindelse/rykker ikke sendes.')
       return
     }
     setMailNotice(null)
+    setActionMenuOpen(false)
     setMailBusy(kind === 'invoice_reminder' ? 'reminder' : 'dunning')
     try {
       const { data: company, error: ce } = await supabase
@@ -255,12 +274,14 @@ export function InvoicePdfPage() {
             </h1>
             <span className="text-xs text-slate-500">Forhåndsvisning</span>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             {isCreditNote && originalPdf ? (
               <button
                 type="button"
                 onClick={downloadOriginal}
-                className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
+                className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 hover:bg-slate-50"
               >
                 Download oprindelig faktura
               </button>
@@ -268,49 +289,80 @@ export function InvoicePdfPage() {
             <button
               type="button"
               onClick={downloadCreditNote}
-              className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
+              className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 hover:bg-slate-50"
             >
               {isCreditNote ? 'Download kreditnota' : 'Download PDF'}
             </button>
           </div>
+          <div className="relative" ref={actionMenuRef}>
+            <button
+              type="button"
+              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50"
+              aria-expanded={actionMenuOpen}
+              aria-haspopup="true"
+              aria-label="Handlinger på faktura"
+              onClick={() => setActionMenuOpen((o) => !o)}
+            >
+              <IconEllipsis />
+            </button>
+            {actionMenuOpen ? (
+              <ul
+                className="absolute right-0 z-20 mt-1.5 w-[min(100vw-1.5rem,18rem)] rounded-xl border border-slate-200 bg-white py-1.5 text-sm shadow-lg"
+                role="menu"
+              >
+                <li>
+                  {canCredit ? (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="w-full px-4 py-3 text-left text-slate-800 hover:bg-slate-50"
+                      onClick={() => {
+                        setActionMenuOpen(false)
+                        if (id) navigate(`/app/invoices/new?creditFor=${id}`)
+                      }}
+                    >
+                      Opret kredit
+                    </button>
+                  ) : (
+                    <span
+                      className="block w-full cursor-not-allowed px-4 py-3 text-slate-400"
+                      title="Kredit laves ud fra en almindelig faktura, ikke en kreditnota"
+                    >
+                      Opret kredit
+                    </span>
+                  )}
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={!!mailBusy}
+                    className="w-full px-4 py-3 text-left text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                    onClick={() => void sendMail('invoice_reminder')}
+                  >
+                    {mailBusy === 'reminder' ? 'Sender påmindelse…' : 'Send påmindelse'}
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={!!mailBusy}
+                    className="w-full px-4 py-3 text-left text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                    onClick={() => void sendMail('invoice_dunning')}
+                  >
+                    {mailBusy === 'dunning' ? 'Sender rykker…' : 'Send rykker'}
+                  </button>
+                </li>
+              </ul>
+            ) : null}
+          </div>
         </div>
         <p className="text-xs text-slate-500 sm:text-sm">
           {isCreditNote
-            ? 'Kreditnota: du ser først den oprindelige faktura, derefter kreditnotaen. Data gemmes som linjer i Bilago; PDF’erne genereres til visning og download.'
-            : 'Dette er den samme PDF som ved download — gemt i Bilago som linjer, vist her som forhåndsvisning.'}
+            ? 'Kreditnota: du ser først den oprindelige faktura, derefter kreditnotaen. Standard er hele siden i skærmens bredde; brug +/− for at zoome. Data gemmes som linjer; PDF genereres til visning og download. En afsendt faktura kan ikke ændres — kredit følger efterbetalingsmønsteret.'
+            : 'Standard vises hele fakturaen i skærmens bredde; brug +/− for at zoome ind. Samme PDF som ved download — data gemmes som linjer. En afsendt faktura kan ikke ændres — brug kredit hvis nødvendigt.'}
         </p>
-        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-          <Link
-            to={`/app/invoices/${id}`}
-            className="inline-flex min-h-[40px] items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
-          >
-            Rediger faktura
-          </Link>
-          {canCredit ? (
-            <Link
-              to={`/app/invoices/new?creditFor=${id}`}
-              className="inline-flex min-h-[40px] items-center justify-center rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-950 hover:bg-amber-100"
-            >
-              Opret kreditnota
-            </Link>
-          ) : null}
-          <button
-            type="button"
-            disabled={!!mailBusy}
-            onClick={() => void sendMail('invoice_reminder')}
-            className="inline-flex min-h-[40px] items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-          >
-            {mailBusy === 'reminder' ? 'Sender…' : 'Send påmindelse'}
-          </button>
-          <button
-            type="button"
-            disabled={!!mailBusy}
-            onClick={() => void sendMail('invoice_dunning')}
-            className="inline-flex min-h-[40px] items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-950 hover:bg-rose-100 disabled:opacity-50"
-          >
-            {mailBusy === 'dunning' ? 'Sender…' : 'Send rykker'}
-          </button>
-        </div>
         {mailNotice ? (
           <p className="text-sm text-slate-700" role="status">
             {mailNotice}
@@ -329,10 +381,10 @@ export function InvoicePdfPage() {
                 Åbn separat
               </Link>
             </div>
-            <iframe
+            <InvoicePdfCanvasViewer
+              pdfUrl={originalPdf.url}
               title="Oprindelig faktura PDF"
-              src={originalPdf.url}
-              className="min-h-[50vh] w-full border-0 bg-white"
+              compactHeight
             />
           </section>
         ) : null}
@@ -341,15 +393,25 @@ export function InvoicePdfPage() {
             Kreditnota {invoiceNumber}
           </div>
         ) : null}
-        <iframe
+        <InvoicePdfCanvasViewer
+          pdfUrl={blobUrl}
           title={isCreditNote ? 'Kreditnota PDF' : 'Faktura PDF'}
-          src={blobUrl}
-          className={
-            (isCreditNote ? 'min-h-[45vh] ' : 'min-h-[70vh] ') +
-            'w-full flex-1 border-0 bg-slate-100'
-          }
+          compactHeight={isCreditNote}
         />
       </div>
     </div>
+  )
+}
+
+function IconEllipsis() {
+  return (
+    <svg
+      className="h-6 w-6"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden
+    >
+      <path d="M12 8a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm0 2.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm0 5.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z" />
+    </svg>
   )
 }
