@@ -16,7 +16,7 @@ const statusDa: Record<Invoice['status'], string> = {
   cancelled: 'Annulleret',
 }
 
-const INVOICES_VIEW_KEY = 'hisab:invoicesDesktopView'
+const INVOICES_VIEW_KEY = 'bilago:invoicesDesktopView'
 
 export function InvoicesPage() {
   const navigate = useNavigate()

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useApp } from '@/context/AppProvider'
 import {
@@ -48,13 +48,19 @@ function Field({
   )
 }
 
+const OG_BUCKET = 'landing-seo'
+const OG_MAX_BYTES = 3 * 1024 * 1024
+const OG_ACCEPT = 'image/png,image/jpeg,image/jpg,image/webp'
+
 export function PlatformSeoPage() {
   const { platformRole } = useApp()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [uploadBusy, setUploadBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [seo, setSeo] = useState<LandingSeoSettings>(() => ({ ...DEFAULT_LANDING_SEO }))
+  const ogFileRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -114,6 +120,43 @@ export function PlatformSeoPage() {
 
   function patch(p: Partial<LandingSeoSettings>) {
     setSeo((prev) => ({ ...prev, ...p }))
+  }
+
+  async function onOgImageSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setError('Vælg et billede (PNG, JPEG eller WebP).')
+      return
+    }
+    if (file.size > OG_MAX_BYTES) {
+      setError('Filen må højst være 3 MB.')
+      return
+    }
+    setUploadBusy(true)
+    setError(null)
+    setMessage(null)
+    const ext =
+      file.type === 'image/png'
+        ? 'png'
+        : file.type === 'image/webp'
+          ? 'webp'
+          : 'jpg'
+    const path = `og/${crypto.randomUUID()}.${ext}`
+    const { error: upErr } = await supabase.storage
+      .from(OG_BUCKET)
+      .upload(path, file, { upsert: false, contentType: file.type })
+    if (upErr) {
+      setUploadBusy(false)
+      setError(upErr.message)
+      return
+    }
+    const { data: pub } = supabase.storage.from(OG_BUCKET).getPublicUrl(path)
+    const url = pub.publicUrl
+    patch({ og_image_url: url })
+    setUploadBusy(false)
+    setMessage('Billede uploadet — «OG billede URL» er opdateret. Klik «Gem SEO» for at gemme i databasen.')
   }
 
   if (platformRole !== 'superadmin') {
@@ -217,9 +260,37 @@ export function PlatformSeoPage() {
               multiline
               rows={3}
             />
+            <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-4">
+              <p className="text-xs font-semibold text-slate-800">Upload OG-billede</p>
+              <p className="mt-1 text-xs text-slate-600">
+                PNG, JPEG eller WebP — max 3 MB. Filer ligger offentligt (til WhatsApp m.m.); du skal stadig trykke{' '}
+                <strong>Gem SEO</strong> nedenfor.
+              </p>
+              {seo.og_image_url.trim() ? (
+                <div className="mt-3">
+                  <p className="text-[11px] font-medium text-slate-500">Forhåndsvisning</p>
+                  <img
+                    src={seo.og_image_url.trim()}
+                    alt=""
+                    className="mt-1 max-h-40 max-w-full rounded-md border border-slate-200 bg-white object-contain"
+                  />
+                </div>
+              ) : null}
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <input ref={ogFileRef} type="file" accept={OG_ACCEPT} className="hidden" onChange={(e) => void onOgImageSelected(e)} />
+                <button
+                  type="button"
+                  disabled={uploadBusy}
+                  onClick={() => ogFileRef.current?.click()}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+                >
+                  {uploadBusy ? 'Uploader…' : 'Vælg billede'}
+                </button>
+              </div>
+            </div>
             <Field
               label="OG billede URL"
-              hint="Fuld HTTPS-URL til et billede du hoster (fx i public/ eller CDN)."
+              hint="Udfyldes automatisk ved upload, eller indsæt en fuld HTTPS-URL (fx CDN)."
               value={seo.og_image_url}
               onChange={(v) => patch({ og_image_url: v })}
             />

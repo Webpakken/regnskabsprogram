@@ -80,7 +80,7 @@ serve(async (req) => {
   const res = await fetch(url, {
     headers: {
       Accept: 'application/json',
-      'User-Agent': 'Hisab-CVR-Search/1.0',
+      'User-Agent': 'Bilago-CVR-Search/1.0',
     },
   })
 

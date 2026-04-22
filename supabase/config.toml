@@ -55,3 +55,6 @@ verify_jwt = false
 
 [functions.support-push-notify]
 verify_jwt = false
+
+[functions.support-push-customer-notify]
+verify_jwt = false

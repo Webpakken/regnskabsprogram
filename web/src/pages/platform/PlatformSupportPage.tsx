@@ -98,8 +98,21 @@ export function PlatformSupportPage() {
     setSending(false)
     void supabase.functions
       .invoke('support-push-notify', { body: { ticket_id: selectedId } })
-      .then(({ error }) => {
-        if (error) console.warn('[support-push-notify]', error.message)
+      .then(({ data, error }) => {
+        if (error) {
+          console.warn('[support-push-notify]', error.message)
+          return
+        }
+        if (data && typeof data === 'object') {
+          const d = data as { sent?: number; subscriptionCount?: number; firstError?: string }
+          if ((d.subscriptionCount ?? 0) === 0) {
+            console.info(
+              '[push] Ingen push-abonnementer for virksomhedens medlemmer — kunden får ikke notifikation.',
+            )
+          } else if ((d.sent ?? 0) === 0 && d.firstError) {
+            console.warn('[support-push-notify] send', d.firstError)
+          }
+        }
       })
   }
 

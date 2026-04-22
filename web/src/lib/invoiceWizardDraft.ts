@@ -32,15 +32,21 @@ export type InvoiceWizardDraftV1 = {
   lines: WizardLine[]
 }
 
-const PREFIX = 'hisab:invoice-wizard-draft:'
+const PREFIX = 'bilago:invoice-wizard-draft:'
+const LEGACY_PREFIX = 'hisab:invoice-wizard-draft:'
 
 export function invoiceWizardDraftKey(companyId: string) {
   return `${PREFIX}${companyId}`
 }
 
+function invoiceWizardDraftLegacyKey(companyId: string) {
+  return `${LEGACY_PREFIX}${companyId}`
+}
+
 export function clearInvoiceWizardDraft(companyId: string) {
   try {
     sessionStorage.removeItem(invoiceWizardDraftKey(companyId))
+    sessionStorage.removeItem(invoiceWizardDraftLegacyKey(companyId))
   } catch {
     /* ignore */
   }
@@ -121,13 +127,14 @@ export function readInvoiceWizardDraft(
   companyId: string,
 ): InvoiceWizardDraftV1 | null {
   try {
-    const raw = sessionStorage.getItem(invoiceWizardDraftKey(companyId))
+    let raw = sessionStorage.getItem(invoiceWizardDraftKey(companyId))
+    if (!raw) raw = sessionStorage.getItem(invoiceWizardDraftLegacyKey(companyId))
     if (!raw) return null
     const data = JSON.parse(raw) as Partial<InvoiceWizardDraftV1>
     if (data.v !== 1) return null
     const lines = parseLines(data.lines)
     const view = parseView(data.view, lines.length)
-    return {
+    const parsed: InvoiceWizardDraftV1 = {
       v: 1,
       tab: parseTab(data.tab),
       view,
@@ -142,6 +149,16 @@ export function readInvoiceWizardDraft(
       status: parseStatus(data.status),
       lines,
     }
+    try {
+      sessionStorage.setItem(
+        invoiceWizardDraftKey(companyId),
+        JSON.stringify(parsed),
+      )
+      sessionStorage.removeItem(invoiceWizardDraftLegacyKey(companyId))
+    } catch {
+      /* ignore */
+    }
+    return parsed
   } catch {
     return null
   }

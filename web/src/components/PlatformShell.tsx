@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { PlatformSettingsSideNav } from '@/components/PlatformSettingsSideNav'
+import { RegisterPushNotifications } from '@/components/RegisterPushNotifications'
 import { useApp } from '@/context/AppProvider'
 import { logoutToLanding } from '@/lib/logoutToLanding'
 
@@ -23,6 +24,7 @@ export function PlatformShell({ children }: { children?: ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-slate-100">
+      <RegisterPushNotifications variant="platform" />
       <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-slate-900 text-slate-100 md:flex">
         <div className="border-b border-slate-800 px-4 py-5">
           <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">

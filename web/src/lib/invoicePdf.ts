@@ -110,9 +110,40 @@ function companyFooterOneLiner(company: CompanyRow): string {
   return parts.join(' / ')
 }
 
+function estimateBottomBlockHeightMm(doc: jsPDF, company: CompanyRow, contentW: number): number {
+  doc.setFont('helvetica', 'normal')
+  let h = 0
+  h += 5.5
+  h += 5
+  const bankParts: string[] = []
+  if (company.bank_reg_number?.trim() && company.bank_account_number?.trim()) {
+    bankParts.push(`Reg.nr. ${company.bank_reg_number.trim()}`)
+    bankParts.push(`Kontonr. ${company.bank_account_number.trim()}`)
+  }
+  if (company.iban?.trim()) bankParts.push(`IBAN ${company.iban.trim()}`)
+  if (bankParts.length > 0) h += 5.5
+  h += 6
+  doc.setFontSize(8.5)
+  h += 4 + doc.splitTextToSize(DEFAULT_LATE_PAYMENT_TEXT, contentW).length * 4
+  if (company.invoice_footer_note?.trim()) {
+    h += 2
+    h += 4 + doc.splitTextToSize(company.invoice_footer_note.trim(), contentW).length * 4
+  }
+  h += 3
+  doc.setFontSize(8)
+  h += footerSplitLineHeightMm(doc, companyFooterOneLiner(company), contentW)
+  doc.setFontSize(9)
+  return h
+}
+
+function footerSplitLineHeightMm(doc: jsPDF, text: string, contentW: number): number {
+  const lines = doc.splitTextToSize(text, contentW).length
+  return lines * 4.2
+}
+
 /**
  * Faktura-PDF: kunde øverst til venstre, udsteder med logo øverst til højre,
- * linjetabel og bund med betaling/bank/forfald som på almindelig dansk faktura.
+ * linjetabel fuld bredde, betalingsblok i bunden af siden.
  */
 export function generateInvoicePdfBlob(
   company: CompanyRow,
@@ -122,7 +153,9 @@ export function generateInvoicePdfBlob(
 ): Blob {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageW = doc.internal.pageSize.getWidth()
+  const pageH = doc.internal.pageSize.getHeight()
   const rightX = pageW - MARGIN
+  const contentW = pageW - 2 * MARGIN
   let y = 12
 
   const leftColW = pageW * 0.48
@@ -141,10 +174,6 @@ export function generateInvoicePdfBlob(
     y += 4.5
   }
 
-  y += 2
-  doc.text(`Dato ${formatDaDate(invoice.issue_date)}`, MARGIN, y)
-  y += 4.5
-  doc.text(`Fakturanr. ${invoice.invoice_number}`, MARGIN, y)
   const leftBlockEndY = y + 4
 
   let logoBottomY = issuerStartY
@@ -194,11 +223,20 @@ export function generateInvoicePdfBlob(
   }
 
   y = Math.max(leftBlockEndY, ry) + 10
+
+  const titleY = y
   doc.setFontSize(20)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(30, 30, 40)
-  doc.text('Faktura', MARGIN, y)
-  y += 12
+  doc.text('Faktura', MARGIN, titleY)
+
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(55, 55, 65)
+  doc.text(`Dato ${formatDaDate(invoice.issue_date)}`, rightX, titleY, { align: 'right' })
+  doc.text(`Fakturanr. ${invoice.invoice_number}`, rightX, titleY + 4.5, { align: 'right' })
+
+  y = titleY + Math.max(12, 4.5 + 5)
 
   if (invoice.notes?.trim()) {
     doc.setFontSize(9)
@@ -221,18 +259,26 @@ export function generateInvoicePdfBlob(
         ])
       : [['Ingen linjer', '—', '—', '—', '—']]
 
+  const tw = contentW
+  const c0 = Math.floor(tw * 0.4)
+  const c1 = Math.floor(tw * 0.11)
+  const c2 = Math.floor(tw * 0.09)
+  const c3 = Math.floor(tw * 0.2)
+  const c4 = tw - c0 - c1 - c2 - c3
+
   autoTable(doc, {
     startY: y,
     head: [['Beskrivelse', 'Antal', 'Enhed', 'Enhedspris', 'Pris']],
     body,
-    styles: { fontSize: 8, cellPadding: 2 },
+    styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak' },
     headStyles: { fillColor: [45, 45, 55], textColor: 255 },
+    tableWidth: tw,
     columnStyles: {
-      0: { cellWidth: 62 },
-      1: { halign: 'right', cellWidth: 18 },
-      2: { halign: 'center', cellWidth: 14 },
-      3: { halign: 'right', cellWidth: 28 },
-      4: { halign: 'right', cellWidth: 28 },
+      0: { cellWidth: c0 },
+      1: { cellWidth: c1, halign: 'right' },
+      2: { cellWidth: c2, halign: 'center' },
+      3: { cellWidth: c3, halign: 'right' },
+      4: { cellWidth: c4, halign: 'right' },
     },
     margin: { left: MARGIN, right: MARGIN },
   })
@@ -258,18 +304,27 @@ export function generateInvoicePdfBlob(
   doc.setFont('helvetica', 'normal')
   ty += 10
 
+  const bottomH = estimateBottomBlockHeightMm(doc, company, contentW)
+  const minGapAfterTotals = 8
+  let yPay = pageH - MARGIN - bottomH
+  if (yPay < ty + minGapAfterTotals) {
+    yPay = ty + minGapAfterTotals
+  }
+
   const netDays = netCalendarDays(invoice.issue_date, invoice.due_date)
+  doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
   doc.setTextColor(45, 45, 55)
+  let py = yPay
   doc.text(
     `Betalingsbetingelser: Netto ${netDays} dage — Forfaldsdato: ${formatDaDate(invoice.due_date)}`,
     MARGIN,
-    ty,
+    py,
   )
-  ty += 5.5
+  py += 5.5
 
-  doc.text('Beløbet indbetales på bankkonto:', MARGIN, ty)
-  ty += 5
+  doc.text('Beløbet indbetales på bankkonto:', MARGIN, py)
+  py += 5
 
   const bankLineParts: string[] = []
   if (company.bank_reg_number?.trim() && company.bank_account_number?.trim()) {
@@ -280,36 +335,36 @@ export function generateInvoicePdfBlob(
     bankLineParts.push(`IBAN ${company.iban.trim()}`)
   }
   if (bankLineParts.length > 0) {
-    doc.text(bankLineParts.join(' / '), MARGIN, ty)
-    ty += 5.5
+    doc.text(bankLineParts.join(' / '), MARGIN, py)
+    py += 5.5
   }
 
   doc.text(
     `Fakturanr. ${invoice.invoice_number} bedes angivet ved bankoverførsel.`,
     MARGIN,
-    ty,
+    py,
   )
-  ty += 6
+  py += 6
 
   doc.setFontSize(8.5)
   doc.setTextColor(55, 55, 65)
-  const lateLines = doc.splitTextToSize(DEFAULT_LATE_PAYMENT_TEXT, pageW - 2 * MARGIN)
-  doc.text(lateLines, MARGIN, ty)
-  ty += 4 + lateLines.length * 4
+  const lateLines = doc.splitTextToSize(DEFAULT_LATE_PAYMENT_TEXT, contentW)
+  doc.text(lateLines, MARGIN, py)
+  py += 4 + lateLines.length * 4
 
   if (company.invoice_footer_note?.trim()) {
-    ty += 2
-    const extra = doc.splitTextToSize(company.invoice_footer_note.trim(), pageW - 2 * MARGIN)
-    doc.text(extra, MARGIN, ty)
-    ty += 4 + extra.length * 4
+    py += 2
+    const extra = doc.splitTextToSize(company.invoice_footer_note.trim(), contentW)
+    doc.text(extra, MARGIN, py)
+    py += 4 + extra.length * 4
   }
 
-  ty += 4
+  py += 3
   doc.setFontSize(8)
   doc.setTextColor(70, 70, 80)
   const oneLiner = companyFooterOneLiner(company)
-  const footerSplit = doc.splitTextToSize(oneLiner, pageW - 2 * MARGIN)
-  doc.text(footerSplit, MARGIN, ty)
+  const footerSplit = doc.splitTextToSize(oneLiner, contentW)
+  doc.text(footerSplit, MARGIN, py)
 
   return doc.output('blob')
 }

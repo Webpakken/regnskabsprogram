@@ -19,4 +19,13 @@
   #root {
     @apply min-h-screen;
   }
+
+  /* iOS Safari: undgå auto-zoom ved fokus (mindst 16px på formfelter). */
+  @media (max-width: 48rem), (pointer: coarse) {
+    input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='hidden']):not([type='color']),
+    textarea,
+    select {
+      font-size: max(16px, 1em);
+    }
+  }
 }

@@ -1,4 +1,4 @@
--- Hisab MVP: multi-tenant accounting-lite schema with RLS
+-- Bilago MVP: multi-tenant accounting-lite schema with RLS
 -- Extensions
 create extension if not exists "pgcrypto";
 

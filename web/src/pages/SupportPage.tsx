@@ -99,6 +99,24 @@ export function SupportPage() {
     setBody('')
     await loadThread(currentCompany!.id)
     setSending(false)
+    void supabase.functions
+      .invoke('support-push-customer-notify', { body: { ticket_id: ticket.id } })
+      .then(({ data, error }) => {
+        if (error) {
+          console.warn('[support-push-customer-notify]', error.message)
+          return
+        }
+        if (data && typeof data === 'object' && 'subscriptionCount' in data) {
+          const d = data as { sent?: number; subscriptionCount?: number; firstError?: string }
+          if ((d.subscriptionCount ?? 0) === 0) {
+            console.info(
+              '[push] Ingen registrerede enheder hos Bilago-team — notifikation kan ikke sendes.',
+            )
+          } else if ((d.sent ?? 0) === 0 && d.firstError) {
+            console.warn('[support-push-customer-notify] send', d.firstError)
+          }
+        }
+      })
   }
 
   if (!currentCompany) {

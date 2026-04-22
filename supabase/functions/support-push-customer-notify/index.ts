@@ -3,6 +3,9 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import webpush from 'npm:web-push@3.6.6'
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts'
 
+/**
+ * Kunde skriver i support → push til alle platform_staff (Bilago-team).
+ */
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -36,18 +39,6 @@ serve(async (req) => {
   }
 
   const admin = createClient(supabaseUrl, serviceKey)
-  const { data: staffRow, error: staffErr } = await admin
-    .from('platform_staff')
-    .select('user_id')
-    .eq('user_id', authUser.id)
-    .maybeSingle()
-  if (staffErr || !staffRow) {
-    return jsonResponse({ error: 'Forbidden' }, 403)
-  }
-
-  if (!vapidPublic || !vapidPrivate) {
-    return jsonResponse({ error: 'Push not configured (VAPID keys)' }, 503)
-  }
 
   let ticketId: string
   try {
@@ -69,29 +60,40 @@ serve(async (req) => {
     return jsonResponse({ error: 'Ticket not found' }, 404)
   }
 
+  const { data: memberRow, error: memErr } = await admin
+    .from('company_members')
+    .select('user_id')
+    .eq('company_id', ticket.company_id)
+    .eq('user_id', authUser.id)
+    .maybeSingle()
+  if (memErr || !memberRow) {
+    return jsonResponse({ error: 'Forbidden' }, 403)
+  }
+
+  if (!vapidPublic || !vapidPrivate) {
+    return jsonResponse({ error: 'Push not configured (VAPID keys)' }, 503)
+  }
+
   const { data: coRow } = await admin
     .from('companies')
     .select('name')
     .eq('id', ticket.company_id)
     .maybeSingle()
-  const companyName = coRow?.name?.trim() || 'Din virksomhed'
+  const companyName = coRow?.name?.trim() || 'Virksomhed'
 
-  const { data: members, error: mErr } = await admin
-    .from('company_members')
-    .select('user_id')
-    .eq('company_id', ticket.company_id)
-  if (mErr) {
-    return jsonResponse({ error: mErr.message }, 500)
+  const { data: staffRows, error: stErr } = await admin.from('platform_staff').select('user_id')
+  if (stErr) {
+    return jsonResponse({ error: stErr.message }, 500)
   }
-  const userIds = [...new Set((members ?? []).map((m) => m.user_id).filter(Boolean))]
-  if (userIds.length === 0) {
-    return jsonResponse({ ok: true, sent: 0, skipped: 'no members' })
+  const staffIds = [...new Set((staffRows ?? []).map((r) => r.user_id).filter(Boolean))]
+  if (staffIds.length === 0) {
+    return jsonResponse({ ok: true, sent: 0, skipped: 'no platform staff' })
   }
 
   const { data: subs, error: sErr } = await admin
     .from('push_subscriptions')
     .select('id, endpoint, subscription')
-    .in('user_id', userIds)
+    .in('user_id', staffIds)
   if (sErr) {
     return jsonResponse({ error: sErr.message }, 500)
   }
@@ -99,9 +101,9 @@ serve(async (req) => {
   webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate)
 
   const payload = JSON.stringify({
-    title: 'Ny besked fra Bilago',
-    body: `Support har skrevet i tråden for ${companyName}.`,
-    url: '/app/support',
+    title: 'Ny supportbesked',
+    body: `${companyName} har skrevet i support.`,
+    url: '/platform/support',
   })
 
   let sent = 0

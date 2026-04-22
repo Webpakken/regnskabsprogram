@@ -17,6 +17,10 @@ function todayIso() {
 }
 
 function voucherDraftKey(companyId: string) {
+  return `bilago:voucher-upload-draft:${companyId}`
+}
+
+function voucherDraftLegacyKey(companyId: string) {
   return `hisab:voucher-upload-draft:${companyId}`
 }
 
@@ -28,7 +32,7 @@ type VoucherDraft = {
   vatRate: string
 }
 
-const VOUCHERS_VIEW_KEY = 'hisab:vouchersDesktopView'
+const VOUCHERS_VIEW_KEY = 'bilago:vouchersDesktopView'
 
 export function VouchersPage() {
   const { currentCompany, user } = useApp()
@@ -85,7 +89,8 @@ export function VouchersPage() {
     canPersistVoucherDraft.current = false
     if (!cid) return
     try {
-      const raw = sessionStorage.getItem(voucherDraftKey(cid))
+      let raw = sessionStorage.getItem(voucherDraftKey(cid))
+      if (!raw) raw = sessionStorage.getItem(voucherDraftLegacyKey(cid))
       if (raw) {
         const d = JSON.parse(raw) as Partial<VoucherDraft>
         if (typeof d.title === 'string') setTitle(d.title)
@@ -93,6 +98,12 @@ export function VouchersPage() {
         if (typeof d.expenseDate === 'string') setExpenseDate(d.expenseDate)
         if (typeof d.grossKr === 'string') setGrossKr(d.grossKr)
         if (typeof d.vatRate === 'string') setVatRate(d.vatRate)
+        try {
+          sessionStorage.setItem(voucherDraftKey(cid), raw)
+          sessionStorage.removeItem(voucherDraftLegacyKey(cid))
+        } catch {
+          /* ignore */
+        }
       } else {
         setTitle('')
         setCategory('')
@@ -223,6 +234,7 @@ export function VouchersPage() {
     setExpenseDate(todayIso())
     try {
       sessionStorage.removeItem(voucherDraftKey(currentCompany.id))
+      sessionStorage.removeItem(voucherDraftLegacyKey(currentCompany.id))
     } catch {
       /* ignore */
     }
@@ -278,15 +290,41 @@ export function VouchersPage() {
     if (file) void uploadVoucherFile(file)
   }
 
-  async function openSigned(v: Voucher) {
-    const { data, error: err } = await supabase.storage
-      .from('vouchers')
-      .createSignedUrl(v.storage_path, 3600)
-    if (err || !data?.signedUrl) {
-      setError(err?.message ?? 'Kunne ikke åbne fil')
-      return
-    }
-    window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+  /**
+   * Safari/PWA blokerer window.open efter await (ikke længere «user gesture»).
+   * Åbn et tomt vindue synkront, sæt location når signeret URL er klar.
+   */
+  function openSigned(v: Voucher) {
+    const w = window.open('about:blank', '_blank', 'noopener,noreferrer')
+    void (async () => {
+      const { data, error: err } = await supabase.storage
+        .from('vouchers')
+        .createSignedUrl(v.storage_path, 3600)
+      if (err || !data?.signedUrl) {
+        try {
+          w?.close()
+        } catch {
+          /* ignore */
+        }
+        setError(err?.message ?? 'Kunne ikke åbne fil')
+        return
+      }
+      const url = data.signedUrl
+      if (w) {
+        try {
+          w.location.href = url
+        } catch {
+          try {
+            w.close()
+          } catch {
+            /* ignore */
+          }
+          window.location.assign(url)
+        }
+      } else {
+        window.location.assign(url)
+      }
+    })()
   }
 
   if (!currentCompany) {
@@ -448,11 +486,11 @@ export function VouchersPage() {
                 key={v.id}
                 role="button"
                 tabIndex={0}
-                onClick={() => void openSigned(v)}
+                onClick={() => openSigned(v)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault()
-                    void openSigned(v)
+                    openSigned(v)
                   }
                 }}
                 className="flex cursor-pointer flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
@@ -524,7 +562,7 @@ export function VouchersPage() {
                     <button
                       type="button"
                       className="text-sm font-medium text-indigo-600 hover:underline"
-                      onClick={() => void openSigned(v)}
+                      onClick={() => openSigned(v)}
                     >
                       Åbn
                     </button>
