@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { formatDateLongNoTime } from '@/lib/format'
 import type { Database } from '@/types/database'
 
 type Invoice = Database['public']['Tables']['invoices']['Row']
@@ -22,18 +23,6 @@ function money(cents: number, currency: string) {
     }).format(cents / 100)
   } catch {
     return `${(cents / 100).toFixed(2)} ${currency}`
-  }
-}
-
-function formatDaDate(iso: string) {
-  try {
-    return new Intl.DateTimeFormat('da-DK', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    }).format(new Date(iso + 'T12:00:00'))
-  } catch {
-    return iso
   }
 }
 
@@ -233,7 +222,7 @@ export function generateInvoicePdfBlob(
   doc.setFontSize(9)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(55, 55, 65)
-  doc.text(`Dato ${formatDaDate(invoice.issue_date)}`, rightX, titleY, { align: 'right' })
+  doc.text(`Dato ${formatDateLongNoTime(invoice.issue_date)}`, rightX, titleY, { align: 'right' })
   doc.text(`Fakturanr. ${invoice.invoice_number}`, rightX, titleY + 4.5, { align: 'right' })
 
   y = titleY + Math.max(12, 4.5 + 5)
@@ -317,7 +306,7 @@ export function generateInvoicePdfBlob(
   doc.setTextColor(45, 45, 55)
   let py = yPay
   doc.text(
-    `Betalingsbetingelser: Netto ${netDays} dage — Forfaldsdato: ${formatDaDate(invoice.due_date)}`,
+    `Betalingsbetingelser: Netto ${netDays} dage — Forfaldsdato: ${formatDateLongNoTime(invoice.due_date)}`,
     MARGIN,
     py,
   )

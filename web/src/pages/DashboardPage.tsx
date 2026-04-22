@@ -11,25 +11,19 @@ import {
 } from 'recharts'
 import { supabase } from '@/lib/supabase'
 import { useApp, subscriptionOk } from '@/context/AppProvider'
-import { formatDate, formatDkk, formatDateTime } from '@/lib/format'
+import {
+  copenhagenLastNDaysInclusive,
+  copenhagenYearMonth,
+  eachCopenhagenYmdInRange,
+  formatDate,
+  formatDkk,
+  formatDateTime,
+} from '@/lib/format'
 import { redirectToStripeCheckout } from '@/lib/edge'
 import type { Database } from '@/types/database'
 
 type Invoice = Database['public']['Tables']['invoices']['Row']
 type Activity = Database['public']['Tables']['activity_events']['Row']
-
-function startOfDay(d: Date) {
-  const x = new Date(d)
-  x.setHours(0, 0, 0, 0)
-  return x
-}
-
-function last30Days() {
-  const end = startOfDay(new Date())
-  const start = new Date(end)
-  start.setDate(start.getDate() - 29)
-  return { start, end }
-}
 
 export function DashboardPage() {
   const { currentCompany, subscription, refresh } = useApp()
@@ -54,14 +48,14 @@ export function DashboardPage() {
     let cancelled = false
     ;(async () => {
       setLoading(true)
-      const { start } = last30Days()
-      const startIso = start.toISOString().slice(0, 10)
+      const { from, to } = copenhagenLastNDaysInclusive(30)
       const [inv, act, vc] = await Promise.all([
         supabase
           .from('invoices')
           .select('*')
           .eq('company_id', currentCompany.id)
-          .gte('issue_date', startIso)
+          .gte('issue_date', from)
+          .lte('issue_date', to)
           .order('issue_date', { ascending: true }),
         supabase
           .from('activity_events')
@@ -86,10 +80,9 @@ export function DashboardPage() {
   }, [currentCompany])
 
   const chartData = useMemo(() => {
-    const { start, end } = last30Days()
+    const { from, to } = copenhagenLastNDaysInclusive(30)
     const map = new Map<string, number>()
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      const key = d.toISOString().slice(0, 10)
+    for (const key of eachCopenhagenYmdInRange(from, to)) {
       map.set(key, 0)
     }
     for (const inv of invoices) {
@@ -106,8 +99,7 @@ export function DashboardPage() {
   }, [invoices])
 
   const momsMonth = useMemo(() => {
-    const now = new Date()
-    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const ym = copenhagenYearMonth()
     return invoices
       .filter(
         (i) =>

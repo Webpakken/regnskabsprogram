@@ -6,6 +6,7 @@ import { redirectToStripeCheckout } from '@/lib/edge'
 import { logoutToLanding } from '@/lib/logoutToLanding'
 import { supabase } from '@/lib/supabase'
 import { BrandMark } from '@/components/BrandMark'
+import { formatDateTime } from '@/lib/format'
 import { MobileBottomNav } from '@/components/MobileBottomNav'
 import { RegisterPushNotifications } from '@/components/RegisterPushNotifications'
 import { useSupportUnread } from '@/context/SupportUnreadContext'
@@ -232,7 +233,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
             <span>
               <strong>Impersonation:</strong> du ser som{' '}
               <strong>{currentCompany.name}</strong> (udløber{' '}
-              {new Date(impersonation.expiresAt).toLocaleString('da-DK')}).
+              {formatDateTime(impersonation.expiresAt)}).
             </span>
             <button
               type="button"

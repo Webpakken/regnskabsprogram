@@ -16,12 +16,23 @@ function formatDkk(cents: number): string {
   }).format(cents / 100)
 }
 
+const APP_TIMEZONE = 'Europe/Copenhagen'
+
 function formatDaDate(iso: string): string {
   try {
-    const d = new Date(iso + (iso.length <= 10 ? 'T12:00:00' : ''))
+    if (/^\d{4}-\d{2}-\d{2}$/.test(iso.slice(0, 10))) {
+      const d8 = iso.slice(0, 10)
+      const [y, m, day] = d8.split('-').map(Number)
+      const t = new Date(Date.UTC(y, m - 1, day, 12, 0, 0))
+      return new Intl.DateTimeFormat('da-DK', {
+        timeZone: APP_TIMEZONE,
+        dateStyle: 'long',
+      }).format(t)
+    }
     return new Intl.DateTimeFormat('da-DK', {
+      timeZone: APP_TIMEZONE,
       dateStyle: 'long',
-    }).format(d)
+    }).format(new Date(iso))
   } catch {
     return iso
   }

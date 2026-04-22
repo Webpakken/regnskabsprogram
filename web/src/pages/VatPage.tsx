@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useApp } from '@/context/AppProvider'
-import { formatDkk } from '@/lib/format'
+import { copenhagenYmd, copenhagenYear, formatDkk } from '@/lib/format'
 
 type Period = { label: string; from: string; to: string }
 
@@ -15,9 +15,11 @@ function danishQuarters(year: number): Period[] {
 }
 
 function currentQuarterKey(): string {
-  const now = new Date()
-  const q = Math.floor(now.getUTCMonth() / 3)
-  return `${now.getUTCFullYear()}-q${q + 1}`
+  const ymd = copenhagenYmd()
+  const m = parseInt(ymd.slice(5, 7), 10)
+  const y = parseInt(ymd.slice(0, 4), 10)
+  const q = Math.floor((m - 1) / 3) + 1
+  return `${y}-q${q}`
 }
 
 type InvoiceRow = {
@@ -42,7 +44,7 @@ type VoucherRow = {
 
 export function VatPage() {
   const { currentCompany } = useApp()
-  const year = new Date().getUTCFullYear()
+  const year = copenhagenYear()
   /* Vigtigt: stabilt dependency-array — ikke `years` som nyt [] hver render (gav useEffect-loop og blink). */
   const periods = useMemo(() => {
     const years = [year - 1, year, year + 1]

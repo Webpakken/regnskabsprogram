@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { BrandLogo } from '@/components/BrandLogo'
+import { copenhagenYear } from '@/lib/format'
 import type { Database } from '@/types/database'
 
 type PublicSettings = Database['public']['Tables']['platform_public_settings']['Row']
@@ -86,7 +87,7 @@ export function MarketingFooter({ pub }: { pub: PublicSettings | null }) {
         </div>
       </div>
       <div className="border-t border-slate-100 py-6 text-center text-xs text-slate-500">
-        © {new Date().getFullYear()} Bilago. Alle rettigheder forbeholdes.
+        © {copenhagenYear()} Bilago. Alle rettigheder forbeholdes.
       </div>
     </footer>
   )
