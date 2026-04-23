@@ -190,7 +190,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-3.5 md:px-8">
+        <header className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-3.5 md:px-10">
           <div className="flex min-w-0 flex-1 flex-col gap-2 md:flex-row md:items-center md:gap-4">
             <select
               className="max-w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm md:max-w-xs"
@@ -234,7 +234,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
         </header>
 
         {impersonation && currentCompany && platformRole ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-5 py-3.5 text-sm text-amber-950 md:px-8">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-5 py-3.5 text-sm text-amber-950 md:px-10">
             <span>
               <strong>Impersonation:</strong> du ser som{' '}
               <strong>{currentCompany.name}</strong> (udløber{' '}
@@ -251,7 +251,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
         ) : null}
 
         {!ok && currentCompany ? (
-          <div className="border-b border-amber-100 bg-amber-50 px-5 py-3.5 text-sm text-amber-900 md:px-8">
+          <div className="border-b border-amber-100 bg-amber-50 px-5 py-3.5 text-sm text-amber-900 md:px-10">
             Aktivér dit månedsabonnement for at bruge Bilago. Data er isoleret per
             virksomhed (CVR kan tilføjes under Indstillinger).
           </div>
@@ -312,7 +312,7 @@ function TrialBanner({
   if (bannerHiddenByPref) return null
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-indigo-100 bg-indigo-50 px-5 py-4 text-sm text-indigo-900 md:px-8 md:py-4">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-indigo-100 bg-indigo-50 px-5 py-4 text-sm text-indigo-900 md:px-10 md:py-4">
       <span className="min-w-0 flex-1">
         Gratis prøveperiode
         {daysLeft !== null ? ` — ${daysLeft} ${daysLeft === 1 ? 'dag' : 'dage'} tilbage` : null}

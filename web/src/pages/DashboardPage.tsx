@@ -263,8 +263,8 @@ export function DashboardPage() {
   const slateBar = '#64748b'
 
   return (
-    <div className="space-y-6 md:space-y-8 md:-mx-10 md:w-[calc(100%+5rem)]">
-      <div className="-mx-5 -mt-2 px-5 pb-3 pt-1 md:mx-0 md:mt-0 md:px-0 md:pb-0 md:pt-0">
+    <div className="space-y-6 md:space-y-8">
+      <section className="space-y-6">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-lg font-semibold tracking-tight text-slate-900 md:text-xl">
@@ -300,7 +300,7 @@ export function DashboardPage() {
           </div>
         </div>
 
-        <div className="mt-6 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div
             className="h-1 bg-gradient-to-r from-indigo-600 via-indigo-500 to-violet-500"
             aria-hidden
@@ -350,7 +350,7 @@ export function DashboardPage() {
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
       {!ok ? (
         <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-6 md:p-7">
