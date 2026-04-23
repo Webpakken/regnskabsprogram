@@ -10,7 +10,11 @@ import { TRANSACTIONAL_SMTP_PROFILE_ID } from '@/lib/transactionalSmtp'
 type SmtpProfile = Database['public']['Tables']['platform_smtp_profiles']['Row']
 
 function stripSmtpPassword(rows: SmtpProfile[]): SmtpProfile[] {
-  return rows.map(({ smtp_password: _p, ...rest }) => ({ ...rest, smtp_password: null }))
+  return rows.map((row) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- omit secret from UI state
+    const { smtp_password, ...rest } = row
+    return { ...rest, smtp_password: null }
+  })
 }
 
 export function PlatformSmtpSettingsPage() {

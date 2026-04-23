@@ -30,7 +30,7 @@ export async function searchCvrFromApicvr(q: string): Promise<CvrCompany[]> {
   if (trimmed.length < 2) return []
 
   const onlyDigits = trimmed.replace(/\D/g, '')
-  const nonDigitChars = trimmed.replace(/[0-9\s.\-]/g, '')
+  const nonDigitChars = trimmed.replace(/[0-9.\s-]/g, '')
   const looksLikeCvr =
     onlyDigits.length === 8 &&
     (nonDigitChars === '' || nonDigitChars.toUpperCase() === 'DK')

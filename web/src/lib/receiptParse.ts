@@ -23,11 +23,11 @@ function parseDanishNumber(s: string): number | null {
 /** Datoer: 19.04.24 12:37, 19-04-2024, eller efter "Fakturadato" */
 function extractDate(text: string): { display: string; iso: string } | null {
   const invoiceLabel =
-    /(?:Faktura|faktura|Fakturadato|Dato)[:\s]+(\d{1,2})[\.\-/](\d{1,2})[\.\-/](\d{2,4})/i.exec(
+    /(?:Faktura|faktura|Fakturadato|Dato)[:\s]+(\d{1,2})[-./](\d{1,2})[-./](\d{2,4})/i.exec(
       text,
     )
   if (invoiceLabel) {
-    let d = parseInt(invoiceLabel[1], 10)
+    const d = parseInt(invoiceLabel[1], 10)
     const mo = parseInt(invoiceLabel[2], 10)
     let y = parseInt(invoiceLabel[3], 10)
     if (y < 100) y += 2000
@@ -36,12 +36,11 @@ function extractDate(text: string): { display: string; iso: string } | null {
       return { display: invoiceLabel[0].trim(), iso }
     }
   }
-  const re =
-    /\b(\d{1,2})[\.\-/](\d{1,2})[\.\-/](\d{2,4})(?:\s+(\d{1,2}):(\d{2}))?/
+  const re = /\b(\d{1,2})[-./](\d{1,2})[-./](\d{2,4})(?:\s+(\d{1,2}):(\d{2}))?/
   const m = text.match(re)
   if (!m) return null
-  let d = parseInt(m[1], 10)
-  let mo = parseInt(m[2], 10)
+  const d = parseInt(m[1], 10)
+  const mo = parseInt(m[2], 10)
   let y = parseInt(m[3], 10)
   if (y < 100) y += 2000
   if (d > 31 || mo > 12) return null

@@ -40,7 +40,7 @@ export function OnboardingPage() {
       } else {
         setError('Ingen virksomhed fundet på dette CVR')
       }
-    } catch (err) {
+    } catch {
       setError('CVR slå-op fejlede')
     }
     setCvrLoading(false)

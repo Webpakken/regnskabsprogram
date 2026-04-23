@@ -231,14 +231,14 @@ export function InvoicePdfPage() {
 
   function downloadCreditNote() {
     if (!blobUrl) return
-    const key = (invoiceNumber || id || 'dokument').replace(/[^\w.\-]+/g, '_')
+    const key = (invoiceNumber || id || 'dokument').replace(/[^\w.-]+/g, '_')
     const label = isCreditNote ? `kreditnota-${key}.pdf` : `faktura-${key}.pdf`
     downloadUrl(blobUrl, label)
   }
 
   function downloadOriginal() {
     if (!originalPdf) return
-    const safe = originalPdf.invoiceNumber.replace(/[^\w.\-]+/g, '_')
+    const safe = originalPdf.invoiceNumber.replace(/[^\w.-]+/g, '_')
     downloadUrl(originalPdf.url, `faktura-oprindelig-${safe}.pdf`)
   }
 
