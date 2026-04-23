@@ -154,7 +154,9 @@ export function InvoiceDetailPage() {
   async function resendInvoice() {
     if (!invoice || !currentCompany) return
     if (invoice.status === 'draft') {
-      navigate(`/app/invoices/${id}/edit`)
+      setNotice(
+        'Kladder kan ikke ændres efter oprettelse. Opret en ny faktura i menuen, hvis du skal lave et nyt udkast.',
+      )
       return
     }
     const to = invoice.customer_email?.trim()
@@ -282,16 +284,6 @@ export function InvoiceDetailPage() {
                 className="absolute right-0 z-20 mt-1 w-52 rounded-xl border border-slate-200 bg-white py-1 text-sm shadow-lg"
                 role="menu"
               >
-                <li>
-                  <Link
-                    role="menuitem"
-                    className="block px-4 py-2.5 text-slate-800 hover:bg-slate-50"
-                    to={`/app/invoices/${id}/edit`}
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    Rediger
-                  </Link>
-                </li>
                 <li>
                   <Link
                     role="menuitem"
@@ -475,7 +467,9 @@ export function InvoiceDetailPage() {
               {invoice.customer_email ? (
                 <p className="mt-0.5 text-sm text-slate-600">{invoice.customer_email}</p>
               ) : (
-                <p className="mt-0.5 text-sm text-amber-700">Ingen e-mail — tilføj under Rediger</p>
+                <p className="mt-0.5 text-sm text-amber-700">
+                  Ingen e-mail — fakturaer kan ikke ændres efter oprettelse
+                </p>
               )}
             </section>
           </div>

@@ -501,6 +501,7 @@ export function InvoiceWizardPage() {
     }
   }, [isNew, currentCompany, creditForParam, setSearchParams])
 
+  /** Fakturaer og kreditnotaer må ikke åbnes til redigering efter oprettelse (bogføringskrav). */
   useEffect(() => {
     if (!invoiceId || !currentCompany) {
       setLoading(false)
@@ -511,57 +512,22 @@ export function InvoiceWizardPage() {
     ;(async () => {
       const { data: inv, error: e1 } = await supabase
         .from('invoices')
-        .select('*')
+        .select('id')
         .eq('id', invoiceId)
         .eq('company_id', currentCompany.id)
-        .single()
+        .maybeSingle()
+      if (c) return
       if (e1 || !inv) {
-        if (!c) {
-          setError('Faktura ikke fundet')
-          setLoading(false)
-        }
+        setError('Faktura ikke fundet')
+        setLoading(false)
         return
       }
-      const { data: li } = await supabase
-        .from('invoice_line_items')
-        .select('*')
-        .eq('invoice_id', invoiceId)
-        .order('sort_order', { ascending: true })
-      if (c) return
-      setCustomerName(inv.customer_name)
-      setCustomerEmail(inv.customer_email ?? '')
-      setIssueDate(inv.issue_date)
-      setDueDate(inv.due_date)
-      setNotes(inv.notes ?? '')
-      setStatus(inv.status)
-      setIsCreditDraft(!!inv.credited_invoice_id)
-      if (inv.credited_invoice_id) {
-        setTitle('Kreditnota')
-      }
-      setInvoiceNumber(
-        typeof inv.invoice_number === 'string'
-          ? inv.invoice_number
-          : String(inv.invoice_number ?? ''),
-      )
-      setLines(
-        (li as LineRow[] | null)?.length
-          ? (li as LineRow[]).map((r) => ({
-              description: r.description,
-              quantity: Number(r.quantity),
-              unit_price_cents: r.unit_price_cents,
-              vat_rate: Number(r.vat_rate),
-              discount_pct: 0,
-              comment: '',
-              account: DEFAULT_ACCOUNT,
-            }))
-          : [],
-      )
-      setLoading(false)
+      navigate(`/app/invoices/${invoiceId}`, { replace: true })
     })()
     return () => {
       c = true
     }
-  }, [invoiceId, currentCompany])
+  }, [invoiceId, currentCompany, navigate])
 
   const totals = useMemo(
     () =>

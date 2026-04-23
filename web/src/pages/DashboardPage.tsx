@@ -265,14 +265,14 @@ export function DashboardPage() {
   const slateBar = '#64748b'
 
   return (
-    <div className="space-y-5">
-      <div className="-mx-4 -mt-2 px-4 pb-2 pt-1 md:-mx-8">
+    <div className="space-y-5 md:-mx-8 md:w-[calc(100%+4rem)]">
+      <div className="-mx-4 -mt-2 px-4 pb-2 pt-1 md:mx-0 md:mt-0 md:px-0 md:pb-0 md:pt-0">
         <p className="text-center text-sm font-semibold tracking-wide text-slate-900">
           {currentCompany.name}
         </p>
         <p className="mt-0.5 text-center text-xs text-slate-500">Oversigt</p>
 
-        <div className="mx-auto mt-3 max-w-lg rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mx-auto mt-3 w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:mx-0 md:max-w-none">
           <div className="flex rounded-full bg-slate-100 p-1">
             <button
               type="button"

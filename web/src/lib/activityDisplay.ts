@@ -18,6 +18,11 @@ export function activityLooksLikeCreditNote(a: Activity): boolean {
   )
 }
 
+/** Fjerner afsluttende « oprettet» i aktivitetslinjer (fx «Faktura 000005 oprettet» → «Faktura 000005»). */
+function stripOprettetSuffix(title: string): string {
+  return title.replace(/\s+oprettet\s*$/i, '').trim()
+}
+
 /** Vist titel — retter ældre rækker der kun har «Faktura» i titel men kredit-metadata. */
 export function activityDisplayTitle(a: Activity): string {
   const m = metaObject(a.meta)
@@ -32,7 +37,7 @@ export function activityDisplayTitle(a: Activity): string {
     (a.event_type === 'invoice_created' || a.event_type === 'invoice_sent') &&
     /^Faktura\s/i.test(a.title)
   ) {
-    return a.title.replace(/^Faktura\s/i, 'Kreditnota ')
+    return stripOprettetSuffix(a.title.replace(/^Faktura\s/i, 'Kreditnota '))
   }
-  return a.title
+  return stripOprettetSuffix(a.title)
 }
