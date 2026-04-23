@@ -12,36 +12,37 @@ export const marketingMobileNavFooterPad =
 function HomeIcon({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="m3 11 9-7 9 7" />
-      <path d="M5 10v10h14V10" />
+      <path d="M3 11 12 4l9 7v9a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z" />
     </svg>
   )
 }
 
-function PriceIcon({ className }: IconProps) {
+function GridIcon({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+      <rect x="3.5" y="3.5" width="7" height="7" rx="1.6" />
+      <rect x="13.5" y="3.5" width="7" height="7" rx="1.6" />
+      <rect x="3.5" y="13.5" width="7" height="7" rx="1.6" />
+      <rect x="13.5" y="13.5" width="7" height="7" rx="1.6" />
     </svg>
   )
 }
 
-function FaqIcon({ className }: IconProps) {
+function TagIcon({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 2-3 4" />
-      <path d="M12 17h.01" />
+      <path d="M20.6 12.6 12.6 20.6a2 2 0 0 1-2.83 0l-6.77-6.77A2 2 0 0 1 2.4 12.4V5a2.6 2.6 0 0 1 2.6-2.6h7.4a2 2 0 0 1 1.43.59l6.77 6.77a2 2 0 0 1 0 2.84z" />
+      <circle cx="7.5" cy="7.5" r="1.25" fill="currentColor" stroke="none" />
     </svg>
   )
 }
 
 function MoreIcon({ className }: IconProps) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="5" cy="12" r="0.5" />
-      <circle cx="12" cy="12" r="0.5" />
-      <circle cx="19" cy="12" r="0.5" />
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="5" cy="12" r="0.6" />
+      <circle cx="12" cy="12" r="0.6" />
+      <circle cx="19" cy="12" r="0.6" />
     </svg>
   )
 }
@@ -66,27 +67,17 @@ function HeadsetIcon({ className }: IconProps) {
   )
 }
 
-function DocumentIcon({ className }: IconProps) {
+function FaqIcon({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 2-3 4" />
+      <path d="M12 17h.01" />
     </svg>
   )
 }
 
-const mainTabs: readonly {
-  to: string
-  label: string
-  icon: (p: IconProps) => ReactElement
-  end?: boolean
-}[] = [
-  { to: '/', label: 'Forside', icon: HomeIcon, end: true },
-  { to: '/priser', label: 'Priser', icon: PriceIcon },
-  { to: '/faq', label: 'FAQ', icon: FaqIcon },
-]
-
-function TabLink({
+function NavTab({
   to,
   label,
   Icon,
@@ -114,12 +105,39 @@ function TabLink({
   )
 }
 
+function SheetTab({
+  label,
+  Icon,
+  active,
+  onClick,
+}: {
+  label: string
+  Icon: (p: IconProps) => ReactElement
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-expanded={active}
+      className={clsx(
+        'flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-medium',
+        active ? 'text-indigo-700' : 'text-slate-500',
+      )}
+    >
+      <Icon className="h-5 w-5" />
+      <span>{label}</span>
+    </button>
+  )
+}
+
 export function MarketingMobileBottomNav() {
-  const [sheetOpen, setSheetOpen] = useState(false)
+  const [sheet, setSheet] = useState<null | 'products' | 'more'>(null)
   const navigate = useNavigate()
 
   function go(path: string) {
-    setSheetOpen(false)
+    setSheet(null)
     navigate(path)
   }
 
@@ -130,69 +148,107 @@ export function MarketingMobileBottomNav() {
           className="pointer-events-auto flex items-stretch border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
           aria-label="Hovedmenu"
         >
-          {mainTabs.map((t) => (
-            <TabLink key={t.to} to={t.to} label={t.label} Icon={t.icon} end={t.end} />
-          ))}
-          <button
-            type="button"
-            onClick={() => setSheetOpen(true)}
-            className={clsx(
-              'flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-medium',
-              sheetOpen ? 'text-indigo-700' : 'text-slate-500',
-            )}
-            aria-expanded={sheetOpen}
-            aria-controls="marketing-more-sheet"
-          >
-            <MoreIcon className="h-5 w-5" />
-            <span>Mere</span>
-          </button>
+          <NavTab to="/" label="Forside" Icon={HomeIcon} end />
+          <SheetTab
+            label="Produkter"
+            Icon={GridIcon}
+            active={sheet === 'products'}
+            onClick={() => setSheet(sheet === 'products' ? null : 'products')}
+          />
+          <NavTab to="/priser" label="Pris" Icon={TagIcon} />
+          <SheetTab
+            label="Mere"
+            Icon={MoreIcon}
+            active={sheet === 'more'}
+            onClick={() => setSheet(sheet === 'more' ? null : 'more')}
+          />
         </nav>
       </div>
 
-      {sheetOpen ? (
-        <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label="Flere sider" id="marketing-more-sheet">
-          <button type="button" aria-label="Luk" className="absolute inset-0 bg-slate-900/40" onClick={() => setSheetOpen(false)} />
-          <div className="absolute inset-x-0 bottom-0 max-h-[min(85vh,32rem)] overflow-y-auto rounded-t-3xl bg-white p-5 pb-[calc(env(safe-area-inset-bottom)+20px)] shadow-2xl">
+      {sheet === 'products' ? (
+        <div
+          className="fixed inset-0 z-40 md:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Produkter"
+        >
+          <button
+            type="button"
+            aria-label="Luk"
+            className="absolute inset-0 bg-slate-900/40"
+            onClick={() => setSheet(null)}
+          />
+          <div className="absolute inset-x-0 bottom-0 max-h-[min(85vh,36rem)] overflow-y-auto rounded-t-3xl bg-white p-5 pb-[calc(env(safe-area-inset-bottom)+20px)] shadow-2xl">
             <div className="mx-auto h-1 w-10 rounded-full bg-slate-200" />
-            <h2 className="mt-4 text-center text-sm font-semibold text-slate-900">Mere</h2>
-
-            <p className="mt-4 px-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Produkt
-            </p>
-            <ul className="mt-2 space-y-0.5">
+            <h2 className="mt-4 text-center text-sm font-semibold text-slate-900">Produkter</h2>
+            <ul className="mt-4 space-y-1">
               {marketingFeatureCards.map((f) => (
                 <li key={f.slug}>
                   <button
                     type="button"
                     onClick={() => go(`/funktioner/${f.slug}`)}
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-800 hover:bg-slate-50"
+                    className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left hover:bg-slate-50"
                   >
-                    <f.icon className="h-5 w-5 shrink-0 text-indigo-600" />
-                    <span className="flex-1">{f.title}</span>
-                    {f.comingSoon ? (
-                      <span className="rounded-full bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700">
-                        Snart
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                      <f.icon className="h-5 w-5" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-slate-900">{f.title}</span>
+                        {f.comingSoon ? (
+                          <span className="rounded-full bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700">
+                            Snart
+                          </span>
+                        ) : null}
                       </span>
-                    ) : null}
+                      <span className="mt-0.5 block text-xs leading-snug text-slate-500">
+                        {f.desc.length > 80 ? `${f.desc.slice(0, 78)}…` : f.desc}
+                      </span>
+                    </span>
                   </button>
                 </li>
               ))}
+            </ul>
+            <div className="mt-4 border-t border-slate-100 pt-3">
+              <button
+                type="button"
+                onClick={() => go('/funktioner')}
+                className="flex w-full items-center justify-center gap-1 rounded-xl px-3 py-3 text-sm font-semibold text-indigo-600 hover:bg-indigo-50/60"
+              >
+                Se alle funktioner <span aria-hidden>→</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {sheet === 'more' ? (
+        <div
+          className="fixed inset-0 z-40 md:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Flere sider"
+        >
+          <button
+            type="button"
+            aria-label="Luk"
+            className="absolute inset-0 bg-slate-900/40"
+            onClick={() => setSheet(null)}
+          />
+          <div className="absolute inset-x-0 bottom-0 max-h-[min(85vh,32rem)] overflow-y-auto rounded-t-3xl bg-white p-5 pb-[calc(env(safe-area-inset-bottom)+20px)] shadow-2xl">
+            <div className="mx-auto h-1 w-10 rounded-full bg-slate-200" />
+            <h2 className="mt-4 text-center text-sm font-semibold text-slate-900">Mere</h2>
+            <ul className="mt-4 space-y-0.5">
               <li>
                 <button
                   type="button"
-                  onClick={() => go('/funktioner')}
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-indigo-600 hover:bg-indigo-50/60"
+                  onClick={() => go('/faq')}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-800 hover:bg-slate-50"
                 >
-                  <DocumentIcon className="h-5 w-5 shrink-0" />
-                  Alle funktioner
+                  <FaqIcon className="h-5 w-5 shrink-0 text-indigo-600" />
+                  FAQ
                 </button>
               </li>
-            </ul>
-
-            <p className="mt-4 px-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Andet
-            </p>
-            <ul className="mt-2 space-y-0.5">
               <li>
                 <button
                   type="button"
@@ -228,7 +284,7 @@ export function MarketingMobileBottomNav() {
                   <li key={href}>
                     <Link
                       to={href}
-                      onClick={() => setSheetOpen(false)}
+                      onClick={() => setSheet(null)}
                       className="block rounded-lg px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
                     >
                       {label}

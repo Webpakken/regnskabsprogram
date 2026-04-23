@@ -69,9 +69,28 @@ export function LandingPage() {
         />
         <div className="mx-auto grid max-w-6xl gap-12 px-6 py-20 lg:grid-cols-2 lg:items-center lg:py-28">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700">
-              30 dage gratis · ingen kort påkrævet
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700">
+                30 dage gratis · ingen kort påkrævet
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800">
+                <svg
+                  className="h-3.5 w-3.5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <path d="M12 2 14.6 8.4 21 9l-4.8 4.4 1.4 6.6L12 16.8 6.4 20l1.4-6.6L3 9l6.4-.6z" />
+                </svg>
+                Introtilbud ·{' '}
+                <span className="text-emerald-700/60 line-through">249</span>{' '}
+                <strong className="font-bold text-emerald-900">99 kr./md</strong>
+              </span>
+            </div>
             <h1 className="mt-5 text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl lg:text-6xl">
               Regnskab uden bøvl for danske virksomheder
             </h1>
