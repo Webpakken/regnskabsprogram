@@ -23,6 +23,7 @@ import {
 } from '@/lib/format'
 import { redirectToStripeCheckout } from '@/lib/edge'
 import { activityDisplayTitle, activityLooksLikeCreditNote } from '@/lib/activityDisplay'
+import { activityEventHref } from '@/lib/activityNavigation'
 import type { Database } from '@/types/database'
 
 const DASHBOARD_ACTIVITY_PREVIEW = 7
@@ -449,40 +450,67 @@ export function DashboardPage() {
             {activity.length === 0 ? (
               <li className="py-6 text-slate-500">Ingen hændelser endnu.</li>
             ) : (
-              activity.map((a) => {
+              activity.map((a, index) => {
                 const credit = activityLooksLikeCreditNote(a)
-                return (
-                  <li key={a.id} className="py-4">
-                    <div
-                      className={
-                        credit
-                          ? 'rounded-lg border border-rose-200 bg-rose-50 px-4 py-3.5 shadow-sm'
-                          : 'py-0.5'
-                      }
-                    >
-                      <div className="flex items-start gap-3">
-                        {credit ? (
-                          <span
-                            className="mt-0.5 shrink-0 rounded bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white"
-                            title="Kreditnota"
-                          >
-                            Kredit
-                          </span>
-                        ) : null}
-                        <div className="min-w-0 flex-1">
-                          <div
-                            className={`font-semibold ${credit ? 'text-rose-950' : 'text-slate-800'}`}
-                          >
-                            {activityDisplayTitle(a)}
-                          </div>
-                          <div
-                            className={`mt-0.5 text-xs ${credit ? 'text-rose-800/90' : 'text-slate-500'}`}
-                          >
-                            {formatDateTime(a.created_at)}
-                          </div>
-                        </div>
+                const href = activityEventHref(a)
+                const hideOnDesktop = index >= 4
+
+                const inner = (
+                  <div className="flex items-start gap-3">
+                    {credit ? (
+                      <span
+                        className="mt-0.5 shrink-0 rounded bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white"
+                        title="Kreditnota"
+                      >
+                        Kredit
+                      </span>
+                    ) : null}
+                    <div className="min-w-0 flex-1">
+                      <div className={`font-semibold ${credit ? 'text-rose-950' : 'text-slate-800'}`}>
+                        {activityDisplayTitle(a)}
+                      </div>
+                      <div className={`mt-1 text-xs ${credit ? 'text-rose-800/90' : 'text-slate-500'}`}>
+                        {formatDateTime(a.created_at)}
                       </div>
                     </div>
+                    {href ? (
+                      <span
+                        className="mt-0.5 shrink-0 text-xs font-semibold text-indigo-600"
+                        aria-hidden
+                      >
+                        →
+                      </span>
+                    ) : null}
+                  </div>
+                )
+
+                const rowShell = href ? (
+                  <Link
+                    to={href}
+                    aria-label={`${activityDisplayTitle(a)} — åbn`}
+                    className={clsx(
+                      'block rounded-xl px-3 py-3.5 transition md:px-4',
+                      credit
+                        ? 'border border-rose-200/80 bg-rose-50/80 shadow-sm hover:border-rose-300 hover:bg-rose-50'
+                        : 'hover:bg-indigo-50/60',
+                    )}
+                  >
+                    {inner}
+                  </Link>
+                ) : (
+                  <div
+                    className={clsx(
+                      'rounded-xl px-3 py-3.5 md:px-4',
+                      credit ? 'border border-rose-200/80 bg-rose-50/80 shadow-sm' : '',
+                    )}
+                  >
+                    {inner}
+                  </div>
+                )
+
+                return (
+                  <li key={a.id} className={clsx('py-1 first:pt-0', hideOnDesktop && 'md:hidden')}>
+                    {rowShell}
                   </li>
                 )
               })
