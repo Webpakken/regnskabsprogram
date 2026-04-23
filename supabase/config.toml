@@ -58,3 +58,6 @@ verify_jwt = false
 
 [functions.support-push-customer-notify]
 verify_jwt = false
+
+[functions.invoice-automation-reminders]
+verify_jwt = false

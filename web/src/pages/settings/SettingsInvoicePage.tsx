@@ -16,6 +16,9 @@ export function SettingsInvoicePage() {
   const [footerNote, setFooterNote] = useState('')
   const [invoiceStartingNumber, setInvoiceStartingNumber] = useState(1)
   const [invoiceDigitWidth, setInvoiceDigitWidth] = useState(4)
+  const [automationEnabled, setAutomationEnabled] = useState(false)
+  const [automationFirstDaysAfterDue, setAutomationFirstDaysAfterDue] = useState(1)
+  const [automationIntervalDays, setAutomationIntervalDays] = useState(7)
   const [saving, setSaving] = useState(false)
   const [logoBusy, setLogoBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -41,6 +44,17 @@ export function SettingsInvoicePage() {
         typeof currentCompany.invoice_number_digit_width === 'number'
           ? currentCompany.invoice_number_digit_width
           : 4,
+      )
+      setAutomationEnabled(currentCompany.automation_reminders_enabled === true)
+      setAutomationFirstDaysAfterDue(
+        typeof currentCompany.automation_reminder_first_days_after_due === 'number'
+          ? currentCompany.automation_reminder_first_days_after_due
+          : 1,
+      )
+      setAutomationIntervalDays(
+        typeof currentCompany.automation_reminder_interval_days === 'number'
+          ? currentCompany.automation_reminder_interval_days
+          : 7,
       )
     }
   }, [currentCompany])
@@ -71,6 +85,14 @@ export function SettingsInvoicePage() {
     setMessage(null)
     const start = Math.max(1, Math.floor(Number(invoiceStartingNumber)) || 1)
     const width = Math.min(12, Math.max(2, Math.floor(Number(invoiceDigitWidth)) || 4))
+    const firstDays = Math.min(
+      365,
+      Math.max(0, Math.floor(Number(automationFirstDaysAfterDue)) || 0),
+    )
+    const intervalDays = Math.min(
+      365,
+      Math.max(1, Math.floor(Number(automationIntervalDays)) || 7),
+    )
     const { error: saveErr } = await supabase
       .from('companies')
       .update({
@@ -84,6 +106,9 @@ export function SettingsInvoicePage() {
         invoice_footer_note: footerNote.trim() || null,
         invoice_starting_number: start,
         invoice_number_digit_width: width,
+        automation_reminders_enabled: automationEnabled,
+        automation_reminder_first_days_after_due: firstDays,
+        automation_reminder_interval_days: intervalDays,
       })
       .eq('id', currentCompany.id)
     setSaving(false)
@@ -347,6 +372,66 @@ export function SettingsInvoicePage() {
               />
             </div>
           </div>
+        </div>
+
+        <div className="border-t border-slate-100 pt-5">
+          <h3 className="text-sm font-semibold text-slate-900">Automatiske påmindelser</h3>
+          <p className="mt-2 text-xs leading-relaxed text-slate-600">
+            Bruger skabelonen <strong className="font-medium text-slate-800">Betalingspåmindelse</strong> til kundens
+            e-mail på faste tidspunkter for fakturaer med status <em>Sendt</em> (ikke betalt), uden kreditnota og med
+            udfyldt kundemail. Manuel «Send påmindelse» fra fakturaen styrer ikke denne plan. Maks. 24 automatiske
+            pr. faktura. I er ansvarlige for gældende inkasso- og markedsføringsregler — få juridisk rådgivning ved
+            tvivl.
+          </p>
+          <label className="mt-4 flex cursor-pointer items-center gap-3">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+              checked={automationEnabled}
+              onChange={(e) => setAutomationEnabled(e.target.checked)}
+            />
+            <span className="text-sm font-medium text-slate-800">Slå automatiske påmindelser til</span>
+          </label>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="text-sm font-medium text-slate-700" htmlFor="autoFirst">
+                Første påmindelse (dage efter forfald)
+              </label>
+              <input
+                id="autoFirst"
+                type="number"
+                min={0}
+                max={365}
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                value={automationFirstDaysAfterDue}
+                onChange={(e) => setAutomationFirstDaysAfterDue(Number(e.target.value))}
+                disabled={!automationEnabled}
+              />
+              <p className="mt-1 text-xs text-slate-500">0 = samme kalenderdag som forfaldsdato.</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-slate-700" htmlFor="autoInterval">
+                Derefter hver (antal dage)
+              </label>
+              <input
+                id="autoInterval"
+                type="number"
+                min={1}
+                max={365}
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                value={automationIntervalDays}
+                onChange={(e) => setAutomationIntervalDays(Number(e.target.value))}
+                disabled={!automationEnabled}
+              />
+              <p className="mt-1 text-xs text-slate-500">Minimum ét døgn mellem hver automatiske udsendelse.</p>
+            </div>
+          </div>
+          <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2.5 text-xs text-slate-600">
+            Kræver planlagt kald af Edge Function <code className="font-mono text-slate-800">invoice-automation-reminders</code>{' '}
+            med secret <code className="font-mono text-slate-800">INVOICE_AUTOMATION_CRON_SECRET</code> (header{' '}
+            <code className="font-mono text-slate-800">x-bilago-invoice-automation</code>). Sæt secret i Supabase og
+            tilføj fx daglig cron i Supabase eller CI.
+          </p>
         </div>
 
         <div>

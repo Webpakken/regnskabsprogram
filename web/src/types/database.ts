@@ -49,6 +49,9 @@ export interface Database {
           invoice_logo_path: string | null
           invoice_starting_number: number
           invoice_number_digit_width: number
+          automation_reminders_enabled: boolean
+          automation_reminder_first_days_after_due: number
+          automation_reminder_interval_days: number
           created_at: string
           updated_at: string
         }
@@ -71,6 +74,9 @@ export interface Database {
           invoice_logo_path?: string | null
           invoice_starting_number?: number
           invoice_number_digit_width?: number
+          automation_reminders_enabled?: boolean
+          automation_reminder_first_days_after_due?: number
+          automation_reminder_interval_days?: number
         }
         Update: {
           name?: string
@@ -90,6 +96,9 @@ export interface Database {
           invoice_logo_path?: string | null
           invoice_starting_number?: number
           invoice_number_digit_width?: number
+          automation_reminders_enabled?: boolean
+          automation_reminder_first_days_after_due?: number
+          automation_reminder_interval_days?: number
         }
       }
       company_members: {
@@ -151,6 +160,8 @@ export interface Database {
           sent_at: string | null
           /** Når sat: kreditnota for denne faktura */
           credited_invoice_id: string | null
+          last_automation_reminder_at: string | null
+          automation_reminder_send_count: number
           created_at: string
           updated_at: string
         }
@@ -170,6 +181,8 @@ export interface Database {
           notes?: string | null
           sent_at?: string | null
           credited_invoice_id?: string | null
+          last_automation_reminder_at?: string | null
+          automation_reminder_send_count?: number
         }
         Update: {
           customer_name?: string
@@ -184,6 +197,8 @@ export interface Database {
           notes?: string | null
           sent_at?: string | null
           credited_invoice_id?: string | null
+          last_automation_reminder_at?: string | null
+          automation_reminder_send_count?: number
         }
       }
       invoice_line_items: {

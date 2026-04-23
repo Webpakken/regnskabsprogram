@@ -11,13 +11,21 @@ import { SupportHoursPage } from '@/pages/SupportHoursPage'
 import { FeaturesPage } from '@/pages/FeaturesPage'
 import { PricingPage } from '@/pages/PricingPage'
 import { FaqPage } from '@/pages/FaqPage'
+import {
+  CookiepolitikPage,
+  DatabehandleraftalePage,
+  HandelsbetingelserPage,
+  PrivatlivspolitikPage,
+} from '@/pages/LegalPages'
 import { LoginPage } from '@/pages/LoginPage'
 import { SignupPage } from '@/pages/SignupPage'
 import { OnboardingPage } from '@/pages/OnboardingPage'
 import { DashboardPage } from '@/pages/DashboardPage'
+import { ActivityLogPage } from '@/pages/ActivityLogPage'
 import { InvoicesPage } from '@/pages/InvoicesPage'
 import { InvoiceEditorPage } from '@/pages/InvoiceEditorPage'
 import { InvoiceWizardPage } from '@/pages/InvoiceWizardPage'
+import { InvoiceDetailPage } from '@/pages/InvoiceDetailPage'
 import { InvoicePdfPage } from '@/pages/InvoicePdfPage'
 import { VouchersPage } from '@/pages/VouchersPage'
 import { ScanBilagPage } from '@/pages/ScanBilagPage'
@@ -92,6 +100,10 @@ export default function App() {
           <Route path="/funktioner" element={<FeaturesPage />} />
           <Route path="/priser" element={<PricingPage />} />
           <Route path="/faq" element={<FaqPage />} />
+          <Route path="/handelsbetingelser" element={<HandelsbetingelserPage />} />
+          <Route path="/privatlivspolitik" element={<PrivatlivspolitikPage />} />
+          <Route path="/cookiepolitik" element={<CookiepolitikPage />} />
+          <Route path="/databehandleraftale" element={<DatabehandleraftalePage />} />
           <Route path="/support-tider" element={<SupportHoursPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
@@ -148,6 +160,7 @@ export default function App() {
               }
             >
               <Route path="/app/dashboard" element={<DashboardPage />} />
+              <Route path="/app/activity" element={<ActivityLogPage />} />
               <Route path="/app/settings" element={<SettingsLayout />}>
                 <Route
                   index
@@ -163,8 +176,9 @@ export default function App() {
                 <Route path="/app/invoices" element={<InvoicesPage />} />
                 <Route path="/app/invoices/new" element={<InvoiceWizardPage />} />
                 <Route path="/app/invoices/:id/pdf" element={<InvoicePdfPage />} />
-                <Route path="/app/invoices/:id" element={<InvoiceWizardPage />} />
+                <Route path="/app/invoices/:id/edit" element={<InvoiceWizardPage />} />
                 <Route path="/app/invoices/:id/classic" element={<InvoiceEditorPage />} />
+                <Route path="/app/invoices/:id" element={<InvoiceDetailPage />} />
                 <Route path="/app/vouchers" element={<VouchersPage />} />
                 <Route path="/app/vouchers/scan" element={<ScanBilagPage />} />
                 <Route path="/app/bank" element={<BankPage />} />

@@ -81,8 +81,18 @@ function ChatIcon({ className }: IconProps) {
   )
 }
 
+function ListIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 6h13M8 12h13M8 18h13" />
+      <path d="M3 6h.01M3 12h.01M3 18h.01" />
+    </svg>
+  )
+}
+
 const items = [
   { to: '/app/support', label: 'Support', icon: ChatIcon },
+  { to: '/app/activity', label: 'Aktivitetslog', icon: ListIcon },
   { to: '/app/bank', label: 'Bank', icon: BankIcon },
   { to: '/app/vat', label: 'Moms', icon: PercentIcon },
   { to: '/app/members', label: 'Medlemmer', icon: UsersIcon },

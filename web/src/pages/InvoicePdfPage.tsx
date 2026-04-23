@@ -322,9 +322,9 @@ export function InvoicePdfPage() {
         <button
           type="button"
           className="text-indigo-600"
-          onClick={() => navigate('/app/invoices')}
+          onClick={() => navigate(id ? `/app/invoices/${id}` : '/app/invoices')}
         >
-          Tilbage til fakturaer
+          Tilbage
         </button>
       </div>
     )
@@ -339,7 +339,7 @@ export function InvoicePdfPage() {
           <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
             <button
               type="button"
-              onClick={() => navigate('/app/invoices')}
+              onClick={() => navigate(id ? `/app/invoices/${id}` : '/app/invoices')}
               className="shrink-0 text-sm font-medium text-indigo-600 hover:underline"
             >
               ← Tilbage

@@ -49,7 +49,11 @@ export function CookieConsentBanner() {
         <p className="leading-relaxed">
           Vi bruger <strong>nødvendige cookies</strong> (og tilsvarende teknologi i browseren), så
           siden kan logge dig sikkert ind og huske dine valg. Med dit samtykke må vi også bruge{' '}
-          <strong>valgfrie cookies</strong> til statistik og forbedring af produktet.
+          <strong>valgfrie cookies</strong> til statistik og forbedring af produktet. Læs mere i{' '}
+          <a href="/cookiepolitik" className="font-medium text-indigo-600 hover:underline">
+            cookiepolitikken
+          </a>
+          .
         </p>
         <button
           type="button"

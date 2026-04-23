@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
-import { Link, useMatch, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useMatch, useNavigate, useSearchParams } from 'react-router-dom'
 import { useApp } from '@/context/AppProvider'
 import { logActivity } from '@/lib/activity'
 import { functionsHttpErrorMessage } from '@/lib/edge'
@@ -252,11 +252,11 @@ function effectiveDraft(line: WizardLine): DraftLine {
 export function InvoiceWizardPage() {
   const { currentCompany, user } = useApp()
   const navigate = useNavigate()
-  const params = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
   const creditForParam = searchParams.get('creditFor')
   const isNew = useMatch({ path: '/app/invoices/new', end: true }) !== null
-  const invoiceId = isNew ? null : (params.id ?? null)
+  const matchEdit = useMatch({ path: '/app/invoices/:id/edit', end: true })
+  const invoiceId = isNew ? null : (matchEdit?.params.id ?? null)
   const creditSourceIdRef = useRef<string | null>(null)
   /** Maks. brutto (øre) på oprindelig faktura — kreditnota må ikke overstige dette beløb. */
   const creditSourceMaxGrossCentsRef = useRef<number | null>(null)
@@ -707,11 +707,18 @@ export function InvoiceWizardPage() {
           .from('invoice_line_items')
           .insert(rows)
         if (lErr) throw new Error(lErr.message)
+        const wasCredit = creditSourceIdRef.current != null
         await logActivity(
           currentCompany.id,
           'invoice_created',
-          `Faktura ${inv.invoice_number} oprettet`,
-          { invoice_id: inv.id },
+          `${wasCredit ? 'Kreditnota' : 'Faktura'} ${inv.invoice_number} oprettet`,
+          {
+            invoice_id: inv.id,
+            is_credit_note: wasCredit,
+            ...(wasCredit && creditSourceIdRef.current
+              ? { credited_invoice_id: creditSourceIdRef.current }
+              : {}),
+          },
         )
         creditSourceIdRef.current = null
         creditSourceMaxGrossCentsRef.current = null
@@ -772,11 +779,15 @@ export function InvoiceWizardPage() {
           .insert(rows)
         if (lErr) throw new Error(lErr.message)
         if (nextStatus === 'sent') {
+          const sentKind = isCreditNotaFlow ? 'Kreditnota' : 'Faktura'
           await logActivity(
             currentCompany.id,
             'invoice_sent',
-            `Faktura ${invoiceNumber} sendt`,
-            { invoice_id: invoiceId },
+            `${sentKind} ${invoiceNumber} sendt`,
+            {
+              invoice_id: invoiceId,
+              is_credit_note: isCreditNotaFlow,
+            },
           )
           void sendInvoiceSentEmailWithOptionalPdf({
             companyId: currentCompany.id,
@@ -855,7 +866,9 @@ export function InvoiceWizardPage() {
             creditWizard={isCreditNotaFlow}
             tab={tab}
             setTab={setTab}
-            onClose={() => navigate('/app/invoices')}
+            onClose={() =>
+              navigate(invoiceId ? `/app/invoices/${invoiceId}` : '/app/invoices')
+            }
             onOpenSettings={() => setView({ kind: 'settings' })}
             customerName={customerName}
             setCustomerName={setCustomerName}

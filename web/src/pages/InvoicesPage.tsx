@@ -110,8 +110,8 @@ export function InvoicesPage() {
 
   if (!currentCompany) return null
 
-  function openPdf(invId: string) {
-    navigate(`/app/invoices/${invId}/pdf`)
+  function openInvoice(invId: string) {
+    navigate(`/app/invoices/${invId}`)
   }
 
   return (
@@ -166,7 +166,7 @@ export function InvoicesPage() {
               <button
                 key={inv.id}
                 type="button"
-                onClick={() => openPdf(inv.id)}
+                onClick={() => openInvoice(inv.id)}
                 className={
                   credit
                     ? 'flex flex-col gap-2 rounded-2xl border border-rose-200 border-l-[3px] border-l-rose-500 bg-rose-50/50 p-4 pl-3.5 text-left shadow-sm transition hover:border-rose-300 hover:bg-rose-50/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500'
@@ -248,11 +248,11 @@ export function InvoicesPage() {
                     key={inv.id}
                     role="button"
                     tabIndex={0}
-                    onClick={() => openPdf(inv.id)}
+                    onClick={() => openInvoice(inv.id)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault()
-                        openPdf(inv.id)
+                        openInvoice(inv.id)
                       }
                     }}
                     className={
