@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useApp, subscriptionOk } from '@/context/AppProvider'
-import { formatDateTime } from '@/lib/format'
+import { formatDateTime, formatKrPerMonth } from '@/lib/format'
 import { subscriptionStatusLabelDa } from '@/lib/subscriptionLabels'
 import { redirectToStripeCheckout } from '@/lib/edge'
 import {
@@ -25,7 +25,25 @@ export function SettingsGeneralPage() {
   const [message, setMessage] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [hideTrialBanner, setHideTrialBanner] = useState(getHideTrialBannerDuringTrial)
+  const [priceCents, setPriceCents] = useState<number | null>(null)
   const ok = subscriptionOk(subscription)
+  const priceLabel = priceCents != null ? formatKrPerMonth(priceCents) : null
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const { data } = await supabase
+        .from('platform_public_settings')
+        .select('pricing_amount_cents, monthly_price_cents')
+        .eq('id', 1)
+        .maybeSingle()
+      if (cancelled) return
+      setPriceCents(data?.pricing_amount_cents ?? data?.monthly_price_cents ?? 9900)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     const sync = () => setHideTrialBanner(getHideTrialBannerDuringTrial())
@@ -191,6 +209,12 @@ export function SettingsGeneralPage() {
           <p className="text-sm text-slate-600">
             Nuværende periode slutter:{' '}
             {formatDateTime(subscription.current_period_end)}
+          </p>
+        ) : null}
+        {priceLabel ? (
+          <p className="text-sm text-slate-600">
+            Abonnement:{' '}
+            <span className="font-medium text-slate-900">{priceLabel}</span>
           </p>
         ) : null}
         {!ok ? (

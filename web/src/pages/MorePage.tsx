@@ -296,12 +296,6 @@ export function MorePage() {
             Log ud
           </button>
         </div>
-        {priceLabel ? (
-          <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
-            <span className="text-xs uppercase tracking-wide text-slate-400">Abonnement</span>
-            <span className="text-sm font-semibold text-slate-900">{priceLabel}</span>
-          </div>
-        ) : null}
       </AppCard>
     </AppPageLayout>
   )
