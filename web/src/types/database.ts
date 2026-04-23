@@ -402,6 +402,11 @@ export interface Database {
           pricing_features: string | null
           pricing_cta_label: string | null
           pricing_corner_badge: string | null
+          pricing_unit_label: string | null
+          pricing_lock_label: string | null
+          pricing_footer_left: string | null
+          pricing_footer_right: string | null
+          pricing_feature_items: Json | null
           email_templates: Json | null
           landing_seo: Json | null
           updated_at: string
@@ -428,6 +433,11 @@ export interface Database {
           pricing_features?: string | null
           pricing_cta_label?: string | null
           pricing_corner_badge?: string | null
+          pricing_unit_label?: string | null
+          pricing_lock_label?: string | null
+          pricing_footer_left?: string | null
+          pricing_footer_right?: string | null
+          pricing_feature_items?: Json | null
           email_templates?: Json | null
           landing_seo?: Json | null
         }
@@ -452,6 +462,11 @@ export interface Database {
           pricing_features?: string | null
           pricing_cta_label?: string | null
           pricing_corner_badge?: string | null
+          pricing_unit_label?: string | null
+          pricing_lock_label?: string | null
+          pricing_footer_left?: string | null
+          pricing_footer_right?: string | null
+          pricing_feature_items?: Json | null
           email_templates?: Json | null
           landing_seo?: Json | null
         }
