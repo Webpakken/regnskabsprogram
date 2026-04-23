@@ -5,7 +5,14 @@ import { useApp } from '@/context/AppProvider'
 export function HomeRedirect() {
   const { loading, tenantCompanyCount, platformRole } = useApp()
   if (loading) {
-    return <LoadingCentered minHeight="min-h-screen" srLabel="Indlæser" />
+    return (
+      <LoadingCentered
+        minHeight="min-h-screen"
+        className="bg-slate-50"
+        caption="Indlæser…"
+        srLabel="Indlæser"
+      />
+    )
   }
   if (tenantCompanyCount === 0) {
     if (platformRole) {

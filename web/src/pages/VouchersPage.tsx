@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { AppPageLayout } from '@/components/AppPageLayout'
 import { SortableTh } from '@/components/SortableTh'
 import { nextColumnSortState, type ColumnSortDir } from '@/lib/tableSort'
 import { DesktopListCardsToggle } from '@/components/DesktopListCardsToggle'
@@ -310,11 +311,7 @@ export function VouchersPage() {
   }
 
   return (
-    <div
-      className="relative min-h-[60vh] space-y-6"
-      onDragEnter={onPageDragEnter}
-      onDragOver={onPageDragOver}
-    >
+    <div className="relative min-h-[60vh]" onDragEnter={onPageDragEnter} onDragOver={onPageDragOver}>
       {dragActive ? (
         <div
           className="fixed inset-0 z-[80] flex items-center justify-center bg-indigo-600/20 backdrop-blur-[2px]"
@@ -334,6 +331,7 @@ export function VouchersPage() {
         </div>
       ) : null}
 
+      <AppPageLayout maxWidth="6xl" className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Bilag</h1>
@@ -376,6 +374,7 @@ export function VouchersPage() {
           {ocrWarning}
         </p>
       ) : null}
+
       {error ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</p> : null}
 
       <div className="flex flex-wrap items-end justify-between gap-3 border-t border-slate-200 pt-2">
@@ -541,6 +540,7 @@ export function VouchersPage() {
           </tbody>
         </table>
       </div>
+      </AppPageLayout>
     </div>
   )
 }

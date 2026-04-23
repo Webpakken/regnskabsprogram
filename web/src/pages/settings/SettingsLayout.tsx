@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import clsx from 'clsx'
+import { AppPageLayout } from '@/components/AppPageLayout'
 
 const tabs = [
   { to: '/app/settings/general', label: 'Generelt' },
@@ -8,7 +9,7 @@ const tabs = [
 
 export function SettingsLayout() {
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <AppPageLayout maxWidth="2xl" className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Indstillinger</h1>
         <p className="text-sm text-slate-600">Virksomhed, faktura og abonnement</p>
@@ -34,6 +35,6 @@ export function SettingsLayout() {
       </nav>
 
       <Outlet />
-    </div>
+    </AppPageLayout>
   )
 }

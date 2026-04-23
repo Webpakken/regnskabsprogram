@@ -5,7 +5,14 @@ import { useApp } from '@/context/AppProvider'
 export function ProtectedRoute() {
   const { session, loading } = useApp()
   if (loading) {
-    return <LoadingCentered minHeight="min-h-screen" srLabel="Indlæser" />
+    return (
+      <LoadingCentered
+        minHeight="min-h-screen"
+        className="bg-slate-50"
+        caption="Indlæser…"
+        srLabel="Indlæser"
+      />
+    )
   }
   if (!session) {
     return <Navigate to="/login" replace />

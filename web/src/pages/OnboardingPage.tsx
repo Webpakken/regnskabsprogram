@@ -3,6 +3,7 @@ import { lookupCVR } from '@/lib/cvrLookup'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useApp, subscriptionOk } from '@/context/AppProvider'
+import { LoadingCentered } from '@/components/LoadingIndicator'
 import { startStripeCheckout } from '@/lib/edge'
 import {
   cvrValidationHint,
@@ -54,9 +55,12 @@ export function OnboardingPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-slate-500">
-        Indlæser…
-      </div>
+      <LoadingCentered
+        minHeight="min-h-screen"
+        className="bg-slate-50"
+        caption="Indlæser…"
+        srLabel="Indlæser"
+      />
     )
   }
 

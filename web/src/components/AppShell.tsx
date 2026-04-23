@@ -190,7 +190,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-3.5 md:px-10">
+        <header className="hidden items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-3.5 md:flex md:px-10">
           <div className="flex min-w-0 flex-1 flex-col gap-2 md:flex-row md:items-center md:gap-4">
             <select
               className="max-w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm md:max-w-xs"
@@ -262,7 +262,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
           />
         ) : null}
 
-        <main className="flex min-h-0 flex-1 flex-col px-5 pb-28 pt-7 md:px-10 md:pb-8 md:pt-9">
+        <main className="flex min-h-0 flex-1 flex-col px-5 pb-28 pt-5 md:px-10 md:pb-8 md:pt-9">
           {children ?? <Outlet />}
         </main>
       </div>

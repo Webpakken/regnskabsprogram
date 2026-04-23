@@ -1,6 +1,8 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { ROLE_LABELS, useApp } from '@/context/AppProvider'
+import { ROLE_LABELS, subscriptionOk, useApp } from '@/context/AppProvider'
+import { redirectToStripeCheckout } from '@/lib/edge'
 import { useSupportUnread } from '@/context/SupportUnreadContext'
+import { AppCard, AppPageLayout } from '@/components/AppPageLayout'
 import { logoutToLanding } from '@/lib/logoutToLanding'
 
 type IconProps = { className?: string }
@@ -100,7 +102,15 @@ const items = [
 ]
 
 export function MorePage() {
-  const { currentCompany, currentRole, user } = useApp()
+  const {
+    currentCompany,
+    currentRole,
+    user,
+    companies,
+    setCurrentCompanyId,
+    subscription,
+  } = useApp()
+  const ok = subscriptionOk(subscription)
   const { unreadCount } = useSupportUnread()
   const navigate = useNavigate()
 
@@ -109,22 +119,55 @@ export function MorePage() {
   }
 
   return (
-    <div className="-mx-4 flex flex-col gap-4 pb-6 md:-mx-8">
-      <h1 className="px-4 text-2xl font-semibold text-slate-900 md:px-8">Mere</h1>
+    <AppPageLayout maxWidth="3xl" className="space-y-6 pb-4">
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-900">Mere</h1>
+        <p className="mt-1 text-sm text-slate-600">Genveje og konto</p>
+      </div>
 
-      <div className="border-y border-slate-200 bg-white">
+      {!ok && currentCompany ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 md:hidden">
+          <p className="font-medium">Abonnement påkrævet for fuld adgang</p>
+          <button
+            type="button"
+            className="mt-3 w-full rounded-lg bg-indigo-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-indigo-700"
+            onClick={() => redirectToStripeCheckout(currentCompany.id)}
+          >
+            Abonnér
+          </button>
+        </div>
+      ) : null}
+
+      <AppCard noPadding>
+        {companies.length > 1 ? (
+          <div className="border-b border-slate-100 px-5 py-4 md:hidden">
+            <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              Virksomhed
+            </label>
+            <select
+              className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900"
+              value={currentCompany?.id ?? ''}
+              onChange={(e) => void setCurrentCompanyId(e.target.value)}
+            >
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
+
         {currentCompany ? (
           <Link
             to="/app/settings"
-            className="flex items-center gap-4 border-b border-slate-100 px-4 py-4 transition hover:bg-slate-50 md:px-8"
+            className="flex items-center gap-4 border-b border-slate-100 px-5 py-4 transition hover:bg-slate-50/80"
           >
             <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
               <BuildingIcon className="h-6 w-6" />
             </span>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-base font-semibold text-slate-900">
-                {currentCompany.name}
-              </div>
+              <div className="truncate text-base font-semibold text-slate-900">{currentCompany.name}</div>
               <div className="truncate text-xs text-slate-500">
                 {currentCompany.cvr ? `CVR ${currentCompany.cvr} · ` : ''}
                 {currentRole ? ROLE_LABELS[currentRole] : ''}
@@ -139,7 +182,7 @@ export function MorePage() {
             <li key={i.to}>
               <Link
                 to={i.to}
-                className="flex items-center gap-4 px-4 py-4 text-slate-800 transition hover:bg-slate-50 md:px-8"
+                className="flex items-center gap-4 px-5 py-4 text-slate-800 transition hover:bg-slate-50/80"
               >
                 <span className="relative inline-flex shrink-0">
                   <i.icon className="h-5 w-5 text-indigo-600" />
@@ -155,17 +198,13 @@ export function MorePage() {
             </li>
           ))}
         </ul>
-      </div>
+      </AppCard>
 
-      <div className="border-y border-slate-200 bg-white px-4 py-5 md:px-8">
+      <AppCard>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-xs uppercase tracking-wide text-slate-400">
-              Logget ind som
-            </div>
-            <div className="mt-1 truncate text-sm font-medium text-slate-900">
-              {user?.email}
-            </div>
+            <div className="text-xs uppercase tracking-wide text-slate-400">Logget ind som</div>
+            <div className="mt-1 truncate text-sm font-medium text-slate-900">{user?.email}</div>
           </div>
           <button
             type="button"
@@ -176,7 +215,7 @@ export function MorePage() {
             Log ud
           </button>
         </div>
-      </div>
-    </div>
+      </AppCard>
+    </AppPageLayout>
   )
 }

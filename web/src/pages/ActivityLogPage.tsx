@@ -8,6 +8,7 @@ import { useApp } from '@/context/AppProvider'
 import { activityDisplayTitle, activityLooksLikeCreditNote } from '@/lib/activityDisplay'
 import { LoadingSpinner } from '@/components/LoadingIndicator'
 import { activityEventHref } from '@/lib/activityNavigation'
+import { AppCard, AppPageLayout } from '@/components/AppPageLayout'
 import { formatDateTime } from '@/lib/format'
 import type { Database } from '@/types/database'
 
@@ -76,8 +77,8 @@ export function ActivityLogPage() {
   if (!currentCompany) return null
 
   return (
-    <div className="-mx-4 flex min-h-0 flex-1 flex-col md:-mx-8">
-      <div className="space-y-1 px-4 pb-4 md:px-8">
+    <AppPageLayout maxWidth="3xl" className="space-y-6 pb-6">
+      <div className="space-y-1">
         <Link
           to="/app/dashboard"
           className="text-sm font-medium text-indigo-600 hover:text-indigo-800"
@@ -90,8 +91,9 @@ export function ActivityLogPage() {
         </p>
       </div>
 
-      <div className="flex-1 overflow-x-auto border-y border-slate-200 bg-white">
-        <table className="min-w-full text-left text-sm">
+      <AppCard noPadding>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
             <tr>
               <SortableTh
@@ -106,7 +108,7 @@ export function ActivityLogPage() {
                 direction={sortKey === 'title' ? sortDir : null}
                 onClick={() => onSortColumn('title')}
               />
-              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500 md:px-8">
+              <th className="px-4 py-3 pr-5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500 md:px-6">
                 Åbn
               </th>
             </tr>
@@ -114,7 +116,7 @@ export function ActivityLogPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={3} className="px-4 py-12 text-center md:px-8">
+                <td colSpan={3} className="px-4 py-12 text-center md:px-6">
                   <span className="sr-only">Indlæser</span>
                   <div className="flex justify-center">
                     <LoadingSpinner size="md" />
@@ -123,7 +125,7 @@ export function ActivityLogPage() {
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={3} className="px-4 py-10 text-center text-slate-500 md:px-8">
+                <td colSpan={3} className="px-4 py-10 text-center text-slate-500 md:px-6">
                   Ingen aktivitet endnu.
                 </td>
               </tr>
@@ -159,7 +161,7 @@ export function ActivityLogPage() {
                           to={href}
                           aria-label={`${activityDisplayTitle(a)} — åbn`}
                           className={clsx(
-                            'grid gap-2 px-4 py-3.5 transition md:grid-cols-[minmax(0,11rem)_1fr_auto] md:items-center md:gap-4 md:px-8',
+                            'grid gap-2 px-4 py-3.5 transition md:grid-cols-[minmax(0,11rem)_1fr_auto] md:items-center md:gap-4 md:px-6',
                             credit
                               ? 'hover:bg-rose-100/70 active:bg-rose-100'
                               : 'hover:bg-indigo-50/50 active:bg-indigo-50',
@@ -180,18 +182,19 @@ export function ActivityLogPage() {
 
                 return (
                   <tr key={a.id} className={clsx('border-t border-slate-100', rowBg, borderL)}>
-                    <td className={clsx('whitespace-nowrap px-4 py-3 text-xs md:px-8', credit ? 'text-rose-800/90' : 'text-slate-500')}>
+                    <td className={clsx('whitespace-nowrap px-4 py-3 text-xs md:px-6', credit ? 'text-rose-800/90' : 'text-slate-500')}>
                       {formatDateTime(a.created_at)}
                     </td>
-                    <td className="px-4 py-3 md:px-8">{titleBlock}</td>
-                    <td className="px-4 py-3 md:px-8" />
+                    <td className="px-4 py-3 md:px-6">{titleBlock}</td>
+                    <td className="px-4 py-3 md:px-6" />
                   </tr>
                 )
               })
             )}
           </tbody>
         </table>
-      </div>
-    </div>
+        </div>
+      </AppCard>
+    </AppPageLayout>
   )
 }

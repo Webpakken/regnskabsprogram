@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useApp } from '@/context/AppProvider'
+import { LoadingCentered } from '@/components/LoadingIndicator'
 import { MarketingFooter } from '@/components/MarketingFooter'
 import { MarketingHeader } from '@/components/MarketingHeader'
 import { MarketingPricingSection } from '@/components/MarketingPricingSection'
@@ -42,9 +43,12 @@ export function LandingPage() {
   /* Undgå marketing-forside mens auth indlæses (PWA/«tilføj til hjemmeskærm» + logget ind = ellers 1–2 sek flash). */
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white text-slate-500">
-        Indlæser…
-      </div>
+      <LoadingCentered
+        minHeight="min-h-screen"
+        className="bg-slate-50"
+        caption="Indlæser…"
+        srLabel="Indlæser"
+      />
     )
   }
 

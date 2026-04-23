@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { AppPageLayout } from '@/components/AppPageLayout'
 import { SortableTh } from '@/components/SortableTh'
 import { nextColumnSortState, type ColumnSortDir } from '@/lib/tableSort'
 import { DesktopListCardsToggle } from '@/components/DesktopListCardsToggle'
@@ -159,7 +160,7 @@ export function InvoicesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <AppPageLayout maxWidth="6xl" className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Fakturaer</h1>
@@ -363,6 +364,6 @@ export function InvoicesPage() {
           </tbody>
         </table>
       </div>
-    </div>
+    </AppPageLayout>
   )
 }

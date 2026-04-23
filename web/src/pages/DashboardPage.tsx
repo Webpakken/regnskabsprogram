@@ -24,6 +24,7 @@ import {
 import { redirectToStripeCheckout } from '@/lib/edge'
 import { activityDisplayTitle, activityLooksLikeCreditNote } from '@/lib/activityDisplay'
 import { activityEventHref } from '@/lib/activityNavigation'
+import { AppPageLayout } from '@/components/AppPageLayout'
 import type { Database } from '@/types/database'
 
 const DASHBOARD_ACTIVITY_PREVIEW = 7
@@ -97,11 +98,11 @@ function sparkFourParts(
 function MiniBars({ values, color }: { values: number[]; color: string }) {
   const max = Math.max(...values, 1)
   return (
-    <div className="flex h-12 w-14 shrink-0 items-end justify-end gap-1">
+    <div className="flex h-8 w-10 shrink-0 items-end justify-end gap-0.5 md:h-12 md:w-14 md:gap-1">
       {values.map((v, i) => (
         <div
           key={i}
-          className="w-2 rounded-sm transition-all"
+          className="w-1.5 rounded-sm transition-all md:w-2"
           style={{
             height: `${Math.max(10, (v / max) * 100)}%`,
             backgroundColor: color,
@@ -264,7 +265,7 @@ export function DashboardPage() {
   const slateBar = '#64748b'
 
   return (
-    <div className="space-y-6 md:space-y-8">
+    <AppPageLayout maxWidth="6xl" className="space-y-6 md:space-y-8">
       <section className="space-y-6">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -306,46 +307,50 @@ export function DashboardPage() {
             className="h-1 bg-gradient-to-r from-indigo-600 via-indigo-500 to-violet-500"
             aria-hidden
           />
-          <div className="border-b border-slate-100 px-5 py-3.5 md:px-8 md:py-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <div className="border-b border-slate-100 px-4 py-2 md:px-8 md:py-3.5">
+            <p className="text-[11px] font-semibold uppercase leading-snug tracking-wide text-slate-500 md:text-xs">
               Nøgletal · ekskl. annullerede fakturaer
             </p>
           </div>
           <div className="grid divide-y divide-slate-100 md:grid-cols-3 md:divide-x md:divide-y-0">
-            <div className="flex flex-col gap-3 p-6 md:p-8">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            <div className="flex flex-col gap-1 px-4 py-2.5 md:gap-3 md:p-8">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500 md:text-xs">
                   Faktureret
                 </span>
                 <MiniBars values={sparks.inc} color={emerald} />
               </div>
               <div
-                className={`text-2xl font-bold tabular-nums tracking-tight md:text-3xl ${signedAmountClass(invoicedPos)}`}
+                className={`text-lg font-bold tabular-nums leading-tight tracking-tight sm:text-xl md:text-3xl ${signedAmountClass(invoicedPos)}`}
               >
                 {formatDkk(invoicedPos)}
               </div>
             </div>
-            <div className="flex flex-col gap-3 p-6 md:p-8">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            <div className="flex flex-col gap-1 px-4 py-2.5 md:gap-3 md:p-8">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500 md:text-xs">
                   Kreditnotaer
                 </span>
                 <MiniBars values={sparks.cred} color={rose} />
               </div>
               <div
-                className={`text-2xl font-bold tabular-nums tracking-tight md:text-3xl ${
+                className={`text-lg font-bold tabular-nums leading-tight tracking-tight sm:text-xl md:text-3xl ${
                   creditAbs > 0 ? 'text-rose-600' : 'text-slate-400'
                 }`}
               >
                 {formatDkk(creditAbs)}
               </div>
             </div>
-            <div className="flex flex-col gap-3 p-6 md:p-8">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Netto</span>
+            <div className="flex flex-col gap-1 px-4 py-2.5 md:gap-3 md:p-8">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500 md:text-xs">
+                  Netto
+                </span>
                 <MiniBars values={netSpark} color={slateBar} />
               </div>
-              <div className={`text-2xl font-bold tabular-nums tracking-tight md:text-3xl ${signedAmountClass(net)}`}>
+              <div
+                className={`text-lg font-bold tabular-nums leading-tight tracking-tight sm:text-xl md:text-3xl ${signedAmountClass(net)}`}
+              >
                 {formatDkk(net)}
               </div>
             </div>
@@ -528,7 +533,7 @@ export function DashboardPage() {
           ) : null}
         </div>
       </div>
-    </div>
+    </AppPageLayout>
   )
 }
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { AppPageLayout } from '@/components/AppPageLayout'
 import { SortableTh } from '@/components/SortableTh'
 import { nextColumnSortState, type ColumnSortDir } from '@/lib/tableSort'
 import { supabase } from '@/lib/supabase'
@@ -208,7 +209,7 @@ export function VatPage() {
   if (!currentCompany) return <p className="text-slate-600">Vælg virksomhed.</p>
 
   return (
-    <div className="space-y-6">
+    <AppPageLayout maxWidth="6xl" className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Moms</h1>
@@ -384,7 +385,7 @@ export function VatPage() {
       <p className="text-xs text-slate-500">
         Tallene kan indtastes direkte i TastSelv Erhverv. Direkte indberetning kræver SKAT-certifikat og kommer senere.
       </p>
-    </div>
+    </AppPageLayout>
   )
 }
 

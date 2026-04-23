@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { AppPageLayout } from '@/components/AppPageLayout'
 import { SortableTh } from '@/components/SortableTh'
 import { nextColumnSortState, type ColumnSortDir } from '@/lib/tableSort'
 import { supabase } from '@/lib/supabase'
@@ -80,7 +81,7 @@ export function BankPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <AppPageLayout maxWidth="6xl" className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Bank</h1>
         <p className="text-sm text-slate-600">
@@ -161,6 +162,6 @@ export function BankPage() {
           </tbody>
         </table>
       </div>
-    </div>
+    </AppPageLayout>
   )
 }

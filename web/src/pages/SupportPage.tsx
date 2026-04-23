@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
+import { AppPageLayout } from '@/components/AppPageLayout'
 import { useApp } from '@/context/AppProvider'
 import { useSupportUnread } from '@/context/SupportUnreadContext'
 import { formatDateTime } from '@/lib/format'
@@ -160,7 +161,7 @@ export function SupportPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <AppPageLayout maxWidth="2xl" className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Support</h1>
         <p className="mt-1 text-sm text-slate-600">
@@ -225,6 +226,6 @@ export function SupportPage() {
           </div>
         </>
       )}
-    </div>
+    </AppPageLayout>
   )
 }

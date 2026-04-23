@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { AppPageLayout } from '@/components/AppPageLayout'
 import { SortableTh } from '@/components/SortableTh'
 import { nextColumnSortState, type ColumnSortDir } from '@/lib/tableSort'
 import { invokePlatformEmail } from '@/lib/edge'
@@ -240,7 +241,7 @@ export function MembersPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
+    <AppPageLayout maxWidth="3xl" className="space-y-8">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Medlemmer</h1>
         <p className="text-sm text-slate-600">
@@ -442,6 +443,6 @@ export function MembersPage() {
           </section>
         </>
       ) : null}
-    </div>
+    </AppPageLayout>
   )
 }

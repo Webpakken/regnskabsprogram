@@ -10,7 +10,14 @@ import { PlatformShell } from '@/components/PlatformShell'
 export function ProtectedPlatformRoute() {
   const { loading, platformRole } = useApp()
   if (loading) {
-    return <LoadingCentered minHeight="min-h-screen" srLabel="Indlæser" />
+    return (
+      <LoadingCentered
+        minHeight="min-h-screen"
+        className="bg-slate-50"
+        caption="Indlæser…"
+        srLabel="Indlæser"
+      />
+    )
   }
   if (!platformRole) {
     return <Navigate to="/home" replace />
