@@ -77,16 +77,6 @@ function FaqIcon({ className }: IconProps) {
   )
 }
 
-function LoginIcon({ className }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-      <path d="M10 17l5-5-5-5" />
-      <path d="M15 12H3" />
-    </svg>
-  )
-}
-
 function NavTab({
   to,
   label,
@@ -252,16 +242,6 @@ export function MarketingMobileBottomNav() {
               <li>
                 <button
                   type="button"
-                  onClick={() => go('/login')}
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-800 hover:bg-slate-50"
-                >
-                  <LoginIcon className="h-5 w-5 shrink-0 text-indigo-600" />
-                  Log ind
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
                   onClick={() => go('/faq')}
                   className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-800 hover:bg-slate-50"
                 >
@@ -290,6 +270,15 @@ export function MarketingMobileBottomNav() {
                 </button>
               </li>
             </ul>
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={() => go('/login')}
+                className="flex w-full items-center justify-center rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-700"
+              >
+                Log ind
+              </button>
+            </div>
             <div className="mt-4 border-t border-slate-100 pt-3">
               <p className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Juridisk</p>
               <ul className="mt-2 space-y-0.5">

@@ -1,9 +1,13 @@
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ROLE_LABELS, subscriptionOk, useApp } from '@/context/AppProvider'
 import { redirectToStripeCheckout } from '@/lib/edge'
 import { useSupportUnread } from '@/context/SupportUnreadContext'
 import { AppCard, AppPageLayout } from '@/components/AppPageLayout'
 import { logoutToLanding } from '@/lib/logoutToLanding'
+import { trialStatusFor } from '@/lib/trial'
+import { formatKrPerMonth } from '@/lib/format'
+import { supabase } from '@/lib/supabase'
 
 type IconProps = { className?: string }
 
@@ -142,8 +146,28 @@ export function MorePage() {
     subscription,
   } = useApp()
   const ok = subscriptionOk(subscription)
+  const trial = trialStatusFor(currentCompany)
+  const trialActive = trial?.active === true
   const { unreadCount } = useSupportUnread()
   const navigate = useNavigate()
+
+  const [priceCents, setPriceCents] = useState<number | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const { data } = await supabase
+        .from('platform_public_settings')
+        .select('pricing_amount_cents, monthly_price_cents')
+        .eq('id', 1)
+        .maybeSingle()
+      if (cancelled) return
+      setPriceCents(data?.pricing_amount_cents ?? data?.monthly_price_cents ?? 9900)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  const priceLabel = priceCents != null ? formatKrPerMonth(priceCents) : null
 
   async function logout() {
     await logoutToLanding(navigate)
@@ -157,16 +181,42 @@ export function MorePage() {
       </div>
 
       {!ok && currentCompany ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 md:hidden">
-          <p className="font-medium">Abonnement påkrævet for fuld adgang</p>
-          <button
-            type="button"
-            className="mt-3 w-full rounded-lg bg-indigo-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-indigo-700"
-            onClick={() => redirectToStripeCheckout(currentCompany.id)}
-          >
-            Abonnér
-          </button>
-        </div>
+        trialActive ? (
+          <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-950 sm:flex sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-4">
+            <div className="min-w-0">
+              <p className="font-medium">
+                Prøveperiode aktiv — {trial!.daysLeft} {trial!.daysLeft === 1 ? 'dag' : 'dage'} tilbage
+              </p>
+              <p className="mt-1 text-indigo-900/80">
+                Tilføj kortoplysninger nu, så du fortsætter uden afbrydelse efter prøveperioden
+                {priceLabel ? ` for ${priceLabel}` : ''}.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="mt-3 w-full shrink-0 rounded-lg bg-indigo-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 sm:mt-0 sm:w-auto sm:px-4"
+              onClick={() => redirectToStripeCheckout(currentCompany.id)}
+            >
+              Tilføj kortoplysninger
+            </button>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 sm:flex sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-4">
+            <div className="min-w-0">
+              <p className="font-medium">Abonnement påkrævet for fuld adgang</p>
+              {priceLabel ? (
+                <p className="mt-1 text-amber-900/80">Pris: {priceLabel}</p>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              className="mt-3 w-full shrink-0 rounded-lg bg-indigo-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 sm:mt-0 sm:w-auto sm:px-4"
+              onClick={() => redirectToStripeCheckout(currentCompany.id)}
+            >
+              Abonnér
+            </button>
+          </div>
+        )
       ) : null}
 
       <AppCard noPadding>
@@ -246,6 +296,12 @@ export function MorePage() {
             Log ud
           </button>
         </div>
+        {priceLabel ? (
+          <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+            <span className="text-xs uppercase tracking-wide text-slate-400">Abonnement</span>
+            <span className="text-sm font-semibold text-slate-900">{priceLabel}</span>
+          </div>
+        ) : null}
       </AppCard>
     </AppPageLayout>
   )
