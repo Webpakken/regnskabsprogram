@@ -178,19 +178,19 @@ export function MarketingMobileBottomNav() {
             className="absolute inset-0 bg-slate-900/40"
             onClick={() => setSheet(null)}
           />
-          <div className="absolute inset-x-0 bottom-0 max-h-[min(85vh,36rem)] overflow-y-auto rounded-t-3xl bg-white p-5 pb-[calc(env(safe-area-inset-bottom)+20px)] shadow-2xl">
+          <div className="absolute inset-x-0 bottom-0 max-h-[calc(100dvh-0.5rem)] overflow-y-auto rounded-t-3xl bg-white px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+14px)] shadow-2xl sm:max-h-[min(85vh,36rem)] sm:p-5 sm:pb-[calc(env(safe-area-inset-bottom)+20px)]">
             <div className="mx-auto h-1 w-10 rounded-full bg-slate-200" />
-            <h2 className="mt-4 text-center text-sm font-semibold text-slate-900">Produkter</h2>
-            <ul className="mt-4 space-y-1">
+            <h2 className="mt-3 text-center text-sm font-semibold text-slate-900">Produkter</h2>
+            <ul className="mt-3 space-y-0.5 sm:mt-4 sm:space-y-1">
               {marketingFeatureCards.map((f) => (
                 <li key={f.slug}>
                   <button
                     type="button"
                     onClick={() => go(`/funktioner/${f.slug}`)}
-                    className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left hover:bg-slate-50"
+                    className="flex w-full items-start gap-3 rounded-xl px-2 py-2.5 text-left hover:bg-slate-50 sm:px-3 sm:py-3"
                   >
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
-                      <f.icon className="h-5 w-5" />
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 sm:h-10 sm:w-10">
+                      <f.icon className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-2">
@@ -201,7 +201,7 @@ export function MarketingMobileBottomNav() {
                           </span>
                         ) : null}
                       </span>
-                      <span className="mt-0.5 block text-xs leading-snug text-slate-500">
+                      <span className="mt-0.5 block text-[13px] leading-snug text-slate-500 sm:text-xs">
                         {f.desc.length > 80 ? `${f.desc.slice(0, 78)}…` : f.desc}
                       </span>
                     </span>
@@ -209,11 +209,11 @@ export function MarketingMobileBottomNav() {
                 </li>
               ))}
             </ul>
-            <div className="mt-4 border-t border-slate-100 pt-3">
+            <div className="mt-3 border-t border-slate-100 pt-2.5 sm:mt-4 sm:pt-3">
               <button
                 type="button"
                 onClick={() => go('/funktioner')}
-                className="flex w-full items-center justify-center gap-1 rounded-xl px-3 py-3 text-sm font-semibold text-indigo-600 hover:bg-indigo-50/60"
+                className="flex w-full items-center justify-center gap-1 rounded-xl px-3 py-2.5 text-sm font-semibold text-indigo-600 hover:bg-indigo-50/60 sm:py-3"
               >
                 Se alle funktioner <span aria-hidden>→</span>
               </button>

@@ -15,6 +15,9 @@ import {
 import { MobileBottomNav } from '@/components/MobileBottomNav'
 import { RegisterPushNotifications } from '@/components/RegisterPushNotifications'
 import { useSupportUnread } from '@/context/SupportUnreadContext'
+import { TrialCountdownBanner } from '@/components/TrialCountdownBanner'
+import { TrialExpiredModal } from '@/components/TrialExpiredModal'
+import { trialStatusFor } from '@/lib/trial'
 
 type NavIconProps = { className?: string }
 
@@ -281,16 +284,46 @@ export function AppShell({ children }: { children?: ReactNode }) {
           </div>
         ) : null}
 
-        {!ok && currentCompany ? (
-          <div className="border-b border-amber-100 bg-amber-50 px-5 py-3.5 text-sm text-amber-900 md:px-10">
-            Aktivér dit månedsabonnement for at bruge Bilago. Data er isoleret per
-            virksomhed (CVR kan tilføjes under Indstillinger).
-          </div>
-        ) : subscription?.status === 'trialing' && currentCompany ? (
-          <TrialBanner
-            periodEnd={subscription.current_period_end}
-            companyId={currentCompany.id}
-          />
+        {(() => {
+          if (!currentCompany) return null
+          const trial = trialStatusFor(currentCompany)
+          // Aktiv Stripe-subscription → ingen banner.
+          if (ok) {
+            if (subscription?.status === 'trialing') {
+              return (
+                <TrialBanner
+                  periodEnd={subscription.current_period_end}
+                  companyId={currentCompany.id}
+                />
+              )
+            }
+            return null
+          }
+          // Ingen subscription men custom-trial stadig aktiv → vis nedtælling de sidste dage.
+          if (trial?.active) {
+            return <TrialCountdownBanner company={currentCompany} />
+          }
+          // Trial udløbet og ingen subscription → permanent "Prøveperiode slut"-banner.
+          return (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-5 py-3.5 text-sm text-amber-900 md:px-10">
+              <span className="min-w-0 flex-1">
+                <strong className="font-semibold">Din prøveperiode er slut.</strong>
+                <span className="ml-1 text-amber-800">
+                  Aktivér dit abonnement for at oprette fakturaer, bilag og bruge banken igen.
+                </span>
+              </span>
+              <button
+                type="button"
+                className="shrink-0 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
+                onClick={() => redirectToStripeCheckout(currentCompany.id)}
+              >
+                Start abonnement
+              </button>
+            </div>
+          )
+        })()}
+        {currentCompany && !ok && trialStatusFor(currentCompany)?.expired ? (
+          <TrialExpiredModal company={currentCompany} />
         ) : null}
 
         <main className="flex min-h-0 flex-1 flex-col px-5 pb-28 pt-5 md:px-10 md:pb-8 md:pt-9">

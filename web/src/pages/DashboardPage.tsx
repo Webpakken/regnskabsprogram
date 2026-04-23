@@ -11,7 +11,7 @@ import {
   YAxis,
 } from 'recharts'
 import { supabase } from '@/lib/supabase'
-import { useApp, subscriptionOk } from '@/context/AppProvider'
+import { useApp, accessOk } from '@/context/AppProvider'
 import {
   APP_TIMEZONE,
   copenhagenLastNDaysInclusive,
@@ -117,7 +117,7 @@ function MiniBars({ values, color }: { values: number[]; color: string }) {
 export function DashboardPage() {
   const { currentCompany, subscription, refresh } = useApp()
   const [searchParams] = useSearchParams()
-  const ok = subscriptionOk(subscription)
+  const hasAccess = accessOk(currentCompany, subscription)
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [openSentCents, setOpenSentCents] = useState(0)
   const [activity, setActivity] = useState<Activity[]>([])
@@ -358,9 +358,11 @@ export function DashboardPage() {
         </div>
       </section>
 
-      {!ok ? (
+      {!hasAccess ? (
         <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-6 md:p-7">
-          <h2 className="text-base font-semibold text-indigo-900">Aktivér abonnement</h2>
+          <h2 className="text-base font-semibold text-indigo-900">
+            Din prøveperiode er slut
+          </h2>
           <p className="mt-1 text-sm text-indigo-800">
             Du kan se oversigten, men fakturaer, bilag og bank kræver aktivt abonnement.
           </p>

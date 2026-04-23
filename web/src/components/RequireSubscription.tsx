@@ -1,6 +1,6 @@
 import { Navigate, Outlet } from 'react-router-dom'
 import { LoadingCentered } from '@/components/LoadingIndicator'
-import { useApp, subscriptionOk } from '@/context/AppProvider'
+import { useApp, accessOk } from '@/context/AppProvider'
 
 export function RequireSubscription() {
   const { currentCompany, subscription, loading } = useApp()
@@ -17,7 +17,7 @@ export function RequireSubscription() {
   if (!currentCompany) {
     return <Navigate to="/onboarding" replace />
   }
-  if (!subscriptionOk(subscription)) {
+  if (!accessOk(currentCompany, subscription)) {
     return <Navigate to="/app/dashboard" replace />
   }
   return <Outlet />

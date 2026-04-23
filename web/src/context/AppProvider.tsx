@@ -11,6 +11,7 @@ import {
 import type { Session, User } from '@supabase/supabase-js'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 import type { CompanyRole, Database } from '@/types/database'
+import { trialStatusFor } from '@/lib/trial'
 
 type Company = Database['public']['Tables']['companies']['Row']
 type Profile = Database['public']['Tables']['profiles']['Row']
@@ -291,6 +292,20 @@ export function subscriptionOk(sub: Subscription | null) {
     return new Date(sub.current_period_end).getTime() > Date.now()
   }
   return false
+}
+
+/**
+ * Samlet adgangs-check: OK hvis enten Stripe-subscription er aktiv/trialing,
+ * eller hvis den 30-dages custom prøveperiode (baseret på companies.created_at)
+ * ikke er udløbet. Bruges af RequireSubscription og i UI-gating (banner/modal).
+ */
+export function accessOk(
+  company: Company | null,
+  sub: Subscription | null,
+): boolean {
+  if (subscriptionOk(sub)) return true
+  const trial = trialStatusFor(company)
+  return trial?.active === true
 }
 
 export function hasRole(
