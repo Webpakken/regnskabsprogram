@@ -17,6 +17,7 @@ import {
 } from '@/lib/trialPaymentUiPreference'
 import { MobileBottomNav } from '@/components/MobileBottomNav'
 import { RegisterPushNotifications } from '@/components/RegisterPushNotifications'
+import { PwaPushPrompt } from '@/components/PwaPushPrompt'
 import { useSupportUnread } from '@/context/SupportUnreadContext'
 import { TrialCountdownBanner } from '@/components/TrialCountdownBanner'
 import { TrialExpiredModal } from '@/components/TrialExpiredModal'
@@ -186,6 +187,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
   return (
     <div className="flex min-h-screen bg-slate-50">
       <RegisterPushNotifications />
+      <PwaPushPrompt />
       <aside className="hidden w-56 shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
         <div className="border-b border-slate-100 px-4 py-5">
           <div className="flex items-center gap-3">
