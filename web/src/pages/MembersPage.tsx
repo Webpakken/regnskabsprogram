@@ -241,7 +241,7 @@ export function MembersPage() {
   }
 
   return (
-    <AppPageLayout maxWidth="3xl" className="space-y-8">
+    <AppPageLayout maxWidth="full" className="space-y-8">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Medlemmer</h1>
         <p className="text-sm text-slate-600">

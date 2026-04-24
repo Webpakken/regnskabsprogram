@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { AppPageLayout } from '@/components/AppPageLayout'
 import { SortableTh } from '@/components/SortableTh'
@@ -14,6 +14,7 @@ import { canAttemptVoucherOcr, ocrImageOrPdfFile } from '@/lib/voucherOcr'
 import type { CompanyRole, Database } from '@/types/database'
 
 type Voucher = Database['public']['Tables']['vouchers']['Row']
+type VoucherProject = Database['public']['Tables']['voucher_projects']['Row']
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10)
@@ -21,13 +22,18 @@ function todayIso() {
 
 const VOUCHERS_VIEW_KEY = 'bilago:vouchersDesktopView'
 
-type VoucherSortKey = 'date' | 'title' | 'category' | 'gross' | 'vat'
+type VoucherSortKey = 'date' | 'title' | 'category' | 'project' | 'gross' | 'vat'
 
 function voucherLedgerDate(v: Voucher): string {
   return v.expense_date ?? v.uploaded_at.slice(0, 10)
 }
 
-function sortVouchers(list: Voucher[], key: VoucherSortKey, dir: ColumnSortDir): Voucher[] {
+function sortVouchers(
+  list: Voucher[],
+  key: VoucherSortKey,
+  dir: ColumnSortDir,
+  projectNameForVoucher: (v: Voucher) => string,
+): Voucher[] {
   const mul = dir === 'asc' ? 1 : -1
   return [...list].sort((a, b) => {
     switch (key) {
@@ -41,6 +47,8 @@ function sortVouchers(list: Voucher[], key: VoucherSortKey, dir: ColumnSortDir):
         return mul * String(a.title ?? '').localeCompare(String(b.title ?? ''), 'da', { sensitivity: 'base' })
       case 'category':
         return mul * String(a.category ?? '').localeCompare(String(b.category ?? ''), 'da', { sensitivity: 'base' })
+      case 'project':
+        return mul * projectNameForVoucher(a).localeCompare(projectNameForVoucher(b), 'da', { sensitivity: 'base' })
       case 'gross':
         return mul * ((a.gross_cents ?? 0) - (b.gross_cents ?? 0))
       case 'vat':
@@ -60,9 +68,13 @@ export function VouchersPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [desktopView, setDesktopView] = useDesktopListViewPreference(VOUCHERS_VIEW_KEY, 'list')
   const [rows, setRows] = useState<Voucher[]>([])
+  const [projects, setProjects] = useState<VoucherProject[]>([])
   const [searchQuery, setSearchQuery] = useState('')
+  const [projectFilter, setProjectFilter] = useState<'all' | 'none' | string>('all')
+  const [newProjectName, setNewProjectName] = useState('')
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [creatingProject, setCreatingProject] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ocrWarning, setOcrWarning] = useState<string | null>(null)
   const [ocrProgress, setOcrProgress] = useState<number | null>(null)
@@ -72,23 +84,34 @@ export function VouchersPage() {
   const [sortKey, setSortKey] = useState<VoucherSortKey | null>(null)
   const [sortDir, setSortDir] = useState<ColumnSortDir>('desc')
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [assigningVoucherId, setAssigningVoucherId] = useState<string | null>(null)
 
   const canDeleteVoucher = canWriterDeleteVouchers(currentRole)
 
-  async function load() {
+  const load = useCallback(async function load() {
     if (!currentCompany) return
-    const { data } = await supabase
+    setLoading(true)
+    const [voucherRes, projectRes] = await Promise.all([
+      supabase
       .from('vouchers')
       .select('*')
       .eq('company_id', currentCompany.id)
-      .order('uploaded_at', { ascending: false })
-    setRows(data ?? [])
+        .order('uploaded_at', { ascending: false }),
+      supabase
+        .from('voucher_projects')
+        .select('*')
+        .eq('company_id', currentCompany.id)
+        .eq('active', true)
+        .order('name', { ascending: true }),
+    ])
+    setRows(voucherRes.data ?? [])
+    setProjects(projectRes.data ?? [])
     setLoading(false)
-  }
+  }, [currentCompany])
 
   useEffect(() => {
     void load()
-  }, [currentCompany])
+  }, [load])
 
   const voucherHighlight = searchParams.get('voucher')
   useEffect(() => {
@@ -114,6 +137,14 @@ export function VouchersPage() {
     return () => window.clearTimeout(t)
   }, [voucherHighlight, loading, setSearchParams])
 
+  const projectById = useMemo(() => {
+    return new Map(projects.map((p) => [p.id, p]))
+  }, [projects])
+
+  const projectNameForVoucher = useCallback(function projectNameForVoucher(v: Voucher) {
+    return v.voucher_project_id ? (projectById.get(v.voucher_project_id)?.name ?? '') : ''
+  }, [projectById])
+
   const searchMatched = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     if (!q) return rows
@@ -124,10 +155,12 @@ export function VouchersPage() {
         : formatDateOnly(v.uploaded_at)
       const grossStr = v.gross_cents ? formatDkk(v.gross_cents) : ''
       const vatStr = v.vat_cents ? formatDkk(v.vat_cents) : ''
+      const projectStr = projectNameForVoucher(v)
       const hay = [
         v.title ?? '',
         v.filename ?? '',
         v.category ?? '',
+        projectStr,
         v.notes ?? '',
         dateStr,
         grossStr,
@@ -137,12 +170,40 @@ export function VouchersPage() {
         .toLowerCase()
       return tokens.every((t) => hay.includes(t))
     })
-  }, [rows, searchQuery])
+  }, [rows, searchQuery, projectNameForVoucher])
 
   const filteredRows = useMemo(() => {
-    if (sortKey === null) return searchMatched
-    return sortVouchers(searchMatched, sortKey, sortDir)
-  }, [searchMatched, sortKey, sortDir])
+    const projectMatched = searchMatched.filter((v) => {
+      if (projectFilter === 'all') return true
+      if (projectFilter === 'none') return !v.voucher_project_id
+      return v.voucher_project_id === projectFilter
+    })
+    if (sortKey === null) return projectMatched
+    return sortVouchers(projectMatched, sortKey, sortDir, projectNameForVoucher)
+  }, [searchMatched, projectFilter, sortKey, sortDir, projectNameForVoucher])
+
+  const voucherTotals = useMemo(() => {
+    return filteredRows.reduce(
+      (acc, v) => ({
+        gross: acc.gross + Number(v.gross_cents ?? 0),
+        vat: acc.vat + Number(v.vat_cents ?? 0),
+        net: acc.net + Number(v.net_cents ?? 0),
+      }),
+      { gross: 0, vat: 0, net: 0 },
+    )
+  }, [filteredRows])
+
+  const projectTotals = useMemo(() => {
+    return projects
+      .map((project) => {
+        const list = rows.filter((v) => v.voucher_project_id === project.id)
+        const gross = list.reduce((sum, v) => sum + Number(v.gross_cents ?? 0), 0)
+        return { project, count: list.length, gross }
+      })
+      .filter((row) => row.count > 0)
+      .sort((a, b) => b.gross - a.gross)
+      .slice(0, 6)
+  }, [projects, rows])
 
   function onSortColumn(col: VoucherSortKey) {
     const next = nextColumnSortState(col, sortKey, sortDir, true)
@@ -216,6 +277,7 @@ export function VouchersPage() {
         mime_type: file.type || null,
         title: titleForDb,
         category: null,
+        voucher_project_id: null,
         notes: notesForDb,
         uploaded_by: user.id,
         expense_date: expenseDateForDb,
@@ -238,6 +300,50 @@ export function VouchersPage() {
     if (fileInputRef.current) fileInputRef.current.value = ''
     setUploading(false)
     await load()
+  }
+
+  async function createProject() {
+    if (!currentCompany || !user) return
+    const name = newProjectName.trim()
+    if (!name) return
+    setCreatingProject(true)
+    setError(null)
+    const { data, error: projectErr } = await supabase
+      .from('voucher_projects')
+      .insert({
+        company_id: currentCompany.id,
+        name,
+        created_by: user.id,
+      })
+      .select('*')
+      .single()
+    setCreatingProject(false)
+    if (projectErr || !data) {
+      setError(projectErr?.message ?? 'Kunne ikke oprette event/projekt')
+      return
+    }
+    setProjects((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name, 'da')))
+    setProjectFilter(data.id)
+    setNewProjectName('')
+  }
+
+  async function updateVoucherProject(v: Voucher, projectId: string | null) {
+    if (!currentCompany) return
+    setAssigningVoucherId(v.id)
+    setError(null)
+    const { error: updateErr } = await supabase
+      .from('vouchers')
+      .update({ voucher_project_id: projectId })
+      .eq('id', v.id)
+      .eq('company_id', currentCompany.id)
+    setAssigningVoucherId(null)
+    if (updateErr) {
+      setError(updateErr.message)
+      return
+    }
+    setRows((prev) =>
+      prev.map((row) => (row.id === v.id ? { ...row, voucher_project_id: projectId } : row)),
+    )
   }
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -436,6 +542,93 @@ export function VouchersPage() {
         />
       </label>
 
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <label className="min-w-0 flex-1">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Event/projekt
+              </span>
+              <select
+                value={projectFilter}
+                onChange={(e) => setProjectFilter(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900"
+              >
+                <option value="all">Alle bilag</option>
+                <option value="none">Uden event/projekt</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="min-w-0 flex-1">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Nyt event/projekt
+              </span>
+              <div className="mt-1 flex gap-2">
+                <input
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  placeholder="Sommerlejr 2026"
+                  className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
+                />
+                <button
+                  type="button"
+                  disabled={creatingProject || !newProjectName.trim()}
+                  onClick={() => void createProject()}
+                  className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  Opret
+                </button>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+            <p className="text-xs font-medium text-slate-500">Bilag</p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">{filteredRows.length}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+            <p className="text-xs font-medium text-slate-500">Udgift</p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">{formatDkk(voucherTotals.gross)}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+            <p className="text-xs font-medium text-slate-500">Moms</p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">{formatDkk(voucherTotals.vat)}</p>
+          </div>
+        </div>
+      </div>
+
+      {projectTotals.length > 0 ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-slate-900">Største events/projekter</h3>
+            <span className="text-xs text-slate-500">Baseret på alle bilag</span>
+          </div>
+          <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {projectTotals.map(({ project, count, gross }) => (
+              <button
+                key={project.id}
+                type="button"
+                onClick={() => setProjectFilter(project.id)}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-left hover:border-indigo-200 hover:bg-indigo-50/60"
+              >
+                <span className="block truncate text-sm font-semibold text-slate-900">
+                  {project.name}
+                </span>
+                <span className="mt-0.5 block text-xs text-slate-600">
+                  {formatDkk(gross)} · {count} bilag
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <div
         className={`grid grid-cols-1 gap-3 ${desktopView === 'list' ? 'md:hidden' : 'md:grid-cols-2 lg:grid-cols-3'}`}
       >
@@ -484,6 +677,26 @@ export function VouchersPage() {
                   <span>{v.category ? `Kategori: ${v.category}` : '—'}</span>
                   <span>{v.vat_cents ? `Moms ${formatDkk(v.vat_cents)}` : 'Moms —'}</span>
                 </div>
+                <label className="block border-t border-slate-100 pt-2">
+                  <span className="sr-only">Event/projekt</span>
+                  <select
+                    value={v.voucher_project_id ?? ''}
+                    disabled={assigningVoucherId === v.id}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => {
+                      e.stopPropagation()
+                      void updateVoucherProject(v, e.target.value || null)
+                    }}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs text-slate-700"
+                  >
+                    <option value="">Uden event/projekt</option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-sm font-medium text-indigo-600">Åbn bilag →</span>
                   {canDeleteVoucher ? (
@@ -531,6 +744,12 @@ export function VouchersPage() {
                 onClick={() => onSortColumn('category')}
               />
               <SortableTh
+                label="Event/projekt"
+                isActive={sortKey === 'project'}
+                direction={sortKey === 'project' ? sortDir : null}
+                onClick={() => onSortColumn('project')}
+              />
+              <SortableTh
                 label="Beløb"
                 isActive={sortKey === 'gross'}
                 direction={sortKey === 'gross' ? sortDir : null}
@@ -550,19 +769,19 @@ export function VouchersPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
                   Indlæser…
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
                   Ingen bilag endnu.
                 </td>
               </tr>
             ) : filteredRows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
                   Ingen bilag matcher søgningen.
                 </td>
               </tr>
@@ -576,6 +795,21 @@ export function VouchersPage() {
                   </td>
                   <td className="px-4 py-3 text-slate-800">{v.title ?? '—'}</td>
                   <td className="px-4 py-3 text-slate-600">{v.category ?? '—'}</td>
+                  <td className="px-4 py-3 text-slate-600">
+                    <select
+                      value={v.voucher_project_id ?? ''}
+                      disabled={assigningVoucherId === v.id}
+                      onChange={(e) => void updateVoucherProject(v, e.target.value || null)}
+                      className="w-full min-w-40 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm"
+                    >
+                      <option value="">—</option>
+                      {projects.map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.name}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
                   <td className="px-4 py-3 text-right text-slate-800">
                     {v.gross_cents ? formatDkk(v.gross_cents) : '—'}
                   </td>

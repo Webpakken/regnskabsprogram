@@ -7,6 +7,9 @@ import { downscaleToCanvas, scoreDocumentPresence } from '@/lib/documentDetect'
 import { parseDanishReceiptText } from '@/lib/receiptParse'
 import { renderPdfFirstPageToCanvas } from '@/lib/pdfToCanvas'
 import { maxOcrDimension, ocrReceiptCanvas } from '@/lib/voucherOcr'
+import type { Database } from '@/types/database'
+
+type VoucherProject = Database['public']['Tables']['voucher_projects']['Row']
 
 /** Lavere tærskel + færre frames — mobil-kamera giver ofte lavere «edge score». */
 const DETECT_THRESHOLD = 0.075
@@ -77,6 +80,8 @@ export function ScanBilagPage() {
   const [grossKr, setGrossKr] = useState('')
   const [vatRate, setVatRate] = useState('25')
   const [notes, setNotes] = useState('')
+  const [voucherProjectId, setVoucherProjectId] = useState('')
+  const [projects, setProjects] = useState<VoucherProject[]>([])
   const [saveError, setSaveError] = useState<string | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [cameraKey, setCameraKey] = useState(0)
@@ -94,6 +99,26 @@ export function ScanBilagPage() {
       if (previewUrl) URL.revokeObjectURL(previewUrl)
     }
   }, [stopCamera, previewUrl])
+
+  useEffect(() => {
+    if (!currentCompany?.id) {
+      setProjects([])
+      return
+    }
+    let cancelled = false
+    void supabase
+      .from('voucher_projects')
+      .select('*')
+      .eq('company_id', currentCompany.id)
+      .eq('active', true)
+      .order('name', { ascending: true })
+      .then(({ data }) => {
+        if (!cancelled) setProjects(data ?? [])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [currentCompany?.id])
 
   useEffect(() => {
     if (preferNativeCapture) {
@@ -317,6 +342,7 @@ export function ScanBilagPage() {
         mime_type: 'image/jpeg',
         title: title || fname,
         category: 'Scan',
+        voucher_project_id: voucherProjectId || null,
         notes: notes || null,
         uploaded_by: user.id,
         expense_date: expenseDate,
@@ -413,6 +439,19 @@ export function ScanBilagPage() {
           >
             <option value="25">25 %</option>
             <option value="0">0 %</option>
+          </select>
+          <label className="block text-sm font-medium text-slate-700">Event/projekt</label>
+          <select
+            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+            value={voucherProjectId}
+            onChange={(e) => setVoucherProjectId(e.target.value)}
+          >
+            <option value="">Uden event/projekt</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
           </select>
           <label className="block text-sm font-medium text-slate-700">
             Noter (OCR + varer)

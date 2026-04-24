@@ -270,6 +270,7 @@ export interface Database {
           vat_cents: number
           net_cents: number
           vat_rate: number
+          voucher_project_id: string | null
         }
         Insert: {
           id?: string
@@ -286,6 +287,7 @@ export interface Database {
           vat_cents?: number
           net_cents?: number
           vat_rate?: number
+          voucher_project_id?: string | null
         }
         Update: {
           title?: string | null
@@ -296,6 +298,38 @@ export interface Database {
           vat_cents?: number
           net_cents?: number
           vat_rate?: number
+          voucher_project_id?: string | null
+        }
+      }
+      voucher_projects: {
+        Row: {
+          id: string
+          company_id: string
+          name: string
+          description: string | null
+          budget_cents: number | null
+          active: boolean
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          name: string
+          description?: string | null
+          budget_cents?: number | null
+          active?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          name?: string
+          description?: string | null
+          budget_cents?: number | null
+          active?: boolean
+          updated_at?: string
         }
       }
       bank_connections: {

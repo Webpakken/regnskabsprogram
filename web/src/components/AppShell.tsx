@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { useApp, subscriptionOk } from '@/context/AppProvider'
 import {
@@ -35,6 +35,13 @@ const nav = [
   { to: '/app/members', label: 'Medlemmer', icon: UsersIcon },
   { to: '/app/settings', label: 'Indstillinger', icon: CogIcon },
   { to: '/app/support', label: 'Support', icon: ChatIcon },
+]
+
+const settingsNav = [
+  { to: '/app/settings/general', label: 'Generelt' },
+  { to: '/app/settings/invoice', label: 'Faktura' },
+  { to: '/app/settings/notifications', label: 'Notifikationer' },
+  { to: '/app/settings/subscription', label: 'Abonnement' },
 ]
 
 function HelpIcon({ className }: NavIconProps) {
@@ -144,6 +151,23 @@ function CogIcon({ className }: NavIconProps) {
   )
 }
 
+function ChevronDownIcon({ className }: NavIconProps) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  )
+}
+
 function NavBadge({ count }: { count: number }) {
   if (count <= 0) return null
   const label = count > 99 ? '99+' : String(count)
@@ -168,8 +192,15 @@ export function AppShell({ children }: { children?: ReactNode }) {
     refresh,
   } = useApp()
   const navigate = useNavigate()
+  const location = useLocation()
   const ok = subscriptionOk(subscription)
   const checkout = useStripeCheckoutLauncher()
+  const settingsActive = location.pathname === '/app/settings' || location.pathname.startsWith('/app/settings/')
+  const [settingsOpen, setSettingsOpen] = useState(settingsActive)
+
+  useEffect(() => {
+    if (settingsActive) setSettingsOpen(true)
+  }, [settingsActive])
 
   async function logout() {
     await logoutToLanding(navigate)
@@ -203,26 +234,78 @@ export function AppShell({ children }: { children?: ReactNode }) {
           </div>
         </div>
         <nav className="flex flex-1 flex-col gap-0.5 p-3">
-          {nav.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                clsx(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition',
-                  isActive
-                    ? 'bg-indigo-50 text-indigo-700'
-                    : 'text-slate-600 hover:bg-slate-50',
-                )
-              }
-            >
-              <span className="relative inline-flex shrink-0">
-                <item.icon className="h-4 w-4" />
-                {item.to === '/app/support' ? <NavBadge count={unreadCount} /> : null}
-              </span>
-              {item.label}
-            </NavLink>
-          ))}
+          {nav.map((item) => {
+            if (item.to === '/app/settings') {
+              return (
+                <div key={item.to} className="space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!settingsActive) navigate('/app/settings')
+                      setSettingsOpen((open) => !open)
+                    }}
+                    className={clsx(
+                      'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition',
+                      settingsActive
+                        ? 'bg-indigo-50 text-indigo-700'
+                        : 'text-slate-600 hover:bg-slate-50',
+                    )}
+                    aria-expanded={settingsOpen}
+                  >
+                    <item.icon className="h-4 w-4 shrink-0" />
+                    <span className="min-w-0 flex-1 text-left">{item.label}</span>
+                    <ChevronDownIcon
+                      className={clsx(
+                        'h-4 w-4 shrink-0 transition-transform',
+                        settingsOpen ? 'rotate-180' : '',
+                      )}
+                    />
+                  </button>
+                  {settingsOpen ? (
+                    <div className="space-y-0.5 pl-7">
+                      {settingsNav.map((sub) => (
+                        <NavLink
+                          key={sub.to}
+                          to={sub.to}
+                          className={({ isActive }) =>
+                            clsx(
+                              'block rounded-md px-3 py-1.5 text-sm font-medium transition',
+                              isActive
+                                ? 'bg-indigo-50 text-indigo-700'
+                                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800',
+                            )
+                          }
+                        >
+                          {sub.label}
+                        </NavLink>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              )
+            }
+
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  clsx(
+                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition',
+                    isActive
+                      ? 'bg-indigo-50 text-indigo-700'
+                      : 'text-slate-600 hover:bg-slate-50',
+                  )
+                }
+              >
+                <span className="relative inline-flex shrink-0">
+                  <item.icon className="h-4 w-4" />
+                  {item.to === '/app/support' ? <NavBadge count={unreadCount} /> : null}
+                </span>
+                {item.label}
+              </NavLink>
+            )
+          })}
         </nav>
         <div className="border-t border-slate-100 p-3 text-xs text-slate-500">
           {user?.email}

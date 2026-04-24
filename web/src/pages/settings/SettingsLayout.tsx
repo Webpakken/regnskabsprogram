@@ -1,5 +1,4 @@
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
-import clsx from 'clsx'
+import { Link, Outlet, useLocation } from 'react-router-dom'
 import { AppPageLayout } from '@/components/AppPageLayout'
 
 const tabs = [
@@ -17,7 +16,7 @@ export function SettingsLayout() {
     null
 
   return (
-    <AppPageLayout maxWidth="2xl" className="space-y-6">
+    <AppPageLayout maxWidth="full" className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Indstillinger</h1>
         <p className="text-sm text-slate-600">Virksomhed, faktura, notifikationer og abonnement</p>
@@ -48,25 +47,6 @@ export function SettingsLayout() {
           ) : null}
         </div>
       ) : null}
-
-      <nav className="hidden gap-1 border-b border-slate-200 md:flex" aria-label="Indstillinger">
-        {tabs.map((t) => (
-          <NavLink
-            key={t.to}
-            to={t.to}
-            className={({ isActive }) =>
-              clsx(
-                '-mb-px border-b-2 px-3 py-2 text-sm font-medium transition',
-                isActive
-                  ? 'border-indigo-600 text-indigo-700'
-                  : 'border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-900',
-              )
-            }
-          >
-            {t.label}
-          </NavLink>
-        ))}
-      </nav>
 
       <Outlet />
     </AppPageLayout>

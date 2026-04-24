@@ -269,7 +269,7 @@ export function SupportPage() {
   }
 
   return (
-    <AppPageLayout maxWidth="2xl" className="space-y-6">
+    <AppPageLayout maxWidth="full" className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Support</h1>
         <p className="mt-1 text-sm text-slate-600">

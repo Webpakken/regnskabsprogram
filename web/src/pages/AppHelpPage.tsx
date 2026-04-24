@@ -22,7 +22,7 @@ export function AppHelpPage() {
   }, [query])
 
   return (
-    <AppPageLayout maxWidth="2xl" className="space-y-6 pb-8">
+    <AppPageLayout maxWidth="full" className="space-y-6 pb-8">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Hjælp &amp; svar</h1>
         <p className="mt-1 text-sm text-slate-600">Som i appen, med søgning efter emne</p>
