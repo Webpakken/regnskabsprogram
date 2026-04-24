@@ -12,6 +12,8 @@ import type { Session, User } from '@supabase/supabase-js'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 import type { CompanyRole, Database } from '@/types/database'
 import { trialStatusFor } from '@/lib/trial'
+import type { BillingEntitlement, BillingFeatureKey } from '@/lib/billingEntitlements'
+import { canUseFeature, getFeatureLimit } from '@/lib/billingEntitlements'
 
 type Company = Database['public']['Tables']['companies']['Row']
 type Profile = Database['public']['Tables']['profiles']['Row']
@@ -33,6 +35,7 @@ type AppContextValue = {
   rolesByCompany: Record<string, CompanyRole>
   currentRole: CompanyRole | null
   subscription: Subscription | null
+  billingEntitlements: BillingEntitlement[]
   platformRole: PlatformStaffRole | null
   impersonation: ImpersonationInfo | null
   /** Antal virksomheder brugeren er medlem af (ikke impersonation). */
@@ -40,6 +43,8 @@ type AppContextValue = {
   loading: boolean
   refresh: () => Promise<void>
   setCurrentCompanyId: (id: string) => Promise<void>
+  canUse: (featureKey: BillingFeatureKey) => boolean
+  getLimit: (featureKey: BillingFeatureKey) => number | null
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -51,6 +56,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [companies, setCompanies] = useState<Company[]>([])
   const [rolesByCompany, setRolesByCompany] = useState<Record<string, CompanyRole>>({})
   const [subscription, setSubscription] = useState<Subscription | null>(null)
+  const [billingEntitlements, setBillingEntitlements] = useState<BillingEntitlement[]>([])
   const [platformRole, setPlatformRole] = useState<PlatformStaffRole | null>(null)
   const [impersonation, setImpersonation] = useState<ImpersonationInfo | null>(null)
   const [tenantCompanyCount, setTenantCompanyCount] = useState(0)
@@ -70,6 +76,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setCompanies([])
       setRolesByCompany({})
       setSubscription(null)
+      setBillingEntitlements([])
       setPlatformRole(null)
       setImpersonation(null)
       setTenantCompanyCount(0)
@@ -89,6 +96,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setCompanies([])
       setRolesByCompany({})
       setSubscription(null)
+      setBillingEntitlements([])
       setPlatformRole(null)
       setImpersonation(null)
       setTenantCompanyCount(0)
@@ -186,8 +194,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         .eq('company_id', companyId)
         .maybeSingle()
       setSubscription(sub)
+      const { data: entitlements, error: entitlementsError } = await supabase.rpc(
+        'get_company_feature_entitlements',
+        { p_company_id: companyId },
+      )
+      setBillingEntitlements(
+        entitlementsError ? [] : ((entitlements ?? []) as BillingEntitlement[]),
+      )
     } else {
       setSubscription(null)
+      setBillingEntitlements([])
     }
 
     setLoading(false)
@@ -250,12 +266,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       rolesByCompany,
       currentRole,
       subscription,
+      billingEntitlements,
       platformRole,
       impersonation,
       tenantCompanyCount,
       loading,
       refresh: load,
       setCurrentCompanyId,
+      canUse: (featureKey: BillingFeatureKey) =>
+        canUseFeature(billingEntitlements, featureKey),
+      getLimit: (featureKey: BillingFeatureKey) =>
+        getFeatureLimit(billingEntitlements, featureKey),
     }),
     [
       session,
@@ -266,6 +287,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       rolesByCompany,
       currentRole,
       subscription,
+      billingEntitlements,
       platformRole,
       impersonation,
       tenantCompanyCount,

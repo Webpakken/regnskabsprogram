@@ -10,7 +10,7 @@ export type StripeCheckoutReturnPath = 'dashboard' | 'onboarding'
 
 export async function startStripeCheckout(
   companyId: string,
-  options?: { returnPath?: StripeCheckoutReturnPath },
+  options?: { returnPath?: StripeCheckoutReturnPath; billingPlanId?: string },
 ) {
   const { data: sessionData } = await supabase.auth.getSession()
   const token = sessionData.session?.access_token
@@ -27,6 +27,7 @@ export async function startStripeCheckout(
     body: JSON.stringify({
       company_id: companyId,
       return_path: options?.returnPath ?? 'dashboard',
+      billing_plan_id: options?.billingPlanId,
     }),
   })
   const raw = await res.text()
@@ -59,7 +60,7 @@ export async function startStripeCheckout(
 /** Starter Stripe Checkout og navigerer væk; viser en kort fejl hvis kaldet fejler (fx manglende deploy/secrets). */
 export async function redirectToStripeCheckout(
   companyId: string,
-  options?: { returnPath?: StripeCheckoutReturnPath },
+  options?: { returnPath?: StripeCheckoutReturnPath; billingPlanId?: string },
 ): Promise<void> {
   try {
     const url = await startStripeCheckout(companyId, options)

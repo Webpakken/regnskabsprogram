@@ -70,6 +70,7 @@ serve(async (req) => {
         session.metadata?.company_id ?? session.client_reference_id
       const subId = session.subscription as string | undefined
       const customerId = session.customer as string | undefined
+      let billingPlanId = session.metadata?.billing_plan_id || null
       if (companyId && customerId) {
         let periodEnd: string | null = null
         let priceId: string | null = null
@@ -82,6 +83,15 @@ serve(async (req) => {
             ? new Date(full.current_period_end * 1000).toISOString()
             : null
           priceId = full.items.data[0]?.price?.id ?? null
+          billingPlanId = billingPlanId || full.metadata?.billing_plan_id || null
+        }
+        if (!billingPlanId && priceId) {
+          const { data: plan } = await admin
+            .from('billing_plans')
+            .select('id')
+            .eq('stripe_price_id', priceId)
+            .maybeSingle()
+          billingPlanId = plan?.id ?? null
         }
         await admin.from('subscriptions').upsert(
           {
@@ -89,6 +99,7 @@ serve(async (req) => {
             stripe_customer_id: customerId,
             stripe_subscription_id: subId ?? null,
             stripe_price_id: priceId,
+            billing_plan_id: billingPlanId || null,
             status: subStatus,
             current_period_end: periodEnd,
             updated_at: new Date().toISOString(),
@@ -115,6 +126,15 @@ serve(async (req) => {
           ? 'canceled'
           : mapStatus(sub.status)
       const priceId = sub.items.data[0]?.price?.id ?? null
+      let billingPlanId = sub.metadata?.billing_plan_id || null
+      if (!billingPlanId && priceId) {
+        const { data: plan } = await admin
+          .from('billing_plans')
+          .select('id')
+          .eq('stripe_price_id', priceId)
+          .maybeSingle()
+        billingPlanId = plan?.id ?? null
+      }
       const { data: prevRow } = await admin
         .from('subscriptions')
         .select('status')
@@ -125,6 +145,7 @@ serve(async (req) => {
         .update({
           stripe_subscription_id: sub.id,
           stripe_price_id: priceId,
+          billing_plan_id: billingPlanId || null,
           status,
           current_period_end: sub.current_period_end
             ? new Date(sub.current_period_end * 1000).toISOString()

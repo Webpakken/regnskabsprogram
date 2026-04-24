@@ -124,6 +124,7 @@ export interface Database {
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
           stripe_price_id: string | null
+          billing_plan_id: string | null
           status: string
           current_period_end: string | null
           updated_at: string
@@ -134,6 +135,7 @@ export interface Database {
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           stripe_price_id?: string | null
+          billing_plan_id?: string | null
           status?: string
           current_period_end?: string | null
         }
@@ -141,8 +143,101 @@ export interface Database {
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           stripe_price_id?: string | null
+          billing_plan_id?: string | null
           status?: string
           current_period_end?: string | null
+        }
+      }
+      billing_plans: {
+        Row: {
+          id: string
+          name: string
+          slug: string
+          description: string | null
+          stripe_price_id: string | null
+          monthly_price_cents: number
+          active: boolean
+          is_default_free: boolean
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          slug: string
+          description?: string | null
+          stripe_price_id?: string | null
+          monthly_price_cents?: number
+          active?: boolean
+          is_default_free?: boolean
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          name?: string
+          slug?: string
+          description?: string | null
+          stripe_price_id?: string | null
+          monthly_price_cents?: number
+          active?: boolean
+          is_default_free?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+      }
+      billing_features: {
+        Row: {
+          id: string
+          key: string
+          name: string
+          description: string | null
+          active: boolean
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          key: string
+          name: string
+          description?: string | null
+          active?: boolean
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          key?: string
+          name?: string
+          description?: string | null
+          active?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+      }
+      billing_plan_features: {
+        Row: {
+          plan_id: string
+          feature_id: string
+          enabled: boolean
+          limit_value: number | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          plan_id: string
+          feature_id: string
+          enabled?: boolean
+          limit_value?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          enabled?: boolean
+          limit_value?: number | null
+          updated_at?: string
         }
       }
       invoices: {

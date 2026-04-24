@@ -9,7 +9,7 @@ export function useStripeCheckoutLauncher() {
   const launch = useCallback(
     async (
       companyId: string,
-      options?: { returnPath?: StripeCheckoutReturnPath },
+      options?: { returnPath?: StripeCheckoutReturnPath; billingPlanId?: string },
     ) => {
       if (loading) return
       setLoading(true)

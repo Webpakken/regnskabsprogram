@@ -12,6 +12,10 @@ import { formatDateOnly, formatDkk } from '@/lib/format'
 import { formatParsedNotes, parseDanishReceiptText } from '@/lib/receiptParse'
 import { canAttemptVoucherOcr, ocrImageOrPdfFile } from '@/lib/voucherOcr'
 import { VOUCHER_CATEGORY_OPTIONS, inferVoucherCategory } from '@/lib/voucherCategories'
+import {
+  ButtonSpinner,
+  useStripeCheckoutLauncher,
+} from '@/lib/useStripeCheckoutLauncher'
 import type { CompanyRole, Database } from '@/types/database'
 
 type Voucher = Database['public']['Tables']['vouchers']['Row']
@@ -70,7 +74,8 @@ function isVoucherProjectSchemaError(error: { message?: string; code?: string } 
 }
 
 export function VouchersPage() {
-  const { currentCompany, user, currentRole } = useApp()
+  const { currentCompany, user, currentRole, billingEntitlements, canUse } = useApp()
+  const checkout = useStripeCheckoutLauncher()
   const [searchParams, setSearchParams] = useSearchParams()
   const [desktopView, setDesktopView] = useDesktopListViewPreference(VOUCHERS_VIEW_KEY, 'list')
   const [rows, setRows] = useState<Voucher[]>([])
@@ -96,6 +101,8 @@ export function VouchersPage() {
   const [assigningVoucherId, setAssigningVoucherId] = useState<string | null>(null)
 
   const canDeleteVoucher = canWriterDeleteVouchers(currentRole)
+  const featureGateKnown = billingEntitlements.length > 0
+  const canUseVoucherProjects = !featureGateKnown || canUse('voucher_projects')
 
   const load = useCallback(async function load() {
     if (!currentCompany) return
@@ -333,6 +340,7 @@ export function VouchersPage() {
 
   async function createProject() {
     if (!currentCompany || !user) return
+    if (!canUseVoucherProjects) return
     const name = newProjectName.trim()
     if (!name) return
     setCreatingProject(true)
@@ -367,6 +375,7 @@ export function VouchersPage() {
 
   async function updateVoucherProject(v: Voucher, projectId: string | null) {
     if (!currentCompany) return
+    if (!canUseVoucherProjects) return
     setAssigningVoucherId(v.id)
     setError(null)
     const { error: updateErr } = await supabase
@@ -613,6 +622,28 @@ export function VouchersPage() {
         </p>
       ) : null}
 
+      {featureGateKnown && !canUseVoucherProjects ? (
+        <div className="rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm text-indigo-950">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-semibold">Events/projekter kræver Pro</p>
+              <p className="mt-0.5 text-indigo-900/80">
+                Du kan stadig bruge bilag og kategorier. Opgradér for at gruppere bilag på tværs af events og projekter.
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={checkout.loading}
+              onClick={() => void checkout.launch(currentCompany.id)}
+              className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 font-semibold text-white hover:bg-indigo-700 disabled:opacity-70"
+            >
+              {checkout.loading ? <ButtonSpinner /> : null}
+              {checkout.loading ? 'Åbner Stripe…' : 'Opgradér'}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]">
         <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -622,7 +653,7 @@ export function VouchersPage() {
               </span>
               <select
                 value={projectFilter}
-                disabled={projectFeatureUnavailable}
+                disabled={projectFeatureUnavailable || !canUseVoucherProjects}
                 onChange={(e) => setProjectFilter(e.target.value)}
                 className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 disabled:bg-slate-50 disabled:text-slate-400"
               >
@@ -637,7 +668,7 @@ export function VouchersPage() {
             </label>
             <button
               type="button"
-              disabled={projectFeatureUnavailable}
+              disabled={projectFeatureUnavailable || !canUseVoucherProjects}
               onClick={() => setProjectCreateOpen((open) => !open)}
               className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
             >
@@ -785,7 +816,7 @@ export function VouchersPage() {
                   <span className="sr-only">Event/projekt</span>
                   <select
                     value={v.voucher_project_id ?? ''}
-                    disabled={projectFeatureUnavailable || assigningVoucherId === v.id}
+                    disabled={!canUseVoucherProjects || projectFeatureUnavailable || assigningVoucherId === v.id}
                     onClick={(e) => e.stopPropagation()}
                     onChange={(e) => {
                       e.stopPropagation()
@@ -916,7 +947,7 @@ export function VouchersPage() {
                   <td className="px-4 py-3 text-slate-600">
                     <select
                       value={v.voucher_project_id ?? ''}
-                      disabled={projectFeatureUnavailable || assigningVoucherId === v.id}
+                      disabled={!canUseVoucherProjects || projectFeatureUnavailable || assigningVoucherId === v.id}
                       onChange={(e) => void updateVoucherProject(v, e.target.value || null)}
                       className="w-full min-w-40 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm"
                     >

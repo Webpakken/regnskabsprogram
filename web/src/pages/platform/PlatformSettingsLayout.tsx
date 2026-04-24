@@ -3,6 +3,7 @@ import { useNavigate, Outlet, useLocation } from 'react-router-dom'
 import { useApp } from '@/context/AppProvider'
 import {
   EMAIL_TEMPLATE_NAV,
+  BILLING_SETTINGS_LINKS,
   PUBLIC_SETTINGS_LINKS,
   SMTP_PROFILE_IDS,
   SMTP_SIDEBAR_LABELS,
@@ -32,13 +33,21 @@ export function PlatformSettingsLayout() {
             label: e.label,
           }))
         : []
-    return { publicOpts, smtpOpts, emailOpts }
+    const billingOpts: MobileOption[] =
+      platformRole === 'superadmin'
+        ? BILLING_SETTINGS_LINKS.map((l) => ({
+            value: l.to,
+            label: l.label,
+          }))
+        : []
+    return { publicOpts, smtpOpts, emailOpts, billingOpts }
   }, [platformRole])
 
   const selectValue = useMemo(() => {
     const path = location.pathname
     const flat = [
       ...mobileOptions.publicOpts,
+      ...mobileOptions.billingOpts,
       ...mobileOptions.smtpOpts,
       ...mobileOptions.emailOpts,
     ]
@@ -46,6 +55,9 @@ export function PlatformSettingsLayout() {
     if (exact) return exact.value
     if (path.startsWith('/platform/settings/public')) {
       return mobileOptions.publicOpts[0]?.value ?? '/platform/settings/public/kontakt'
+    }
+    if (path.startsWith('/platform/settings/billing')) {
+      return mobileOptions.billingOpts[0]?.value ?? '/platform/settings/billing'
     }
     if (path.startsWith('/platform/settings/smtp')) {
       return mobileOptions.smtpOpts[0]?.value ?? '/platform/settings/smtp/marketing'
@@ -89,6 +101,15 @@ export function PlatformSettingsLayout() {
               </option>
             ))}
           </optgroup>
+          {mobileOptions.billingOpts.length > 0 ? (
+            <optgroup label="Abonnement">
+              {mobileOptions.billingOpts.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </optgroup>
+          ) : null}
           <optgroup label="SMTP">
             {mobileOptions.smtpOpts.map((o) => (
               <option key={o.value} value={o.value}>

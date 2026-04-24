@@ -50,6 +50,7 @@ import { PlatformPublicSettingsLayout } from '@/pages/platform/PlatformPublicSet
 import { PlatformPublicContactPage } from '@/pages/platform/PlatformPublicContactPage'
 import { PlatformPublicHoursPage } from '@/pages/platform/PlatformPublicHoursPage'
 import { PlatformPublicPricePage } from '@/pages/platform/PlatformPublicPricePage'
+import { PlatformBillingPlansPage } from '@/pages/platform/PlatformBillingPlansPage'
 import { PlatformSmtpSettingsPage } from '@/pages/platform/PlatformSmtpSettingsPage'
 import { PlatformEmailTemplateSectionPage } from '@/pages/platform/PlatformEmailTemplateSectionPage'
 import { PlatformStaffPage } from '@/pages/platform/PlatformStaffPage'
@@ -140,6 +141,7 @@ export default function App() {
                   <Route path="aabning" element={<PlatformPublicHoursPage />} />
                   <Route path="pris" element={<PlatformPublicPricePage />} />
                 </Route>
+                <Route path="billing" element={<PlatformBillingPlansPage />} />
                 <Route
                   path="smtp"
                   element={<Navigate to="/platform/settings/smtp/marketing" replace />}

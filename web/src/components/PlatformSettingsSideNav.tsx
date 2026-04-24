@@ -4,6 +4,7 @@ import clsx from 'clsx'
 import { useApp } from '@/context/AppProvider'
 import {
   EMAIL_TEMPLATE_NAV,
+  BILLING_SETTINGS_LINKS,
   PUBLIC_SETTINGS_LINKS,
   SMTP_PROFILE_IDS,
   SMTP_SIDEBAR_LABELS,
@@ -73,6 +74,17 @@ export function PlatformSettingsSideNav() {
               {item.label}
             </NavLink>
           ))}
+
+          {platformRole === 'superadmin' ? (
+            <>
+              <div className={subLabel}>Abonnement</div>
+              {BILLING_SETTINGS_LINKS.map((item) => (
+                <NavLink key={item.to} to={item.to} className={linkClass} end>
+                  {item.label}
+                </NavLink>
+              ))}
+            </>
+          ) : null}
 
           <div className={subLabel}>SMTP</div>
           {SMTP_PROFILE_IDS.map((id) => (

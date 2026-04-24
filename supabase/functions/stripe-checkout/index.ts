@@ -64,7 +64,7 @@ serve(async (req) => {
     }
     const user = auth.user
 
-    let body: { company_id?: string; return_path?: 'dashboard' | 'onboarding' }
+    let body: { company_id?: string; return_path?: 'dashboard' | 'onboarding'; billing_plan_id?: string }
     try {
       body = await req.json()
     } catch {
@@ -75,6 +75,7 @@ serve(async (req) => {
       return jsonResponse({ error: 'company_id required' }, 400)
     }
     const returnPath = body.return_path === 'onboarding' ? 'onboarding' : 'dashboard'
+    const billingPlanId = typeof body.billing_plan_id === 'string' ? body.billing_plan_id.trim() : ''
 
     const admin = createClient(supabaseUrl, serviceKey)
 
@@ -132,6 +133,7 @@ serve(async (req) => {
           stripe_customer_id: customerId,
           stripe_subscription_id: null,
           stripe_price_id: null,
+          billing_plan_id: null,
           status: 'incomplete',
           current_period_end: null,
           updated_at: new Date().toISOString(),
@@ -144,8 +146,22 @@ serve(async (req) => {
     // oprindelige stripe_price_id — så de bevarer den pris de tilmeldte sig med,
     // også efter kort-lapse eller kortere opsigelse. Nye kunder får env-var prisen.
     let checkoutPriceId = priceId
+    let checkoutBillingPlanId: string | null = null
+    if (billingPlanId) {
+      const { data: plan, error: planErr } = await admin
+        .from('billing_plans')
+        .select('id, stripe_price_id, active')
+        .eq('id', billingPlanId)
+        .eq('active', true)
+        .maybeSingle()
+      if (planErr || !plan?.stripe_price_id) {
+        return jsonResponse({ error: 'Den valgte plan mangler et aktivt Stripe Price ID.' }, 400)
+      }
+      checkoutPriceId = plan.stripe_price_id
+      checkoutBillingPlanId = plan.id
+    }
     const lockedPriceId = subRow?.stripe_price_id as string | undefined
-    if (lockedPriceId) {
+    if (!checkoutBillingPlanId && lockedPriceId) {
       try {
         const lockedPrice = await stripe.prices.retrieve(lockedPriceId)
         if (lockedPrice.active) {
@@ -169,9 +185,15 @@ serve(async (req) => {
       cancel_url: `${afterStripeBase}?checkout=cancel`,
       client_reference_id: companyId,
       subscription_data: {
-        metadata: { company_id: companyId },
+        metadata: {
+          company_id: companyId,
+          billing_plan_id: checkoutBillingPlanId ?? '',
+        },
       },
-      metadata: { company_id: companyId },
+      metadata: {
+        company_id: companyId,
+        billing_plan_id: checkoutBillingPlanId ?? '',
+      },
     })
 
     return jsonResponse({ url: session.url })
