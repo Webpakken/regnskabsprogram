@@ -2,6 +2,7 @@ import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import webpush from 'npm:web-push@3.6.6'
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts'
+import { normalizeVapidSubject } from '../_shared/push.ts'
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -16,7 +17,7 @@ serve(async (req) => {
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   const vapidPublic = Deno.env.get('VAPID_PUBLIC_KEY')
   const vapidPrivate = Deno.env.get('VAPID_PRIVATE_KEY')
-  const vapidSubject = Deno.env.get('VAPID_SUBJECT') ?? 'mailto:support@bilago.dk'
+  const vapidSubject = normalizeVapidSubject(Deno.env.get('VAPID_SUBJECT'))
 
   const authHeader = req.headers.get('Authorization')
   if (!authHeader) {

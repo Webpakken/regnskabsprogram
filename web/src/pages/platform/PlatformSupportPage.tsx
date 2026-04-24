@@ -34,6 +34,7 @@ export function PlatformSupportPage() {
   const [sending, setSending] = useState(false)
   const [pushEnabled, setPushEnabled] = useState(false)
   const [pushBusy, setPushBusy] = useState(false)
+  const [pushResult, setPushResult] = useState<string | null>(null)
 
   const loadTickets = useCallback(async () => {
     setLoading(true)
@@ -127,6 +128,7 @@ export function PlatformSupportPage() {
     if (!selectedId || !user || !reply.trim()) return
     setSending(true)
     setError(null)
+    setPushResult(null)
     const { error: insErr } = await supabase.from('support_messages').insert({
       ticket_id: selectedId,
       user_id: user.id,
@@ -151,16 +153,27 @@ export function PlatformSupportPage() {
       .then(({ data, error }) => {
         if (error) {
           console.warn('[support-push-notify]', error.message)
+          setPushResult(`Push-fejl: ${error.message}`)
           return
         }
         if (data && typeof data === 'object') {
           const d = data as { sent?: number; subscriptionCount?: number; firstError?: string }
           if ((d.subscriptionCount ?? 0) === 0) {
+            setPushResult('Push: 0 abonnementer fundet for kunden.')
             console.info(
               '[push] Ingen push-abonnementer for virksomhedens medlemmer — kunden får ikke notifikation.',
             )
+          } else if ((d.sent ?? 0) > 0) {
+            setPushResult(
+              `Push sendt til ${d.sent} enhed${(d.sent ?? 0) === 1 ? '' : 'er'}.`,
+            )
           } else if ((d.sent ?? 0) === 0 && d.firstError) {
+            setPushResult(`Push-fejl: ${d.firstError}`)
             console.warn('[support-push-notify] send', d.firstError)
+          } else {
+            setPushResult(
+              `Push-resultat: ${d.sent ?? 0} sendt / ${d.subscriptionCount ?? 0} abonnementer.`,
+            )
           }
         }
       })
@@ -372,6 +385,9 @@ export function PlatformSupportPage() {
                 >
                   {sending ? 'Sender…' : 'Send svar'}
                 </button>
+                {pushResult ? (
+                  <p className="mt-3 text-sm text-slate-600">{pushResult}</p>
+                ) : null}
               </div>
             </div>
           </>
