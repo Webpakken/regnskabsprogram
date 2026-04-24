@@ -6,7 +6,6 @@ import { supabase } from '@/lib/supabase'
 import { useApp } from '@/context/AppProvider'
 import { logActivity } from '@/lib/activity'
 import { sendInvoiceToCustomerEmail } from '@/lib/invoiceCustomerEmail'
-import { loadInvoicePdfPreview, openBlankTabForPdfNavigation } from '@/lib/loadInvoicePdfPreview'
 import { copenhagenYmd, formatDate, formatDateTime, formatDkk } from '@/lib/format'
 import { activityDisplayTitle } from '@/lib/activityDisplay'
 import type { Database } from '@/types/database'
@@ -102,7 +101,6 @@ export function InvoiceDetailPage() {
   const [sendBusy, setSendBusy] = useState(false)
   const [reminderBusy, setReminderBusy] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
-  const [pdfOpenBusy, setPdfOpenBusy] = useState(false)
   /** Kreditnota der allerede peger på denne faktura (højst én pr. forretningslogik). */
   const [creditChild, setCreditChild] = useState<CreditChildSummary | null>(null)
   const creditLinkRef = useRef<HTMLDivElement | null>(null)
@@ -290,35 +288,6 @@ export function InvoiceDetailPage() {
     }
   }
 
-  async function openPdfInNewTab() {
-    if (!id || !currentCompany) return
-    const tab = openBlankTabForPdfNavigation()
-    if (!tab) {
-      setNotice('Kunne ikke åbne ny fane. Tjek om browseren blokerer popups for Bilago.')
-      return
-    }
-    setPdfOpenBusy(true)
-    setNotice(null)
-    try {
-      const preview = await loadInvoicePdfPreview(currentCompany, id)
-      tab.location.replace(preview.mainObjectUrl)
-      try {
-        tab.opener = null
-      } catch {
-        /* nogle browsere tillader ikke skrivning */
-      }
-    } catch (e) {
-      try {
-        tab.close()
-      } catch {
-        /* ignore */
-      }
-      setNotice(e instanceof Error ? e.message : 'Kunne ikke generere PDF')
-    } finally {
-      setPdfOpenBusy(false)
-    }
-  }
-
   async function sendReminder() {
     if (!invoice || !currentCompany) return
     if (creditChild) {
@@ -501,13 +470,12 @@ export function InvoiceDetailPage() {
                     </div>
                     <button
                       type="button"
-                      title="Åbner PDF i en ny browserfane"
-                      disabled={pdfOpenBusy}
-                      onClick={() => void openPdfInNewTab()}
+                      title="Se PDF"
+                      onClick={() => navigate(`/app/invoices/${id}/pdf`)}
                       className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-800 hover:bg-indigo-100 disabled:opacity-60"
                     >
                       <IconPdfSmall />
-                      {pdfOpenBusy ? 'Åbner…' : 'Se PDF'}
+                      Se PDF
                     </button>
                   </div>
                   <p className="mt-4 text-xs font-medium uppercase tracking-wide text-slate-500">
