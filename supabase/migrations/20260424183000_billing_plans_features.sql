@@ -83,8 +83,16 @@ $$;
 
 grant execute on function public.is_platform_superadmin() to authenticated;
 
+grant select on public.billing_plans to anon, authenticated;
+grant select on public.billing_features to anon, authenticated;
+grant select on public.billing_plan_features to anon, authenticated;
+grant insert, update, delete on public.billing_plans to authenticated;
+grant insert, update, delete on public.billing_features to authenticated;
+grant insert, update, delete on public.billing_plan_features to authenticated;
+
 drop policy if exists "Authenticated read active billing plans" on public.billing_plans;
-create policy "Authenticated read active billing plans" on public.billing_plans for select
+drop policy if exists "Public read active billing plans" on public.billing_plans;
+create policy "Public read active billing plans" on public.billing_plans for select
   using (active or public.is_platform_staff());
 
 drop policy if exists "Platform staff write billing plans" on public.billing_plans;
@@ -93,7 +101,8 @@ create policy "Platform staff write billing plans" on public.billing_plans for a
   with check (public.is_platform_superadmin());
 
 drop policy if exists "Authenticated read active billing features" on public.billing_features;
-create policy "Authenticated read active billing features" on public.billing_features for select
+drop policy if exists "Public read active billing features" on public.billing_features;
+create policy "Public read active billing features" on public.billing_features for select
   using (active or public.is_platform_staff());
 
 drop policy if exists "Platform staff write billing features" on public.billing_features;
@@ -102,10 +111,14 @@ create policy "Platform staff write billing features" on public.billing_features
   with check (public.is_platform_superadmin());
 
 drop policy if exists "Authenticated read plan features" on public.billing_plan_features;
-create policy "Authenticated read plan features" on public.billing_plan_features for select
+drop policy if exists "Public read plan features" on public.billing_plan_features;
+create policy "Public read plan features" on public.billing_plan_features for select
   using (
     public.is_platform_staff()
-    or plan_id in (select id from public.billing_plans where active)
+    or (
+      plan_id in (select id from public.billing_plans where active)
+      and feature_id in (select id from public.billing_features where active)
+    )
   );
 
 drop policy if exists "Platform staff write plan features" on public.billing_plan_features;

@@ -1,4 +1,4 @@
-import { Fragment } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { formatKrPerMonth } from '@/lib/format'
 import {
@@ -6,9 +6,21 @@ import {
   resolveFeatureItems,
 } from '@/lib/pricingPublicDefaults'
 import { resolvePricingCornerBadge } from '@/lib/pricingCornerBadge'
+import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 import type { Database } from '@/types/database'
 
 type PublicSettings = Database['public']['Tables']['platform_public_settings']['Row']
+type BillingPlan = Database['public']['Tables']['billing_plans']['Row']
+type BillingFeature = Database['public']['Tables']['billing_features']['Row']
+type BillingPlanFeature = Database['public']['Tables']['billing_plan_features']['Row']
+
+type MarketingPlan = BillingPlan & {
+  features: Array<{
+    key: string
+    name: string
+    limitValue: number | null
+  }>
+}
 
 function CheckCircle({ className }: { className?: string }) {
   return (
@@ -91,6 +103,7 @@ function PitchParagraph({
 }
 
 export function MarketingPricingSection({ pub }: { pub: PublicSettings | null }) {
+  const [plans, setPlans] = useState<MarketingPlan[]>([])
   const amountCents =
     pub?.pricing_amount_cents ?? pub?.monthly_price_cents ?? 9900
   const compareCents = pub?.pricing_compare_cents ?? null
@@ -114,6 +127,164 @@ export function MarketingPricingSection({ pub }: { pub: PublicSettings | null })
     compareCents,
     amountCents,
   })
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return
+    let cancelled = false
+    void (async () => {
+      const [planRes, featureRes, planFeatureRes] = await Promise.all([
+        supabase
+          .from('billing_plans')
+          .select('*')
+          .eq('active', true)
+          .order('sort_order', { ascending: true })
+          .order('monthly_price_cents', { ascending: true }),
+        supabase
+          .from('billing_features')
+          .select('*')
+          .eq('active', true)
+          .order('sort_order', { ascending: true }),
+        supabase
+          .from('billing_plan_features')
+          .select('*')
+          .eq('enabled', true),
+      ])
+      if (cancelled || planRes.error || featureRes.error || planFeatureRes.error) return
+      const featureById = new Map((featureRes.data ?? []).map((f: BillingFeature) => [f.id, f]))
+      const featuresByPlan = new Map<string, MarketingPlan['features']>()
+      for (const row of (planFeatureRes.data ?? []) as BillingPlanFeature[]) {
+        const feature = featureById.get(row.feature_id)
+        if (!feature) continue
+        const list = featuresByPlan.get(row.plan_id) ?? []
+        list.push({
+          key: feature.key,
+          name: feature.name,
+          limitValue: row.limit_value,
+        })
+        featuresByPlan.set(row.plan_id, list)
+      }
+      setPlans(
+        ((planRes.data ?? []) as BillingPlan[]).map((plan) => ({
+          ...plan,
+          features: featuresByPlan.get(plan.id) ?? [],
+        })),
+      )
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const visiblePlans = useMemo(() => {
+    if (plans.length > 0) return plans
+    return []
+  }, [plans])
+
+  if (visiblePlans.length > 0) {
+    return (
+      <div className="mx-auto max-w-6xl px-6 py-24 text-center">
+        <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h2>
+        <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-600">{subtitle}</p>
+
+        <div className="mt-10 grid gap-6 lg:grid-cols-2">
+          {visiblePlans.map((plan) => {
+            const isPaid = plan.monthly_price_cents > 0
+            const planCornerLabel =
+              plan.slug === 'pro'
+                ? cornerLabel || 'Mest værdi'
+                : plan.is_default_free
+                  ? 'Start her'
+                  : null
+            return (
+              <div
+                key={plan.id}
+                className={
+                  'relative rounded-3xl border-2 bg-white p-6 text-left shadow-xl sm:p-8 ' +
+                  (isPaid
+                    ? 'border-indigo-200 shadow-indigo-100/60'
+                    : 'border-slate-200 shadow-slate-100/80')
+                }
+              >
+                {planCornerLabel ? (
+                  <span className="mb-4 block w-fit rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200 sm:absolute sm:right-4 sm:top-4 sm:mb-0">
+                    {planCornerLabel}
+                  </span>
+                ) : null}
+
+                <div className="flex items-center">
+                  <span
+                    className={
+                      'inline-flex items-center rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wide ring-1 ' +
+                      (isPaid
+                        ? 'bg-amber-50 text-amber-800 ring-amber-200'
+                        : 'bg-slate-50 text-slate-700 ring-slate-200')
+                    }
+                  >
+                    {isPaid ? badge : 'Gratis'}
+                  </span>
+                </div>
+
+                <h3 className="mt-6 text-3xl font-bold tracking-tight text-slate-900">
+                  {plan.name}
+                </h3>
+                {plan.description ? (
+                  <p className="mt-3 min-h-12 text-sm leading-relaxed text-slate-600">
+                    {plan.description}
+                  </p>
+                ) : null}
+
+                <div className="mt-6 flex items-baseline gap-2">
+                  <span className={isPaid ? 'text-6xl font-bold tracking-tight text-indigo-600' : 'text-5xl font-bold tracking-tight text-slate-900'}>
+                    {Math.round(plan.monthly_price_cents / 100)}
+                  </span>
+                  <span className={isPaid ? 'text-base font-medium text-indigo-500' : 'text-base font-medium text-slate-500'}>
+                    {plan.monthly_price_cents === 0 ? 'kr./md.' : unit}
+                  </span>
+                </div>
+
+                {isPaid ? (
+                  <div className="mt-6 inline-flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 ring-1 ring-emerald-200">
+                    <LockIcon className="h-4 w-4" />
+                    {lockLabel}
+                  </div>
+                ) : null}
+
+                <ul className="mt-8 divide-y divide-slate-100 border-t border-slate-100">
+                  {plan.features.map((f) => (
+                    <li key={f.key} className="flex items-start gap-4 py-4">
+                      <CheckCircle />
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-slate-900 sm:text-base">
+                          {f.name}
+                        </div>
+                        {f.limitValue !== null ? (
+                          <div className="mt-0.5 text-xs text-slate-500 sm:text-sm">
+                            {f.limitValue} pr. måned
+                          </div>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+
+                <Link
+                  to="/signup"
+                  className={
+                    'mt-8 flex items-center justify-center gap-2 rounded-xl py-4 text-base font-semibold shadow-sm transition ' +
+                    (isPaid
+                      ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                      : 'border border-slate-200 bg-white text-slate-900 hover:bg-slate-50')
+                  }
+                >
+                  {isPaid ? cta : 'Start gratis'} <span aria-hidden>→</span>
+                </Link>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-24 text-center">

@@ -30,11 +30,11 @@ function PricingContent() {
                 Gennemsigtige priser
               </p>
               <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl">
-                Ét abonnement — ingen skjulte gebyrer
+                Vælg den plan der passer til jer
               </h1>
               <p className="mt-5 max-w-xl text-lg text-slate-600">
-                Du betaler kun for Bilago. Ingen ekstra moduler for faktura, bilag eller bank — det
-                hele følger med, så du ved hvad det koster.
+                Start simpelt og opgradér, når I får brug for flere funktioner. Planerne viser
+                tydeligt hvad der følger med, så prisen og adgangen hænger sammen.
               </p>
             </div>
             <div className="border-t border-slate-200/80 pt-8">
@@ -45,8 +45,7 @@ function PricingContent() {
                 Abonnement, som kunder møder efter tilmelding
               </h2>
               <p className="mt-2 max-w-xl text-base text-slate-600">
-                Samme kort-stil som forsiden — eksempel på kampagnepris og næste korttræk (fiktive
-                datoer).
+                Samme planlogik styrer både prissiden, abonnementssiden og adgang til funktioner i appen.
               </p>
             </div>
           </div>
@@ -61,10 +60,10 @@ function PricingContent() {
       <section className="mx-auto max-w-6xl px-5 py-16 sm:px-6 sm:py-20">
         <div className="mx-auto max-w-2xl text-center">
           <h2 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
-            Inkluderet i dit abonnement
+            Funktioner der kan indgå i en plan
           </h2>
           <p className="mt-3 text-slate-600">
-            Ligesom du kender det fra andre danske løsninger — samlet værdi uden tillægsmoduler.
+            De konkrete adgangsrettigheder styres af planerne ovenfor, så nye funktioner kan tilknyttes løbende.
           </p>
         </div>
         <div className="mx-auto mt-10 max-w-2xl rounded-2xl border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
