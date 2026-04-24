@@ -21,7 +21,10 @@ import {
   formatDkk,
   formatDateTime,
 } from '@/lib/format'
-import { redirectToStripeCheckout } from '@/lib/edge'
+import {
+  ButtonSpinner,
+  useStripeCheckoutLauncher,
+} from '@/lib/useStripeCheckoutLauncher'
 import { activityDisplayTitle, activityLooksLikeCreditNote } from '@/lib/activityDisplay'
 import { activityEventHref } from '@/lib/activityNavigation'
 import { AppPageLayout } from '@/components/AppPageLayout'
@@ -116,6 +119,7 @@ function MiniBars({ values, color }: { values: number[]; color: string }) {
 
 export function DashboardPage() {
   const { currentCompany, subscription, refresh } = useApp()
+  const checkout = useStripeCheckoutLauncher()
   const [searchParams] = useSearchParams()
   const hasAccess = accessOk(currentCompany, subscription)
   const [invoices, setInvoices] = useState<Invoice[]>([])
@@ -371,10 +375,12 @@ export function DashboardPage() {
           </p>
           <button
             type="button"
-            className="mt-3 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-            onClick={() => redirectToStripeCheckout(currentCompany.id)}
+            disabled={checkout.loading}
+            className="mt-3 inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-80"
+            onClick={() => void checkout.launch(currentCompany.id)}
           >
-            Start abonnement
+            {checkout.loading ? <ButtonSpinner /> : null}
+            {checkout.loading ? 'Åbner Stripe…' : 'Start abonnement'}
           </button>
         </div>
       ) : null}

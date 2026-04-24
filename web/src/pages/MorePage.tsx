@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ROLE_LABELS, subscriptionOk, useApp } from '@/context/AppProvider'
-import { redirectToStripeCheckout } from '@/lib/edge'
 import { useSupportUnread } from '@/context/SupportUnreadContext'
 import { AppCard, AppPageLayout } from '@/components/AppPageLayout'
 import { logoutToLanding } from '@/lib/logoutToLanding'
 import { trialStatusFor } from '@/lib/trial'
 import { formatKrPerMonth } from '@/lib/format'
 import { supabase } from '@/lib/supabase'
+import {
+  ButtonSpinner,
+  useStripeCheckoutLauncher,
+} from '@/lib/useStripeCheckoutLauncher'
 
 type IconProps = { className?: string }
 
@@ -150,6 +153,7 @@ export function MorePage() {
   const trialActive = trial?.active === true
   const { unreadCount } = useSupportUnread()
   const navigate = useNavigate()
+  const checkout = useStripeCheckoutLauncher()
 
   const [priceCents, setPriceCents] = useState<number | null>(null)
   useEffect(() => {
@@ -194,10 +198,12 @@ export function MorePage() {
             </div>
             <button
               type="button"
-              className="mt-3 w-full shrink-0 rounded-lg bg-indigo-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 sm:mt-0 sm:w-auto sm:px-4"
-              onClick={() => redirectToStripeCheckout(currentCompany.id)}
+              disabled={checkout.loading}
+              className="mt-3 inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-80 sm:mt-0 sm:w-auto sm:px-4"
+              onClick={() => void checkout.launch(currentCompany.id)}
             >
-              Tilføj kortoplysninger
+              {checkout.loading ? <ButtonSpinner /> : null}
+              {checkout.loading ? 'Åbner Stripe…' : 'Tilføj kortoplysninger'}
             </button>
           </div>
         ) : (
@@ -210,10 +216,12 @@ export function MorePage() {
             </div>
             <button
               type="button"
-              className="mt-3 w-full shrink-0 rounded-lg bg-indigo-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 sm:mt-0 sm:w-auto sm:px-4"
-              onClick={() => redirectToStripeCheckout(currentCompany.id)}
+              disabled={checkout.loading}
+              className="mt-3 inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-80 sm:mt-0 sm:w-auto sm:px-4"
+              onClick={() => void checkout.launch(currentCompany.id)}
             >
-              Abonnér
+              {checkout.loading ? <ButtonSpinner /> : null}
+              {checkout.loading ? 'Åbner Stripe…' : 'Abonnér'}
             </button>
           </div>
         )

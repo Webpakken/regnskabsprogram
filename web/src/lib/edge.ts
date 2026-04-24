@@ -57,32 +57,32 @@ export async function startStripeCheckout(
 }
 
 /** Starter Stripe Checkout og navigerer væk; viser en kort fejl hvis kaldet fejler (fx manglende deploy/secrets). */
-export function redirectToStripeCheckout(
+export async function redirectToStripeCheckout(
   companyId: string,
   options?: { returnPath?: StripeCheckoutReturnPath },
-): void {
-  void startStripeCheckout(companyId, options)
-    .then((url) => {
-      window.location.href = url
-    })
-    .catch((e) => {
-      const raw = e instanceof Error ? e.message : String(e)
-      const lower = raw.toLowerCase()
-      let msg = raw
-      if (
-        lower.includes('failed to fetch') ||
-        lower.includes('networkerror') ||
-        lower.includes('load failed')
-      ) {
-        msg =
-          'Kunne ikke starte betaling (netværk). Tjek forbindelsen og at Edge Function «stripe-checkout» er deployet.'
-      } else if (lower.includes('forbidden')) {
-        msg = 'Du har ikke adgang til at betale for denne virksomhed.'
-      } else if (lower.includes('unauthorized')) {
-        msg = 'Log ind igen og prøv at tilføje betaling.'
-      }
-      window.alert(msg)
-    })
+): Promise<void> {
+  try {
+    const url = await startStripeCheckout(companyId, options)
+    window.location.href = url
+  } catch (e) {
+    const raw = e instanceof Error ? e.message : String(e)
+    const lower = raw.toLowerCase()
+    let msg = raw
+    if (
+      lower.includes('failed to fetch') ||
+      lower.includes('networkerror') ||
+      lower.includes('load failed')
+    ) {
+      msg =
+        'Kunne ikke starte betaling (netværk). Tjek forbindelsen og at Edge Function «stripe-checkout» er deployet.'
+    } else if (lower.includes('forbidden')) {
+      msg = 'Du har ikke adgang til at betale for denne virksomhed.'
+    } else if (lower.includes('unauthorized')) {
+      msg = 'Log ind igen og prøv at tilføje betaling.'
+    }
+    window.alert(msg)
+    throw e
+  }
 }
 
 export async function startAiiaOAuth(companyId: string) {

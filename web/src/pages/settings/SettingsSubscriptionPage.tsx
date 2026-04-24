@@ -3,7 +3,10 @@ import { supabase } from '@/lib/supabase'
 import { subscriptionOk, useApp } from '@/context/AppProvider'
 import { formatDateTime, formatKrPerMonth } from '@/lib/format'
 import { subscriptionStatusLabelDa } from '@/lib/subscriptionLabels'
-import { redirectToStripeCheckout } from '@/lib/edge'
+import {
+  ButtonSpinner,
+  useStripeCheckoutLauncher,
+} from '@/lib/useStripeCheckoutLauncher'
 import {
   getHideTrialBannerDuringTrial,
   setHideTrialBannerDuringTrial,
@@ -15,6 +18,7 @@ export function SettingsSubscriptionPage() {
   const [hideTrialBanner, setHideTrialBanner] = useState(getHideTrialBannerDuringTrial)
   const [priceCents, setPriceCents] = useState<number | null>(null)
   const priceLabel = priceCents != null ? formatKrPerMonth(priceCents) : null
+  const checkout = useStripeCheckoutLauncher()
 
   useEffect(() => {
     const sync = () => setHideTrialBanner(getHideTrialBannerDuringTrial())
@@ -71,10 +75,12 @@ export function SettingsSubscriptionPage() {
         {!ok ? (
           <button
             type="button"
-            className="mt-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-            onClick={() => redirectToStripeCheckout(currentCompany.id)}
+            disabled={checkout.loading}
+            className="mt-2 inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-80"
+            onClick={() => void checkout.launch(currentCompany.id)}
           >
-            Aktivér abonnement
+            {checkout.loading ? <ButtonSpinner /> : null}
+            {checkout.loading ? 'Åbner Stripe…' : 'Aktivér abonnement'}
           </button>
         ) : null}
       </div>

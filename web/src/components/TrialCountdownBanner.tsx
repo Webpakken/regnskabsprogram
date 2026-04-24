@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
-import { redirectToStripeCheckout } from '@/lib/edge'
+import {
+  ButtonSpinner,
+  useStripeCheckoutLauncher,
+} from '@/lib/useStripeCheckoutLauncher'
 import {
   TRIAL_BANNER_THRESHOLD_DAYS,
   trialStatusFor,
@@ -16,6 +19,7 @@ export function TrialCountdownBanner({
   company: { id: string; created_at: string }
 }) {
   const [, tick] = useState(0)
+  const checkout = useStripeCheckoutLauncher()
 
   useEffect(() => {
     const id = window.setInterval(() => tick((n) => n + 1), 60_000)
@@ -42,10 +46,12 @@ export function TrialCountdownBanner({
       </span>
       <button
         type="button"
-        className="shrink-0 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
-        onClick={() => redirectToStripeCheckout(company.id)}
+        disabled={checkout.loading}
+        className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-80"
+        onClick={() => void checkout.launch(company.id)}
       >
-        Start abonnement
+        {checkout.loading ? <ButtonSpinner /> : null}
+        {checkout.loading ? 'Åbner Stripe…' : 'Start abonnement'}
       </button>
     </div>
   )

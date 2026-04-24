@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
-import { redirectToStripeCheckout } from '@/lib/edge'
+import {
+  ButtonSpinner,
+  useStripeCheckoutLauncher,
+} from '@/lib/useStripeCheckoutLauncher'
 
 /**
  * Blød paywall-modal der vises når den 30-dages prøveperiode er slut og brugeren
@@ -19,6 +22,7 @@ export function TrialExpiredModal({
 }) {
   const storageKey = `${storageKeyPrefix}${company.id}`
   const [open, setOpen] = useState(false)
+  const checkout = useStripeCheckoutLauncher()
 
   useEffect(() => {
     try {
@@ -107,13 +111,17 @@ export function TrialExpiredModal({
         <div className="mt-7 flex flex-col gap-2 sm:flex-row-reverse">
           <button
             type="button"
+            disabled={checkout.loading}
             onClick={() => {
+              if (checkout.loading) return
               close()
-              void redirectToStripeCheckout(company.id)
+              void checkout.launch(company.id)
             }}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-80"
           >
-            Start abonnement <span aria-hidden>→</span>
+            {checkout.loading ? <ButtonSpinner /> : null}
+            {checkout.loading ? 'Åbner Stripe…' : 'Start abonnement'}
+            {checkout.loading ? null : <span aria-hidden>→</span>}
           </button>
           <button
             type="button"
