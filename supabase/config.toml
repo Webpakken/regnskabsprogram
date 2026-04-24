@@ -33,6 +33,13 @@ additional_redirect_urls = [
 [functions.stripe-webhook]
 verify_jwt = false
 
+# Samme ES256-årsag som smtp-test m.fl.: vi validerer JWT indeni funktionen via fetchAuthV1User.
+[functions.stripe-checkout]
+verify_jwt = false
+
+[functions.aiia-oauth-start]
+verify_jwt = false
+
 [functions.aiia-oauth-callback]
 verify_jwt = false
 

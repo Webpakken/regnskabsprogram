@@ -241,7 +241,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
                 ))
               )}
             </select>
-            {!ok && currentCompany && (
+            {!ok && currentCompany && !trialStatusFor(currentCompany)?.active && (
               <span className="text-xs text-amber-700">
                 Abonnement påkrævet for fuld adgang
               </span>
@@ -254,7 +254,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
                 className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
                 onClick={() => redirectToStripeCheckout(currentCompany.id)}
               >
-                Abonnér
+                {trialStatusFor(currentCompany)?.active ? 'Tilføj kortoplysninger' : 'Abonnér'}
               </button>
             )}
             <button

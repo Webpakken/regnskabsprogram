@@ -34,6 +34,7 @@ import { BankPage } from '@/pages/BankPage'
 import { SettingsLayout } from '@/pages/settings/SettingsLayout'
 import { SettingsGeneralPage } from '@/pages/settings/SettingsGeneralPage'
 import { SettingsInvoicePage } from '@/pages/settings/SettingsInvoicePage'
+import { SettingsSubscriptionPage } from '@/pages/settings/SettingsSubscriptionPage'
 import { MembersPage } from '@/pages/MembersPage'
 import { VatPage } from '@/pages/VatPage'
 import { MorePage } from '@/pages/MorePage'
@@ -171,6 +172,7 @@ export default function App() {
                 />
                 <Route path="general" element={<SettingsGeneralPage />} />
                 <Route path="invoice" element={<SettingsInvoicePage />} />
+                <Route path="subscription" element={<SettingsSubscriptionPage />} />
               </Route>
               <Route path="/app/more" element={<MorePage />} />
               <Route path="/app/hjaelp" element={<AppHelpPage />} />

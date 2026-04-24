@@ -5,6 +5,7 @@ import { AppPageLayout } from '@/components/AppPageLayout'
 const tabs = [
   { to: '/app/settings/general', label: 'Generelt' },
   { to: '/app/settings/invoice', label: 'Faktura' },
+  { to: '/app/settings/subscription', label: 'Abonnement' },
 ]
 
 export function SettingsLayout() {
