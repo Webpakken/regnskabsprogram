@@ -106,7 +106,7 @@ export async function registerWebPushSubscriptionDetailed(): Promise<{
   }
 
   try {
-    const { data, error } = await supabase.functions.invoke('push-subscribe', {
+    const { data, error } = await supabase.functions.invoke('web-push-subscribe', {
       body: { subscription: json },
     })
     if (error) {
@@ -153,7 +153,7 @@ export async function registerWebPushSubscriptionDetailed(): Promise<{
     return {
       ok: false,
       stage: 'function',
-      detail: err instanceof Error ? err.message : 'Netværksfejl ved kald til push-subscribe.',
+      detail: err instanceof Error ? err.message : 'Netværksfejl ved kald til web-push-subscribe.',
     }
   }
 
@@ -168,7 +168,7 @@ export async function hasWebPushSubscription(): Promise<boolean> {
 }
 
 /**
- * Registrerer Web Push og gemmer abonnement i Supabase (kræver deploy af «push-subscribe» + VAPID-secrets).
+ * Registrerer Web Push og gemmer abonnement i Supabase (kræver deploy af «web-push-subscribe» + VAPID-secrets).
  */
 export async function registerWebPushSubscription(): Promise<boolean> {
   const result = await registerWebPushSubscriptionDetailed()

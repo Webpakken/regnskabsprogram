@@ -60,6 +60,9 @@ verify_jwt = false
 [functions.push-subscribe]
 verify_jwt = false
 
+[functions.web-push-subscribe]
+verify_jwt = false
+
 [functions.support-push-notify]
 verify_jwt = false
 

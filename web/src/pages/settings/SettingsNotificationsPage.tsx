@@ -130,15 +130,15 @@ export function SettingsNotificationsPage() {
         return
       }
       try {
-        const res = await fetch(`${base}/functions/v1/push-subscribe`, {
+        const res = await fetch(`${base}/functions/v1/web-push-subscribe`, {
           method: 'OPTIONS',
         })
         if (cancelled) return
-        setFunctionProbe(`push-subscribe probe: HTTP ${res.status}`)
+        setFunctionProbe(`web-push-subscribe probe: HTTP ${res.status}`)
       } catch (err) {
         if (cancelled) return
         setFunctionProbe(
-          `push-subscribe probe fejlede: ${err instanceof Error ? err.message : 'ukendt fejl'}`,
+          `web-push-subscribe probe fejlede: ${err instanceof Error ? err.message : 'ukendt fejl'}`,
         )
       }
     }
@@ -247,7 +247,7 @@ export function SettingsNotificationsPage() {
             {(import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? 'mangler'}
           </p>
           <p className="mt-2 break-all font-mono text-xs text-slate-600">
-            {functionProbe ?? 'Tester push-subscribe…'}
+            {functionProbe ?? 'Tester web-push-subscribe…'}
           </p>
         </section>
 
