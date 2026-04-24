@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useApp } from '@/context/AppProvider'
 import { logActivity } from '@/lib/activity'
 import { downscaleToCanvas, scoreDocumentPresence } from '@/lib/documentDetect'
-import { formatParsedNotes, parseDanishReceiptText } from '@/lib/receiptParse'
+import { parseDanishReceiptText } from '@/lib/receiptParse'
 import { renderPdfFirstPageToCanvas } from '@/lib/pdfToCanvas'
 import { maxOcrDimension, ocrReceiptCanvas } from '@/lib/voucherOcr'
 
