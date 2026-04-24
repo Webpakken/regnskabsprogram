@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { subscriptionOk, useApp } from '@/context/AppProvider'
-import { registerWebPushSubscription } from '@/lib/pushClient'
+import { isStandaloneIosPwa, registerWebPushSubscription } from '@/lib/pushClient'
 
 const STORAGE_KEY = 'bilago:pushSubscribeAttempted'
 const STORAGE_KEY_PLATFORM = 'bilago:pushSubscribeAttemptedPlatform'
@@ -21,6 +21,7 @@ export function RegisterPushNotifications({
 
   useEffect(() => {
     if (!user) return
+    if (isStandaloneIosPwa()) return
     if (variant === 'tenant') {
       if (!currentCompany || !subscriptionOk(subscription)) return
     } else {

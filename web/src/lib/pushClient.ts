@@ -13,21 +13,55 @@ function urlBase64ToUint8Array(base64String: string) {
 
 const VAPID_PUBLIC = import.meta.env.VITE_WEB_PUSH_PUBLIC_KEY as string | undefined
 
+export function isStandaloneIosPwa() {
+  if (typeof window === 'undefined') return false
+  const ua = window.navigator.userAgent
+  const isiOS =
+    /iPhone|iPad|iPod/i.test(ua) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  const isStandalone =
+    window.matchMedia?.('(display-mode: standalone)').matches ||
+    (window.navigator as Navigator & { standalone?: boolean }).standalone === true
+  return isiOS && isStandalone
+}
+
+export function canUseWebPush() {
+  return Boolean(
+    VAPID_PUBLIC?.trim() &&
+      typeof window !== 'undefined' &&
+      'Notification' in window &&
+      'serviceWorker' in navigator &&
+      'PushManager' in window,
+  )
+}
+
+export async function hasWebPushSubscription(): Promise<boolean> {
+  if (!canUseWebPush()) return false
+  const reg = await navigator.serviceWorker.ready
+  const sub = await reg.pushManager.getSubscription()
+  return Boolean(sub?.endpoint)
+}
+
 /**
  * Registrerer Web Push og gemmer abonnement i Supabase (kræver deploy af «push-subscribe» + VAPID-secrets).
  */
 export async function registerWebPushSubscription(): Promise<boolean> {
-  if (!VAPID_PUBLIC?.trim()) return false
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return false
+  if (!canUseWebPush()) return false
 
-  const perm = await Notification.requestPermission()
+  const perm =
+    Notification.permission === 'granted'
+      ? 'granted'
+      : await Notification.requestPermission()
   if (perm !== 'granted') return false
 
   const reg = await navigator.serviceWorker.ready
-  const sub = await reg.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC.trim()),
-  })
+  const existing = await reg.pushManager.getSubscription()
+  const sub =
+    existing ??
+    (await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC!.trim()),
+    }))
 
   const json = sub.toJSON()
   if (!json.keys?.auth || !json.keys?.p256dh || !json.endpoint) return false

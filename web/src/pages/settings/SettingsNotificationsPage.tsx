@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useApp } from '@/context/AppProvider'
+import {
+  canUseWebPush,
+  hasWebPushSubscription,
+  isStandaloneIosPwa,
+  registerWebPushSubscription,
+} from '@/lib/pushClient'
 import type { Database } from '@/types/database'
 
 type PrefRow = Database['public']['Tables']['notification_preferences']['Row']
@@ -63,6 +69,8 @@ export function SettingsNotificationsPage() {
   const [prefs, setPrefs] = useState<PrefState>(DEFAULT_PREFS)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [pushBusy, setPushBusy] = useState(false)
+  const [pushEnabled, setPushEnabled] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -96,6 +104,22 @@ export function SettingsNotificationsPage() {
     }
   }, [user])
 
+  useEffect(() => {
+    let cancelled = false
+    async function loadPushStatus() {
+      if (!canUseWebPush()) {
+        if (!cancelled) setPushEnabled(false)
+        return
+      }
+      const ok = await hasWebPushSubscription()
+      if (!cancelled) setPushEnabled(ok)
+    }
+    void loadPushStatus()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   function setPref<K extends keyof PrefState>(key: K, value: PrefState[K]) {
     setMessage(null)
     setError(null)
@@ -120,6 +144,29 @@ export function SettingsNotificationsPage() {
     setMessage('Indstillinger gemt.')
   }
 
+  async function enablePush() {
+    setPushBusy(true)
+    setMessage(null)
+    setError(null)
+    try {
+      const ok = await registerWebPushSubscription()
+      setPushEnabled(ok)
+      if (!ok) {
+        setError(
+          Notification.permission === 'denied'
+            ? 'Push er blokeret i browserens/PWA’ens indstillinger.'
+            : 'Push kunne ikke aktiveres på denne enhed endnu.',
+        )
+      } else {
+        setMessage('Push-notifikationer er aktiveret på denne enhed.')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Push kunne ikke aktiveres.')
+    } finally {
+      setPushBusy(false)
+    }
+  }
+
   return (
     <div className="space-y-8">
       <form
@@ -132,6 +179,31 @@ export function SettingsNotificationsPage() {
             Vælg hvad du vil have besked om. Første version gemmer simple til/fra-valg pr. bruger.
           </p>
         </div>
+
+        {canUseWebPush() ? (
+          <section className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Push på denne enhed</h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  {pushEnabled
+                    ? 'Push er aktiv på denne enhed.'
+                    : isStandaloneIosPwa()
+                      ? 'På iPhone PWA skal push aktiveres ved et direkte tryk på knappen herunder.'
+                      : 'Aktivér push, så du kan få besked uden at have appen åben.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={pushBusy || pushEnabled}
+                onClick={() => void enablePush()}
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+              >
+                {pushEnabled ? 'Push aktiv' : pushBusy ? 'Aktiverer…' : 'Slå push til'}
+              </button>
+            </div>
+          </section>
+        ) : null}
 
         {loading ? (
           <p className="text-sm text-slate-600">Indlæser notifikationsindstillinger…</p>

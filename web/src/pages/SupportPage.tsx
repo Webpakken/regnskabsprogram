@@ -111,6 +111,31 @@ export function SupportPage() {
     void loadThread(currentCompany.id)
   }, [currentCompany, loadThread])
 
+  useEffect(() => {
+    if (!currentCompany) return
+
+    const ch = supabase.channel(`support-live:${currentCompany.id}`)
+    ch.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'support_tickets', filter: `company_id=eq.${currentCompany.id}` },
+      () => {
+        void loadThread(currentCompany.id)
+      },
+    )
+    ch.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'support_messages' },
+      () => {
+        void loadThread(currentCompany.id)
+      },
+    )
+    void ch.subscribe()
+
+    return () => {
+      void supabase.removeChannel(ch)
+    }
+  }, [currentCompany?.id, loadThread])
+
   const activeTicket = useMemo(
     () => tickets.find((t) => t.status !== 'closed') ?? null,
     [tickets],
