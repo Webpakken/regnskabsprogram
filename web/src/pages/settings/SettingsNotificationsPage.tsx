@@ -71,6 +71,7 @@ export function SettingsNotificationsPage() {
   const [saving, setSaving] = useState(false)
   const [pushBusy, setPushBusy] = useState(false)
   const [pushEnabled, setPushEnabled] = useState(false)
+  const [functionProbe, setFunctionProbe] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -115,6 +116,33 @@ export function SettingsNotificationsPage() {
       if (!cancelled) setPushEnabled(ok)
     }
     void loadPushStatus()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    async function probeFunction() {
+      const base = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.replace(/\/$/, '')
+      if (!base) {
+        if (!cancelled) setFunctionProbe('Ingen VITE_SUPABASE_URL i build.')
+        return
+      }
+      try {
+        const res = await fetch(`${base}/functions/v1/push-subscribe`, {
+          method: 'OPTIONS',
+        })
+        if (cancelled) return
+        setFunctionProbe(`push-subscribe probe: HTTP ${res.status}`)
+      } catch (err) {
+        if (cancelled) return
+        setFunctionProbe(
+          `push-subscribe probe fejlede: ${err instanceof Error ? err.message : 'ukendt fejl'}`,
+        )
+      }
+    }
+    void probeFunction()
     return () => {
       cancelled = true
     }
@@ -211,6 +239,17 @@ export function SettingsNotificationsPage() {
             </p>
           </section>
         )}
+
+        <section className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+          <h3 className="text-sm font-semibold text-slate-900">Push debug</h3>
+          <p className="mt-2 break-all font-mono text-xs text-slate-600">
+            Supabase URL:{' '}
+            {(import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? 'mangler'}
+          </p>
+          <p className="mt-2 break-all font-mono text-xs text-slate-600">
+            {functionProbe ?? 'Tester push-subscribe…'}
+          </p>
+        </section>
 
         {loading ? (
           <p className="text-sm text-slate-600">Indlæser notifikationsindstillinger…</p>
