@@ -7,7 +7,7 @@ import { formatDateTime, formatSupportTicketNumber } from '@/lib/format'
 import {
   canUseWebPush,
   hasWebPushSubscription,
-  registerWebPushSubscription,
+  registerWebPushSubscriptionDetailed,
 } from '@/lib/pushClient'
 import { supabase } from '@/lib/supabase'
 import type { Database } from '@/types/database'
@@ -160,13 +160,13 @@ export function SupportPage() {
     setPushBusy(true)
     setError(null)
     try {
-      const ok = await registerWebPushSubscription()
-      setPushEnabled(ok)
-      if (!ok) {
+      const result = await registerWebPushSubscriptionDetailed()
+      setPushEnabled(result.ok)
+      if (!result.ok) {
         setError(
-          Notification.permission === 'denied'
-            ? 'Push er blokeret i enhedens/browserens indstillinger.'
-            : 'Push kunne ikke aktiveres endnu.',
+          result.detail
+            ? `Push-fejl (${result.stage}): ${result.detail}`
+            : `Push-fejl (${result.stage}).`,
         )
       }
     } catch (err) {

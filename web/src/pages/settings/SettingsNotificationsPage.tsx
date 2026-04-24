@@ -5,7 +5,7 @@ import {
   canUseWebPush,
   hasWebPushSubscription,
   isStandaloneIosPwa,
-  registerWebPushSubscription,
+  registerWebPushSubscriptionDetailed,
 } from '@/lib/pushClient'
 import type { Database } from '@/types/database'
 
@@ -149,13 +149,13 @@ export function SettingsNotificationsPage() {
     setMessage(null)
     setError(null)
     try {
-      const ok = await registerWebPushSubscription()
-      setPushEnabled(ok)
-      if (!ok) {
+      const result = await registerWebPushSubscriptionDetailed()
+      setPushEnabled(result.ok)
+      if (!result.ok) {
         setError(
-          Notification.permission === 'denied'
-            ? 'Push er blokeret i browserens/PWA’ens indstillinger.'
-            : 'Push kunne ikke aktiveres på denne enhed endnu.',
+          result.detail
+            ? `Push-fejl (${result.stage}): ${result.detail}`
+            : `Push-fejl (${result.stage}).`,
         )
       } else {
         setMessage('Push-notifikationer er aktiveret på denne enhed.')
