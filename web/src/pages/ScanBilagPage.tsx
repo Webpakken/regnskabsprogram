@@ -21,6 +21,8 @@ type Phase =
   | 'saving'
 
 export function ScanBilagPage() {
+    // Forhindrer dobbelt capture
+    const autoCaptureRef = useRef(false)
   const navigate = useNavigate()
   const { currentCompany, user } = useApp()
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -32,6 +34,24 @@ export function ScanBilagPage() {
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [searching, setSearching] = useState(true)
   const [documentFound, setDocumentFound] = useState(false)
+  // ...existing code...
+    // Automatisk capture når dokument er fundet og stabilt
+    useEffect(() => {
+      if (
+        phase === 'stream' &&
+        documentFound &&
+        !searching &&
+        !autoCaptureRef.current
+      ) {
+        autoCaptureRef.current = true
+        captureFromCamera().finally(() => {
+          // Tillad ny auto-capture hvis man går tilbage til stream
+          setTimeout(() => {
+            autoCaptureRef.current = false
+          }, 2000)
+        })
+      }
+    }, [phase, documentFound, searching])
   const [ocrProgress, setOcrProgress] = useState(0)
   const [ocrText, setOcrText] = useState('')
   const [parsed, setParsed] = useState<ReturnType<typeof parseDanishReceiptText> | null>(
@@ -177,7 +197,7 @@ export function ScanBilagPage() {
       if (p.expenseDateIso) setExpenseDate(p.expenseDateIso)
       if (p.totalKr != null) setGrossKr(p.totalKr.toFixed(2).replace('.', ','))
       if (p.vatRateGuess !== null) setVatRate(String(p.vatRateGuess))
-      setNotes(formatParsedNotes(p))
+      setNotes('')
       setPhase('review')
     } catch (e) {
       console.warn('[scan OCR]', e)
@@ -238,7 +258,7 @@ export function ScanBilagPage() {
       if (p.expenseDateIso) setExpenseDate(p.expenseDateIso)
       if (p.totalKr != null) setGrossKr(p.totalKr.toFixed(2).replace('.', ','))
       if (p.vatRateGuess !== null) setVatRate(String(p.vatRateGuess))
-      setNotes(formatParsedNotes(p))
+      setNotes('')
       setPhase('review')
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : 'Kunne ikke læse fil')

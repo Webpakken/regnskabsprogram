@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useApp } from '@/context/AppProvider'
 import { formatDateTime, formatSupportTicketNumber } from '@/lib/format'
 import { supabase } from '@/lib/supabase'
+import { usePlatformAdminNotifications } from '@/hooks/usePlatformAdminNotifications'
 import type { Database } from '@/types/database'
 
 type Ticket = Database['public']['Tables']['support_tickets']['Row'] & {
@@ -17,6 +18,7 @@ const statusLabels: Record<string, string> = {
 
 export function PlatformSupportPage() {
   const { user } = useApp()
+  const { markSeen } = usePlatformAdminNotifications()
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -44,6 +46,10 @@ export function PlatformSupportPage() {
   useEffect(() => {
     void loadTickets()
   }, [loadTickets])
+
+  useEffect(() => {
+    void markSeen('support')
+  }, [markSeen])
 
   const selected = useMemo(
     () => tickets.find((t) => t.id === selectedId) ?? null,

@@ -331,6 +331,45 @@ export interface Database {
         }
         Update: { role?: CompanyRole }
       }
+      notification_preferences: {
+        Row: {
+          user_id: string
+          support_replies: boolean
+          member_invites: boolean
+          invoice_sent: boolean
+          invoice_reminders: boolean
+          subscription_updates: boolean
+          platform_new_companies: boolean
+          platform_new_support: boolean
+          platform_new_subscriptions: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          support_replies?: boolean
+          member_invites?: boolean
+          invoice_sent?: boolean
+          invoice_reminders?: boolean
+          subscription_updates?: boolean
+          platform_new_companies?: boolean
+          platform_new_support?: boolean
+          platform_new_subscriptions?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          support_replies?: boolean
+          member_invites?: boolean
+          invoice_sent?: boolean
+          invoice_reminders?: boolean
+          subscription_updates?: boolean
+          platform_new_companies?: boolean
+          platform_new_support?: boolean
+          platform_new_subscriptions?: boolean
+          updated_at?: string
+        }
+      }
       activity_events: {
         Row: {
           id: string

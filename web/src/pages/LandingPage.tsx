@@ -8,6 +8,7 @@ import { MarketingMobileBottomNav } from '@/components/MarketingMobileBottomNav'
 import { MarketingPricingSection } from '@/components/MarketingPricingSection'
 import { applyLandingSeoToDocument, mergeLandingSeo } from '@/lib/landingSeo'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
+import { formatKrPerMonth } from '@/lib/format'
 import { MarketingFeatureCard } from '@/components/MarketingFeatureCard'
 import { marketingFeatureCards } from '@/marketing/featureCards'
 import { CheckIcon } from '@/marketing/MarketingIcons'
@@ -58,6 +59,14 @@ export function LandingPage() {
     return <Navigate to="/home" replace />
   }
 
+  const amountCents = pub?.pricing_amount_cents ?? pub?.monthly_price_cents ?? 9900
+  const compareCents = pub?.pricing_compare_cents ?? null
+  const compareKr =
+    compareCents != null && compareCents > amountCents
+      ? Math.round(compareCents / 100)
+      : null
+  const introPriceLabel = formatKrPerMonth(amountCents)
+
   return (
     <div className="min-h-screen bg-white text-slate-900">
       <MarketingHeader />
@@ -83,8 +92,12 @@ export function LandingPage() {
                 <path d="M12 2 14.6 8.4 21 9l-4.8 4.4 1.4 6.6L12 16.8 6.4 20l1.4-6.6L3 9l6.4-.6z" />
               </svg>
               Introtilbud ·{' '}
-              <span className="text-emerald-700/60 line-through">249</span>{' '}
-              <strong className="font-bold text-emerald-900">99 kr./md</strong>
+              {compareKr != null ? (
+                <>
+                  <span className="text-emerald-700/60 line-through">{compareKr}</span>{' '}
+                </>
+              ) : null}
+              <strong className="font-bold text-emerald-900">{introPriceLabel}</strong>
             </span>
             <h1 className="mt-5 text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl lg:text-6xl">
               Regnskab uden bøvl for danske virksomheder

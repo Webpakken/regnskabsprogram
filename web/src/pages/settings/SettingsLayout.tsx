@@ -5,6 +5,7 @@ import { AppPageLayout } from '@/components/AppPageLayout'
 const tabs = [
   { to: '/app/settings/general', label: 'Generelt' },
   { to: '/app/settings/invoice', label: 'Faktura' },
+  { to: '/app/settings/notifications', label: 'Notifikationer' },
   { to: '/app/settings/subscription', label: 'Abonnement' },
 ]
 
@@ -13,7 +14,7 @@ export function SettingsLayout() {
     <AppPageLayout maxWidth="2xl" className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Indstillinger</h1>
-        <p className="text-sm text-slate-600">Virksomhed, faktura og abonnement</p>
+        <p className="text-sm text-slate-600">Virksomhed, faktura, notifikationer og abonnement</p>
       </div>
 
       <nav className="flex gap-1 border-b border-slate-200" aria-label="Indstillinger">

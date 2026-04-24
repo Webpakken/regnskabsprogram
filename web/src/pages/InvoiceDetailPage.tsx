@@ -590,26 +590,28 @@ export function InvoiceDetailPage() {
                     disabled
                   />
                 )}
-                <ActionRow
-                  icon={
-                    <IconBell
-                      className={parentIsCredited ? 'text-slate-400' : 'text-indigo-600'}
-                    />
-                  }
-                  title="Betalingspåmindelse"
-                  subtitle={
-                    parentIsCredited
-                      ? 'Ikke muligt — fakturaen er kreditnoteret'
-                      : 'E-mail fra jeres skabelon'
-                  }
-                  disabled={
-                    reminderBusy ||
-                    invoice.status === 'draft' ||
-                    !invoice.customer_email?.trim() ||
-                    parentIsCredited
-                  }
-                  onClick={() => void sendReminder()}
-                />
+                {credit ? null : (
+                  <ActionRow
+                    icon={
+                      <IconBell
+                        className={parentIsCredited ? 'text-slate-400' : 'text-indigo-600'}
+                      />
+                    }
+                    title="Betalingspåmindelse"
+                    subtitle={
+                      parentIsCredited
+                        ? 'Ikke muligt — fakturaen er kreditnoteret'
+                        : 'E-mail fra jeres skabelon'
+                    }
+                    disabled={
+                      reminderBusy ||
+                      invoice.status === 'draft' ||
+                      !invoice.customer_email?.trim() ||
+                      parentIsCredited
+                    }
+                    onClick={() => void sendReminder()}
+                  />
+                )}
                 <ActionRow
                   icon={
                     <IconCredit

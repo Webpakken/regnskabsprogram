@@ -6,6 +6,7 @@ import { useApp } from '@/context/AppProvider'
 import type { Database } from '@/types/database'
 import { supabase } from '@/lib/supabase'
 import { formatDate } from '@/lib/format'
+import { usePlatformAdminNotifications } from '@/hooks/usePlatformAdminNotifications'
 
 type Company = Database['public']['Tables']['companies']['Row']
 
@@ -30,6 +31,7 @@ function sortCompanies(list: Company[], key: CompanySortKey, dir: ColumnSortDir)
 export function PlatformCompaniesPage() {
   const navigate = useNavigate()
   const { refresh } = useApp()
+  const { markSeen } = usePlatformAdminNotifications()
   const [rows, setRows] = useState<Company[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -66,6 +68,11 @@ export function PlatformCompaniesPage() {
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    void markSeen('companies')
+    void markSeen('subscriptions')
+  }, [markSeen])
 
   async function openAsCompany(companyId: string) {
     setBusyId(companyId)

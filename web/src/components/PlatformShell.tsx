@@ -6,17 +6,45 @@ import { RegisterPushNotifications } from '@/components/RegisterPushNotification
 import { PLATFORM_MAIN_SCROLL_ID } from '@/components/ScrollToTop'
 import { useApp } from '@/context/AppProvider'
 import { logoutToLanding } from '@/lib/logoutToLanding'
+import {
+  PlatformAdminNotificationsProvider,
+  usePlatformAdminNotifications,
+} from '@/hooks/usePlatformAdminNotifications'
+import { PlatformNotificationBell } from '@/components/PlatformNotificationBell'
 
 const nav = [
   { to: '/platform/dashboard', label: 'Overblik' },
   { to: '/platform/companies', label: 'Virksomheder' },
-  { to: '/platform/support', label: 'Support' },
+  { to: '/platform/support', label: 'Support', notifKind: 'support' as const },
   { to: '/platform/seo', label: 'SEO', superadminOnly: true },
   { to: '/platform/staff', label: 'Team', superadminOnly: true },
 ]
 
+function NavBadge({ count, dark }: { count: number; dark?: boolean }) {
+  if (count <= 0) return null
+  return (
+    <span
+      className={clsx(
+        'ml-auto inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1 text-[10px] font-bold shadow-sm',
+        dark ? 'bg-rose-500 text-white' : 'bg-rose-600 text-white',
+      )}
+    >
+      {count > 99 ? '99+' : count}
+    </span>
+  )
+}
+
 export function PlatformShell({ children }: { children?: ReactNode }) {
+  return (
+    <PlatformAdminNotificationsProvider>
+      <PlatformShellInner>{children}</PlatformShellInner>
+    </PlatformAdminNotificationsProvider>
+  )
+}
+
+function PlatformShellInner({ children }: { children?: ReactNode }) {
   const { user, platformRole, tenantCompanyCount } = useApp()
+  const { counts } = usePlatformAdminNotifications()
   const navigate = useNavigate()
 
   async function logout() {
@@ -27,11 +55,14 @@ export function PlatformShell({ children }: { children?: ReactNode }) {
     <div className="flex min-h-screen bg-slate-100">
       <RegisterPushNotifications variant="platform" />
       <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-slate-900 text-slate-100 md:flex">
-        <div className="border-b border-slate-800 px-4 py-5">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-            Bilago
+        <div className="flex items-start justify-between gap-2 border-b border-slate-800 px-4 py-5">
+          <div className="min-w-0">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              Bilago
+            </div>
+            <div className="mt-0.5 text-sm font-semibold text-white">Platform</div>
           </div>
-          <div className="mt-0.5 text-sm font-semibold text-white">Platform</div>
+          <PlatformNotificationBell variant="sidebar" />
         </div>
         <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2">
           {nav
@@ -43,14 +74,17 @@ export function PlatformShell({ children }: { children?: ReactNode }) {
                 to={item.to}
                 className={({ isActive }) =>
                   clsx(
-                    'rounded-lg px-3 py-2 text-sm font-medium transition',
+                    'flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition',
                     isActive
                       ? 'bg-slate-800 text-white'
                       : 'text-slate-400 hover:bg-slate-800/80 hover:text-white',
                   )
                 }
               >
-                {item.label}
+                <span>{item.label}</span>
+                {item.notifKind === 'support' ? (
+                  <NavBadge count={counts.support} dark />
+                ) : null}
               </NavLink>
             ))}
           <PlatformSettingsSideNav />
@@ -63,14 +97,17 @@ export function PlatformShell({ children }: { children?: ReactNode }) {
                 to={item.to}
                 className={({ isActive }) =>
                   clsx(
-                    'rounded-lg px-3 py-2 text-sm font-medium transition',
+                    'flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition',
                     isActive
                       ? 'bg-slate-800 text-white'
                       : 'text-slate-400 hover:bg-slate-800/80 hover:text-white',
                   )
                 }
               >
-                {item.label}
+                <span>{item.label}</span>
+                {item.notifKind === 'support' ? (
+                  <NavBadge count={counts.support} dark />
+                ) : null}
               </NavLink>
             ))}
         </nav>
@@ -109,13 +146,16 @@ export function PlatformShell({ children }: { children?: ReactNode }) {
               <span className="text-sm font-semibold text-slate-900">Platform</span>
               <div className="font-mono text-[10px] text-slate-400">{__PLATFORM_BUILD__}</div>
             </div>
-            <button
-              type="button"
-              className="shrink-0 text-sm text-indigo-600"
-              onClick={() => void logout()}
-            >
-              Log ud
-            </button>
+            <div className="flex shrink-0 items-center gap-1">
+              <PlatformNotificationBell variant="mobile" />
+              <button
+                type="button"
+                className="text-sm text-indigo-600"
+                onClick={() => void logout()}
+              >
+                Log ud
+              </button>
+            </div>
           </div>
           <nav className="flex gap-1 overflow-x-auto border-t border-slate-100 px-2 py-2 text-xs font-medium">
             {[
@@ -127,22 +167,27 @@ export function PlatformShell({ children }: { children?: ReactNode }) {
                 (item: { superadminOnly?: boolean }) =>
                   !item.superadminOnly || platformRole === 'superadmin',
               )
-              .map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={({ isActive }) =>
-                    clsx(
-                      'shrink-0 rounded-lg px-2.5 py-1.5',
-                      isActive
-                        ? 'bg-slate-900 text-white'
-                        : 'bg-slate-100 text-slate-700',
-                    )
-                  }
-                >
-                  {item.label}
-                </NavLink>
-              ))}
+              .map((item) => {
+                const showSupportBadge =
+                  'notifKind' in item && item.notifKind === 'support' && counts.support > 0
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    className={({ isActive }) =>
+                      clsx(
+                        'inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5',
+                        isActive
+                          ? 'bg-slate-900 text-white'
+                          : 'bg-slate-100 text-slate-700',
+                      )
+                    }
+                  >
+                    <span>{item.label}</span>
+                    {showSupportBadge ? <NavBadge count={counts.support} /> : null}
+                  </NavLink>
+                )
+              })}
           </nav>
         </header>
         <main id={PLATFORM_MAIN_SCROLL_ID} className="flex-1 overflow-auto px-4 py-6 md:px-8">
