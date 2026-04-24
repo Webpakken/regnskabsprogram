@@ -4,6 +4,11 @@ import { AppPageLayout } from '@/components/AppPageLayout'
 import { useApp } from '@/context/AppProvider'
 import { useSupportUnread } from '@/context/SupportUnreadContext'
 import { formatDateTime, formatSupportTicketNumber } from '@/lib/format'
+import {
+  canUseWebPush,
+  hasWebPushSubscription,
+  registerWebPushSubscription,
+} from '@/lib/pushClient'
 import { supabase } from '@/lib/supabase'
 import type { Database } from '@/types/database'
 
@@ -59,6 +64,8 @@ export function SupportPage() {
   const [body, setBody] = useState('')
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const [pushEnabled, setPushEnabled] = useState(false)
+  const [pushBusy, setPushBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const loadThread = useCallback(
@@ -135,6 +142,39 @@ export function SupportPage() {
       void supabase.removeChannel(ch)
     }
   }, [currentCompany?.id, loadThread])
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadPushStatus() {
+      if (!canUseWebPush()) return
+      const ok = await hasWebPushSubscription()
+      if (!cancelled) setPushEnabled(ok)
+    }
+    void loadPushStatus()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  async function enablePush() {
+    setPushBusy(true)
+    setError(null)
+    try {
+      const ok = await registerWebPushSubscription()
+      setPushEnabled(ok)
+      if (!ok) {
+        setError(
+          Notification.permission === 'denied'
+            ? 'Push er blokeret i enhedens/browserens indstillinger.'
+            : 'Push kunne ikke aktiveres endnu.',
+        )
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Push kunne ikke aktiveres.')
+    } finally {
+      setPushBusy(false)
+    }
+  }
 
   const activeTicket = useMemo(
     () => tickets.find((t) => t.status !== 'closed') ?? null,
@@ -215,6 +255,27 @@ export function SupportPage() {
           Vi svarer på hverdage. Når en sag er afsluttet, starter en ny besked en ny sag.
         </p>
       </div>
+
+      {canUseWebPush() && !pushEnabled ? (
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-900">Slå push til for support</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Så får du besked, når Bilago svarer, selv når appen ikke er åben.
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={pushBusy}
+              onClick={() => void enablePush()}
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+            >
+              {pushBusy ? 'Aktiverer…' : 'Slå push til'}
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {error ? (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">

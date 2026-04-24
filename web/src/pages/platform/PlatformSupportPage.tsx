@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useApp } from '@/context/AppProvider'
 import { formatDateTime, formatSupportTicketNumber } from '@/lib/format'
+import {
+  canUseWebPush,
+  hasWebPushSubscription,
+  registerWebPushSubscription,
+} from '@/lib/pushClient'
 import { supabase } from '@/lib/supabase'
 import { usePlatformAdminNotifications } from '@/hooks/usePlatformAdminNotifications'
 import type { Database } from '@/types/database'
@@ -27,6 +32,8 @@ export function PlatformSupportPage() {
   const [error, setError] = useState<string | null>(null)
   const [reply, setReply] = useState('')
   const [sending, setSending] = useState(false)
+  const [pushEnabled, setPushEnabled] = useState(false)
+  const [pushBusy, setPushBusy] = useState(false)
 
   const loadTickets = useCallback(async () => {
     setLoading(true)
@@ -50,6 +57,19 @@ export function PlatformSupportPage() {
   useEffect(() => {
     void markSeen('support')
   }, [markSeen])
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadPushStatus() {
+      if (!canUseWebPush()) return
+      const ok = await hasWebPushSubscription()
+      if (!cancelled) setPushEnabled(ok)
+    }
+    void loadPushStatus()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const selected = useMemo(
     () => tickets.find((t) => t.id === selectedId) ?? null,
@@ -78,6 +98,30 @@ export function PlatformSupportPage() {
     }
     void loadMessages(selectedId)
   }, [selectedId, loadMessages])
+
+  useEffect(() => {
+    const ch = supabase.channel('platform-support-live')
+    ch.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'support_tickets' },
+      () => {
+        void loadTickets()
+      },
+    )
+    ch.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'support_messages' },
+      () => {
+        if (selectedId) void loadMessages(selectedId)
+        void loadTickets()
+      },
+    )
+    void ch.subscribe()
+
+    return () => {
+      void supabase.removeChannel(ch)
+    }
+  }, [loadMessages, loadTickets, selectedId])
 
   async function sendReply() {
     if (!selectedId || !user || !reply.trim()) return
@@ -153,11 +197,47 @@ export function PlatformSupportPage() {
     await loadTickets()
   }
 
+  async function enablePush() {
+    setPushBusy(true)
+    setError(null)
+    try {
+      const ok = await registerWebPushSubscription()
+      setPushEnabled(ok)
+      if (!ok) {
+        setError(
+          Notification.permission === 'denied'
+            ? 'Push er blokeret i browserens indstillinger.'
+            : 'Push kunne ikke aktiveres endnu.',
+        )
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Push kunne ikke aktiveres.')
+    } finally {
+      setPushBusy(false)
+    }
+  }
+
   return (
     <div className="flex w-full flex-col gap-6 lg:flex-row">
       <div className="lg:w-80 lg:shrink-0">
         <h1 className="text-2xl font-semibold text-slate-900">Support</h1>
         <p className="mt-1 text-sm text-slate-600">Flere sager pr. virksomhed.</p>
+        {canUseWebPush() && !pushEnabled ? (
+          <div className="mt-4 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+            <p className="text-sm font-medium text-slate-900">Slå push til for support</p>
+            <p className="mt-1 text-sm text-slate-600">
+              Så får du besked, når kunder skriver, også når fanen ikke er aktiv.
+            </p>
+            <button
+              type="button"
+              disabled={pushBusy}
+              onClick={() => void enablePush()}
+              className="mt-3 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+            >
+              {pushBusy ? 'Aktiverer…' : 'Slå push til'}
+            </button>
+          </div>
+        ) : null}
         <div className="mt-4 max-h-[70vh] overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm">
           {loading ? (
             <div className="p-4 text-sm text-slate-500">Indlæser…</div>
