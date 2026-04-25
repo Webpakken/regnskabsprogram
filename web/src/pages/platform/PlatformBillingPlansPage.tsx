@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useApp } from '@/context/AppProvider'
+import { PricingCard } from '@/components/PricingCard'
+import { PRICING_DEFAULTS } from '@/lib/pricingPublicDefaults'
 import type { Database } from '@/types/database'
 
 type Plan = Database['public']['Tables']['billing_plans']['Row']
@@ -342,7 +344,7 @@ export function PlatformBillingPlansPage() {
         </p>
       ) : null}
 
-      <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
+      <div className="space-y-6">
         {plans.map((plan, index) => {
           const planBullets = bulletsByPlan.get(plan.id) ?? []
           const usedFeatureIds = new Set(
@@ -350,9 +352,20 @@ export function PlatformBillingPlansPage() {
           )
           const availableFeatures = features.filter((f) => !usedFeatureIds.has(f.id))
           const entitlementsOpen = openEntitlementsFor === plan.id
+          const visiblePrevPlan = (() => {
+            if (plan.marketing_hidden) return null
+            for (let i = index - 1; i >= 0; i--) {
+              const p = plans[i]
+              if (!p.marketing_hidden && p.active) return p
+            }
+            return null
+          })()
+          const prevBullets = visiblePrevPlan ? bulletsByPlan.get(visiblePrevPlan.id) ?? [] : []
+          const planCornerLabel =
+            plan.slug === 'pro' ? 'Mest værdi' : plan.is_default_free ? 'Start her' : null
           return (
+            <div key={plan.id} className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
             <div
-              key={plan.id}
               className={
                 'flex flex-col rounded-2xl border bg-white p-5 shadow-sm ' +
                 (plan.marketing_hidden ? 'border-slate-200 opacity-75' : 'border-indigo-100')
@@ -695,6 +708,43 @@ export function PlatformBillingPlansPage() {
                   </ul>
                 ) : null}
               </div>
+            </div>
+
+            <div className="lg:sticky lg:top-4 lg:self-start">
+              <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                Forhåndsvisning (sådan vises kortet på pricing-siden)
+              </div>
+              <PricingCard
+                plan={plan}
+                bullets={planBullets.map((b) => ({
+                  id: b.id,
+                  kind: b.kind,
+                  featureId: b.feature_id,
+                  title: b.title,
+                  subtitle: b.subtitle,
+                }))}
+                previousPlan={
+                  visiblePrevPlan
+                    ? {
+                        name: visiblePrevPlan.name,
+                        bullets: prevBullets.map((b) => ({
+                          id: b.id,
+                          kind: b.kind,
+                          featureId: b.feature_id,
+                          title: b.title,
+                          subtitle: b.subtitle,
+                        })),
+                      }
+                    : null
+                }
+                badge={PRICING_DEFAULTS.badge}
+                unit={PRICING_DEFAULTS.unitLabel}
+                lockLabel={PRICING_DEFAULTS.lockLabel}
+                cta={PRICING_DEFAULTS.cta}
+                cornerLabel={planCornerLabel}
+                asLink={false}
+              />
+            </div>
             </div>
           )
         })}
