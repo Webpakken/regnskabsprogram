@@ -16,6 +16,7 @@ const nav = [
   { to: '/platform/dashboard', label: 'Overblik' },
   { to: '/platform/companies', label: 'Virksomheder' },
   { to: '/platform/support', label: 'Support', notifKind: 'support' as const },
+  { to: '/platform/billing', label: 'Planer', superadminOnly: true },
   { to: '/platform/seo', label: 'SEO', superadminOnly: true },
   { to: '/platform/staff', label: 'Team', superadminOnly: true },
 ]
@@ -67,7 +68,7 @@ function PlatformShellInner({ children }: { children?: ReactNode }) {
         <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2">
           {nav
             .filter((item) => !item.superadminOnly || platformRole === 'superadmin')
-            .slice(0, 3)
+            .slice(0, 4)
             .map((item) => (
               <NavLink
                 key={item.to}
@@ -90,7 +91,7 @@ function PlatformShellInner({ children }: { children?: ReactNode }) {
           <PlatformSettingsSideNav />
           {nav
             .filter((item) => !item.superadminOnly || platformRole === 'superadmin')
-            .slice(3)
+            .slice(4)
             .map((item) => (
               <NavLink
                 key={item.to}
@@ -159,9 +160,9 @@ function PlatformShellInner({ children }: { children?: ReactNode }) {
           </div>
           <nav className="flex gap-1 overflow-x-auto border-t border-slate-100 px-2 py-2 text-xs font-medium">
             {[
-              ...nav.slice(0, 3),
+              ...nav.slice(0, 4),
               { to: '/platform/settings/public/kontakt', label: 'Indstillinger' },
-              ...nav.slice(3),
+              ...nav.slice(4),
             ]
               .filter(
                 (item: { superadminOnly?: boolean }) =>

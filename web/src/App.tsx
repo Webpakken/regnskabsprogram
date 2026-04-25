@@ -124,6 +124,7 @@ export default function App() {
               <Route path="dashboard" element={<PlatformDashboardPage />} />
               <Route path="companies" element={<PlatformCompaniesPage />} />
               <Route path="support" element={<PlatformSupportPage />} />
+              <Route path="billing" element={<PlatformBillingPlansPage />} />
               <Route path="seo" element={<PlatformSeoPage />} />
               <Route path="settings" element={<PlatformSettingsLayout />}>
                 <Route
@@ -141,7 +142,6 @@ export default function App() {
                   <Route path="aabning" element={<PlatformPublicHoursPage />} />
                   <Route path="pris" element={<PlatformPublicPricePage />} />
                 </Route>
-                <Route path="billing" element={<PlatformBillingPlansPage />} />
                 <Route
                   path="smtp"
                   element={<Navigate to="/platform/settings/smtp/marketing" replace />}

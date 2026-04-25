@@ -156,6 +156,7 @@ export interface Database {
           description: string | null
           stripe_price_id: string | null
           monthly_price_cents: number
+          compare_price_cents: number | null
           active: boolean
           is_default_free: boolean
           sort_order: number
@@ -169,6 +170,7 @@ export interface Database {
           description?: string | null
           stripe_price_id?: string | null
           monthly_price_cents?: number
+          compare_price_cents?: number | null
           active?: boolean
           is_default_free?: boolean
           sort_order?: number
@@ -181,6 +183,7 @@ export interface Database {
           description?: string | null
           stripe_price_id?: string | null
           monthly_price_cents?: number
+          compare_price_cents?: number | null
           active?: boolean
           is_default_free?: boolean
           sort_order?: number

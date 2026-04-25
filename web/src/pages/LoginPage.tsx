@@ -115,6 +115,14 @@ export function LoginPage() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4">
+      <div className="mb-4 flex justify-start">
+        <Link
+          to="/"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900"
+        >
+          <span aria-hidden>←</span> Gå til forsiden
+        </Link>
+      </div>
       <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
         <div className="mb-6 flex justify-center">
           <BrandMark />
@@ -299,12 +307,6 @@ export function LoginPage() {
             </button>
           </>
         )}
-        <Link
-          to="/"
-          className="mt-4 flex w-full items-center justify-center rounded-lg border border-slate-200 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-        >
-          Gå til forsiden
-        </Link>
         {mode === 'login' ? (
           <p className="mt-4 text-center text-sm text-slate-600">
             Ingen konto?{' '}

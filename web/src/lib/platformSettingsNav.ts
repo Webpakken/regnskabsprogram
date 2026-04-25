@@ -6,10 +6,6 @@ export const PUBLIC_SETTINGS_LINKS = [
   { to: '/platform/settings/public/pris', label: 'Pris' },
 ] as const
 
-export const BILLING_SETTINGS_LINKS = [
-  { to: '/platform/settings/billing', label: 'Planer og features' },
-] as const
-
 export const SMTP_PROFILE_IDS = ['marketing', 'platform', 'transactional'] as const
 export type SmtpNavProfileId = (typeof SMTP_PROFILE_IDS)[number]
 
@@ -61,14 +57,6 @@ export function getPlatformSettingsPageMeta(pathname: string): {
             ? 'Åbningstider vist til besøgende.'
             : 'Priser og tekster i prissektionen på forsiden.'
       return { title: l.label, subtitle }
-    }
-  }
-  for (const l of BILLING_SETTINGS_LINKS) {
-    if (pathname === l.to) {
-      return {
-        title: l.label,
-        subtitle: 'Opret planer, tilknyt Stripe Price ID og vælg hvilke features hver plan indeholder.',
-      }
     }
   }
   const smtp = /^\/platform\/settings\/smtp\/([^/]+)\/?$/.exec(pathname)

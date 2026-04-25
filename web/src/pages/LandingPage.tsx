@@ -122,8 +122,8 @@ export function LandingPage() {
             </div>
             <ul className="mt-8 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
               {marketingPerks.map((p) => (
-                <li key={p} className="flex items-center gap-2">
-                  <CheckIcon className="h-4 w-4 text-emerald-600" />
+                <li key={p} className="flex items-center gap-2 whitespace-nowrap">
+                  <CheckIcon className="h-4 w-4 shrink-0 text-emerald-600" />
                   {p}
                 </li>
               ))}

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { formatKrPerMonth } from '@/lib/format'
 import { useApp } from '@/context/AppProvider'
 import type { Database } from '@/types/database'
 
@@ -170,6 +169,19 @@ export function PlatformBillingPlansPage() {
     }
   }
 
+  async function updateFeature(feature: Feature, patch: Database['public']['Tables']['billing_features']['Update']) {
+    setError(null)
+    const { error: updateErr } = await supabase
+      .from('billing_features')
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('id', feature.id)
+    if (updateErr) {
+      setError(updateErr.message)
+      return
+    }
+    setFeatures((prev) => prev.map((f) => (f.id === feature.id ? { ...f, ...patch } : f)))
+  }
+
   async function moveFeature(index: number, direction: -1 | 1) {
     const targetIndex = index + direction
     if (targetIndex < 0 || targetIndex >= features.length) return
@@ -222,6 +234,13 @@ export function PlatformBillingPlansPage() {
 
   return (
     <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-900">Planer og features</h1>
+        <p className="mt-1 text-sm text-slate-600">
+          Opret planer, tilknyt Stripe Price ID og vælg hvilke features hver plan indeholder.
+        </p>
+      </div>
+
       {error ? (
         <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
           {error}
@@ -237,7 +256,8 @@ export function PlatformBillingPlansPage() {
                 <tr>
                   <th className="py-2 pr-3">Rækkefølge</th>
                   <th className="py-2 pr-3">Plan</th>
-                  <th className="py-2 pr-3">Pris</th>
+                  <th className="py-2 pr-3">Før pris (kr./md.)</th>
+                  <th className="py-2 pr-3">Pris nu (kr./md.)</th>
                   <th className="py-2 pr-3">Stripe Price ID</th>
                   <th className="py-2 pr-3">Aktiv</th>
                 </tr>
@@ -273,8 +293,42 @@ export function PlatformBillingPlansPage() {
                       <div className="font-medium text-slate-900">{plan.name}</div>
                       <div className="font-mono text-xs text-slate-500">{plan.slug}</div>
                     </td>
-                    <td className="py-3 pr-3 text-slate-700">
-                      {formatKrPerMonth(plan.monthly_price_cents)}
+                    <td className="py-3 pr-3">
+                      <input
+                        value={plan.compare_price_cents == null ? '' : String(Math.round(plan.compare_price_cents / 100))}
+                        onChange={(e) => {
+                          const raw = e.target.value
+                          const cents = raw === '' ? null : Math.max(0, Math.round((Number(raw.replace(',', '.')) || 0) * 100))
+                          setPlans((prev) =>
+                            prev.map((p) => (p.id === plan.id ? { ...p, compare_price_cents: cents } : p)),
+                          )
+                        }}
+                        onBlur={(e) => {
+                          const raw = e.target.value.trim()
+                          const cents = raw === '' ? null : Math.max(0, Math.round((Number(raw.replace(',', '.')) || 0) * 100))
+                          void updatePlan(plan, { compare_price_cents: cents })
+                        }}
+                        placeholder="–"
+                        inputMode="decimal"
+                        className="w-24 rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+                      />
+                    </td>
+                    <td className="py-3 pr-3">
+                      <input
+                        value={String(Math.round(plan.monthly_price_cents / 100))}
+                        onChange={(e) => {
+                          const cents = Math.max(0, Math.round((Number(e.target.value.replace(',', '.')) || 0) * 100))
+                          setPlans((prev) =>
+                            prev.map((p) => (p.id === plan.id ? { ...p, monthly_price_cents: cents } : p)),
+                          )
+                        }}
+                        onBlur={(e) => {
+                          const cents = Math.max(0, Math.round((Number(e.target.value.replace(',', '.')) || 0) * 100))
+                          void updatePlan(plan, { monthly_price_cents: cents })
+                        }}
+                        inputMode="decimal"
+                        className="w-24 rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+                      />
                     </td>
                     <td className="py-3 pr-3">
                       <input
@@ -431,9 +485,38 @@ export function PlatformBillingPlansPage() {
                           ↓
                         </button>
                       </div>
-                      <div className="min-w-0">
-                        <div className="font-medium text-slate-900">{feature.name}</div>
-                        <div className="font-mono text-xs text-slate-500">{feature.key}</div>
+                      <div className="min-w-0 flex-1">
+                        <input
+                          value={feature.name}
+                          onChange={(e) => {
+                            const value = e.target.value
+                            setFeatures((prev) =>
+                              prev.map((f) => (f.id === feature.id ? { ...f, name: value } : f)),
+                            )
+                          }}
+                          onBlur={(e) => {
+                            const value = e.target.value.trim()
+                            if (!value) return
+                            void updateFeature(feature, { name: value })
+                          }}
+                          placeholder="Feature-navn"
+                          className="w-full rounded-lg border border-transparent px-2 py-1 font-medium text-slate-900 hover:border-slate-200 focus:border-slate-300 focus:outline-none"
+                        />
+                        <div className="px-2 font-mono text-xs text-slate-500">{feature.key}</div>
+                        <input
+                          value={feature.description ?? ''}
+                          onChange={(e) => {
+                            const value = e.target.value
+                            setFeatures((prev) =>
+                              prev.map((f) => (f.id === feature.id ? { ...f, description: value } : f)),
+                            )
+                          }}
+                          onBlur={(e) =>
+                            void updateFeature(feature, { description: e.target.value.trim() || null })
+                          }
+                          placeholder="Undertekst (vises under navn på pricing-siden)"
+                          className="mt-1.5 w-full rounded-lg border border-slate-200 px-2 py-1 text-xs"
+                        />
                       </div>
                     </div>
                   </td>

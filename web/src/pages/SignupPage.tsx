@@ -1,20 +1,56 @@
-import { useState } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { invokePlatformEmail } from '@/lib/edge'
 import { supabase } from '@/lib/supabase'
 import { useApp } from '@/context/AppProvider'
 import { BrandMark } from '@/components/BrandMark'
 import { validateSignupPassword } from '@/lib/passwordPolicy'
+import { formatKrPerMonth } from '@/lib/format'
+
+type SignupPlan = {
+  slug: string
+  name: string
+  monthly_price_cents: number
+}
 
 export function SignupPage() {
   const { session, loading, refresh } = useApp()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [plans, setPlans] = useState<SignupPlan[]>([])
+  const planSlug = searchParams.get('plan') ?? ''
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const { data } = await supabase
+        .from('billing_plans')
+        .select('slug, name, monthly_price_cents')
+        .eq('active', true)
+        .order('sort_order', { ascending: true })
+        .order('monthly_price_cents', { ascending: true })
+      if (cancelled) return
+      setPlans((data ?? []) as SignupPlan[])
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (plans.length === 0) return
+    if (planSlug && plans.some((p) => p.slug === planSlug)) return
+    const fallback = plans[0]?.slug
+    if (fallback) {
+      setSearchParams({ plan: fallback }, { replace: true })
+    }
+  }, [plans, planSlug, setSearchParams])
 
   if (!loading && session) {
     return <Navigate to="/" replace />
@@ -32,12 +68,13 @@ export function SignupPage() {
       return
     }
     const origin = window.location.origin
+    const onboardingPath = planSlug ? `/onboarding?plan=${encodeURIComponent(planSlug)}` : '/onboarding'
     const { data, error: err } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { full_name: fullName },
-        emailRedirectTo: `${origin}/onboarding`,
+        data: { full_name: fullName, plan: planSlug || null },
+        emailRedirectTo: `${origin}${onboardingPath}`,
       },
     })
     if (err) {
@@ -61,7 +98,7 @@ export function SignupPage() {
     }
     await refresh()
     setBusy(false)
-    navigate('/onboarding', { replace: true })
+    navigate(onboardingPath, { replace: true })
   }
 
   return (
@@ -73,6 +110,25 @@ export function SignupPage() {
         <h1 className="text-2xl font-semibold text-slate-900">Opret konto</h1>
         <p className="mt-1 text-sm text-slate-500">Start med virksomhed og abonnement</p>
         <form className="mt-6 space-y-4" onSubmit={(e) => void submit(e)}>
+          {plans.length > 0 ? (
+            <div>
+              <label className="text-sm font-medium text-slate-700" htmlFor="plan">
+                Valgt plan
+              </label>
+              <select
+                id="plan"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                value={planSlug}
+                onChange={(e) => setSearchParams({ plan: e.target.value }, { replace: true })}
+              >
+                {plans.map((p) => (
+                  <option key={p.slug} value={p.slug}>
+                    {p.name} – {p.monthly_price_cents === 0 ? 'Gratis' : formatKrPerMonth(p.monthly_price_cents)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
           <div>
             <label className="text-sm font-medium text-slate-700" htmlFor="name">
               Navn
@@ -142,6 +198,9 @@ export function SignupPage() {
           <Link className="font-medium text-indigo-600" to="/login">
             Log ind
           </Link>
+        </p>
+        <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-center text-xs text-emerald-800 ring-1 ring-emerald-200">
+          30 dages gratis prøveperiode på alle planer — uden kortkrav.
         </p>
       </div>
     </div>

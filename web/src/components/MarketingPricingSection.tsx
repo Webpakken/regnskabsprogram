@@ -18,8 +18,10 @@ type MarketingPlan = BillingPlan & {
   features: Array<{
     key: string
     name: string
+    description: string | null
     limitValue: number | null
     sortOrder: number
+    firstTierIndex: number
   }>
 }
 
@@ -160,6 +162,7 @@ export function MarketingPricingSection({ pub }: { pub: PublicSettings | null })
         list.push({
           key: feature.key,
           name: feature.name,
+          description: feature.description,
           limitValue: row.limit_value,
           sortOrder: feature.sort_order,
         })
@@ -176,14 +179,17 @@ export function MarketingPricingSection({ pub }: { pub: PublicSettings | null })
         }
       })
       setPlans(
-        rawPlans.map((plan) => ({
+        rawPlans.map((plan, planIndex) => ({
           ...plan,
-          features: [...plan.features].sort((a, b) => {
-            const ta = firstTierByKey.get(a.key) ?? 0
-            const tb = firstTierByKey.get(b.key) ?? 0
-            if (ta !== tb) return ta - tb
-            return a.sortOrder - b.sortOrder
-          }),
+          features: [...plan.features]
+            .map((f) => ({
+              ...f,
+              firstTierIndex: firstTierByKey.get(f.key) ?? planIndex,
+            }))
+            .sort((a, b) => {
+              if (a.firstTierIndex !== b.firstTierIndex) return a.firstTierIndex - b.firstTierIndex
+              return a.sortOrder - b.sortOrder
+            }),
         })),
       )
     })()
@@ -199,21 +205,21 @@ export function MarketingPricingSection({ pub }: { pub: PublicSettings | null })
 
   if (visiblePlans.length > 0) {
     return (
-      <div className="mx-auto max-w-5xl px-6 py-16 text-center sm:py-20">
+      <div className="mx-auto max-w-6xl px-6 py-16 text-center sm:py-20">
         <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h2>
         <p className="mx-auto mt-3 max-w-2xl text-base text-slate-600 sm:text-lg">{subtitle}</p>
 
         <div
           className={
-            'mx-auto mt-8 grid gap-4 ' +
+            'mx-auto mt-8 grid gap-5 ' +
             (visiblePlans.length === 3
-              ? 'max-w-6xl lg:grid-cols-3'
+              ? 'lg:grid-cols-3'
               : visiblePlans.length === 2
                 ? 'max-w-4xl lg:grid-cols-2'
                 : 'max-w-4xl lg:grid-cols-2')
           }
         >
-          {visiblePlans.map((plan) => {
+          {visiblePlans.map((plan, index) => {
             const isPaid = plan.monthly_price_cents > 0
             const planCornerLabel =
               plan.slug === 'pro'
@@ -221,11 +227,16 @@ export function MarketingPricingSection({ pub }: { pub: PublicSettings | null })
                 : plan.is_default_free
                   ? 'Start her'
                   : null
+            const previousPlan = index > 0 ? visiblePlans[index - 1] : null
+            const previousKeys = new Set(previousPlan?.features.map((f) => f.key) ?? [])
+            const newFeatures = previousPlan
+              ? plan.features.filter((f) => !previousKeys.has(f.key))
+              : plan.features
             return (
               <div
                 key={plan.id}
                 className={
-                  'relative rounded-2xl border bg-white p-5 text-left shadow-lg sm:p-6 ' +
+                  'relative flex h-full flex-col rounded-2xl border bg-white p-5 text-left shadow-lg sm:p-6 ' +
                   (isPaid
                     ? 'border-indigo-200 shadow-indigo-100/50'
                     : 'border-slate-200 shadow-slate-100/70')
@@ -259,7 +270,15 @@ export function MarketingPricingSection({ pub }: { pub: PublicSettings | null })
                   </p>
                 ) : null}
 
-                <div className="mt-5 flex items-baseline gap-2">
+                {plan.compare_price_cents != null &&
+                plan.compare_price_cents > plan.monthly_price_cents ? (
+                  <div className="mt-4 text-sm text-slate-400">
+                    <span className="line-through">
+                      {formatKrPerMonth(plan.compare_price_cents)}
+                    </span>
+                  </div>
+                ) : null}
+                <div className={'flex items-baseline gap-2 ' + (plan.compare_price_cents != null && plan.compare_price_cents > plan.monthly_price_cents ? 'mt-1' : 'mt-5')}>
                   <span className={isPaid ? 'text-5xl font-bold tracking-tight text-indigo-600' : 'text-4xl font-bold tracking-tight text-slate-900'}>
                     {Math.round(plan.monthly_price_cents / 100)}
                   </span>
@@ -275,14 +294,29 @@ export function MarketingPricingSection({ pub }: { pub: PublicSettings | null })
                   </div>
                 ) : null}
 
-                <ul className="mt-5 divide-y divide-slate-100 border-t border-slate-100">
-                  {plan.features.map((f) => (
+                <ul className="mb-5 mt-5 divide-y divide-slate-100 border-t border-slate-100">
+                  {previousPlan ? (
+                    <li className="flex items-start gap-3 py-2.5">
+                      <CheckCircle className="h-5 w-5" />
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-slate-900">
+                          Alt fra {previousPlan.name} og…
+                        </div>
+                      </div>
+                    </li>
+                  ) : null}
+                  {newFeatures.map((f) => (
                     <li key={f.key} className="flex items-start gap-3 py-2.5">
                       <CheckCircle className="h-5 w-5" />
                       <div className="min-w-0">
                         <div className="text-sm font-semibold text-slate-900">
                           {f.name}
                         </div>
+                        {f.description ? (
+                          <div className="mt-0.5 text-xs text-slate-500">
+                            {f.description}
+                          </div>
+                        ) : null}
                         {f.limitValue !== null ? (
                           <div className="mt-0.5 text-xs text-slate-500">
                             {f.limitValue} pr. måned
@@ -294,9 +328,9 @@ export function MarketingPricingSection({ pub }: { pub: PublicSettings | null })
                 </ul>
 
                 <Link
-                  to="/signup"
+                  to={`/signup?plan=${encodeURIComponent(plan.slug)}`}
                   className={
-                    'mt-5 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold shadow-sm transition ' +
+                    'mt-auto flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold shadow-sm transition ' +
                     (isPaid
                       ? 'bg-indigo-600 text-white hover:bg-indigo-700'
                       : 'border border-slate-200 bg-white text-slate-900 hover:bg-slate-50')
