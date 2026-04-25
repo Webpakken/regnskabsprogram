@@ -119,6 +119,7 @@ export function VouchersPage() {
   const canDeleteVoucher = canWriterDeleteVouchers(currentRole)
   const featureGateKnown = billingEntitlements.length > 0
   const canUseVoucherProjects = !featureGateKnown || canUse('voucher_projects')
+  const canUseExpenseLinks = !featureGateKnown || canUse('expense_links')
 
   const load = useCallback(async function load() {
     if (!currentCompany) return
@@ -401,6 +402,10 @@ export function VouchersPage() {
 
   async function createExpenseUploadLink() {
     if (!currentCompany || !user) return
+    if (!canUseExpenseLinks) {
+      setError('Udlægslink er ikke aktivt i den nuværende plan.')
+      return
+    }
     setCreatingExpenseLink(true)
     setError(null)
     setExpenseLink(null)
@@ -663,6 +668,7 @@ export function VouchersPage() {
             <select
               value={expenseLinkMode}
               onChange={(e) => setExpenseLinkMode(e.target.value as ExpenseLinkMode)}
+              disabled={!canUseExpenseLinks}
               className="min-h-[44px] border-0 bg-white px-3 text-sm text-slate-900 focus:outline-none"
               aria-label="Udlægslink type"
             >
@@ -671,9 +677,10 @@ export function VouchersPage() {
             </select>
             <button
               type="button"
-              disabled={creatingExpenseLink}
+              disabled={creatingExpenseLink || !canUseExpenseLinks}
               onClick={() => void createExpenseUploadLink()}
               className="inline-flex min-h-[44px] items-center justify-center border-l border-slate-200 bg-white px-4 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-70"
+              title={!canUseExpenseLinks ? 'Udlægslink er ikke aktivt i den nuværende plan' : undefined}
             >
               {creatingExpenseLink ? 'Opretter…' : 'Udlægslink'}
             </button>

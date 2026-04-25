@@ -2,6 +2,7 @@ export type BillingFeatureKey =
   | 'invoices'
   | 'vouchers'
   | 'voucher_projects'
+  | 'expense_links'
   | 'bank'
   | 'vat'
   | 'members'
