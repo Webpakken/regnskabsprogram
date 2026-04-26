@@ -235,7 +235,8 @@ export function MembersPage() {
     await load()
   }
 
-  async function cancelInvite(inviteId: string) {
+  async function deleteInvite(inviteId: string, email: string) {
+    if (!confirm(`Slet invitationen til ${email}? Det kan ikke fortrydes.`)) return
     setError(null)
     setMessage(null)
     const { error: err } = await supabase
@@ -246,6 +247,7 @@ export function MembersPage() {
       setError(err.message)
       return
     }
+    setMessage(`Invitationen til ${email} er slettet.`)
     await load()
   }
 
@@ -441,10 +443,10 @@ export function MembersPage() {
                         <td className="px-4 py-3 text-right">
                           <button
                             type="button"
-                            onClick={() => void cancelInvite(i.id)}
-                            className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+                            onClick={() => void deleteInvite(i.id, i.email)}
+                            className="rounded-lg border border-rose-200 px-2 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50"
                           >
-                            Annuller
+                            Slet
                           </button>
                         </td>
                       </tr>

@@ -4,6 +4,8 @@ import { invokeAuthSignupConfirmation } from '@/lib/edge'
 import { supabase } from '@/lib/supabase'
 import { useApp } from '@/context/AppProvider'
 import { BrandMark } from '@/components/BrandMark'
+import { PasswordInput } from '@/components/PasswordInput'
+import { translateAuthErrorDa } from '@/lib/authErrors'
 import { validateSignupPassword } from '@/lib/passwordPolicy'
 import { formatKrPerMonth } from '@/lib/format'
 
@@ -92,7 +94,7 @@ export function SignupPage() {
       const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password })
       setBusy(false)
       if (signInErr) {
-        setError(signInErr.message)
+        setError(translateAuthErrorDa(signInErr.message))
         return
       }
       navigate('/home', { replace: true })
@@ -175,13 +177,11 @@ export function SignupPage() {
             >
               Adgangskode
             </label>
-            <input
+            <PasswordInput
               id="password"
-              type="password"
               required
               minLength={8}
               autoComplete="new-password"
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />

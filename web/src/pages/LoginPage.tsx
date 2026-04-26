@@ -3,7 +3,9 @@ import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { invokeAuthPasswordReset } from '@/lib/edge'
 import { BrandMark } from '@/components/BrandMark'
+import { PasswordInput } from '@/components/PasswordInput'
 import { useApp } from '@/context/AppProvider'
+import { translateAuthErrorDa } from '@/lib/authErrors'
 
 function hasRecoveryParams() {
   const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
@@ -60,7 +62,7 @@ export function LoginPage() {
     })
     if (err) {
       setBusy(false)
-      setError(err.message)
+      setError(translateAuthErrorDa(err.message))
       return
     }
     await refresh()
@@ -103,7 +105,7 @@ export function LoginPage() {
     const { error: err } = await supabase.auth.updateUser({ password: newPassword })
     if (err) {
       setBusy(false)
-      setError(err.message)
+      setError(translateAuthErrorDa(err.message))
       return
     }
     window.history.replaceState({}, document.title, '/login')
@@ -153,12 +155,10 @@ export function LoginPage() {
                 >
                   Adgangskode
                 </label>
-                <input
+                <PasswordInput
                   id="password"
-                  type="password"
                   autoComplete="current-password"
                   required
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
@@ -202,13 +202,11 @@ export function LoginPage() {
                 >
                   Ny adgangskode
                 </label>
-                <input
+                <PasswordInput
                   id="new-password"
-                  type="password"
                   autoComplete="new-password"
                   required
                   minLength={8}
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                 />
@@ -220,13 +218,11 @@ export function LoginPage() {
                 >
                   Gentag ny adgangskode
                 </label>
-                <input
+                <PasswordInput
                   id="confirm-password"
-                  type="password"
                   autoComplete="new-password"
                   required
                   minLength={8}
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                 />
