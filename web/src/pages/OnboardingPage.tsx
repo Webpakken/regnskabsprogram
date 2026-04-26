@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useApp, subscriptionOk } from '@/context/AppProvider'
 import { LoadingCentered } from '@/components/LoadingIndicator'
 import { startStripeCheckout } from '@/lib/edge'
+import { CheckoutResultNotice } from '@/components/CheckoutResultNotice'
 import {
   cvrValidationHint,
   isPostgresUniqueViolation,
@@ -24,6 +25,8 @@ export function OnboardingPage() {
     tenantCompanyCount,
   } = useApp()
   const [searchParams] = useSearchParams()
+  const selectedPlanSlug = searchParams.get('plan')?.trim() || undefined
+  const checkoutResult = searchParams.get('checkout')
   const [name, setName] = useState('')
   const [cvr, setCvr] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -48,10 +51,10 @@ export function OnboardingPage() {
   }
 
   useEffect(() => {
-    if (searchParams.get('checkout') === 'success') {
+    if (checkoutResult === 'success') {
       void refresh()
     }
-  }, [searchParams, refresh])
+  }, [checkoutResult, refresh])
 
   if (loading) {
     return (
@@ -78,7 +81,8 @@ export function OnboardingPage() {
   }
 
   if (companies.length > 0 && subscriptionOk(subscription)) {
-    return <Navigate to="/app/dashboard" replace />
+    const suffix = checkoutResult ? `?checkout=${encodeURIComponent(checkoutResult)}` : ''
+    return <Navigate to={`/app/dashboard${suffix}`} replace />
   }
 
   async function createCompany(e: React.FormEvent) {
@@ -119,6 +123,7 @@ export function OnboardingPage() {
     try {
       const url = await startStripeCheckout(currentCompany.id, {
         returnPath: 'onboarding',
+        billingPlanSlug: selectedPlanSlug,
       })
       window.location.href = url
     } catch (err) {
@@ -145,11 +150,7 @@ export function OnboardingPage() {
         virksomhed.
       </p>
 
-      {searchParams.get('checkout') === 'cancel' ? (
-        <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          Betaling afbrudt. Du kan prøve igen herunder.
-        </p>
-      ) : null}
+      <CheckoutResultNotice result={checkoutResult} className="mt-4" />
 
       {needsCompany ? (
         <form

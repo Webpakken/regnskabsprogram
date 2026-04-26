@@ -28,6 +28,7 @@ import {
 import { activityDisplayTitle, activityLooksLikeCreditNote } from '@/lib/activityDisplay'
 import { activityEventHref } from '@/lib/activityNavigation'
 import { AppPageLayout } from '@/components/AppPageLayout'
+import { CheckoutResultNotice } from '@/components/CheckoutResultNotice'
 import type { Database } from '@/types/database'
 
 const DASHBOARD_ACTIVITY_PREVIEW = 7
@@ -121,6 +122,7 @@ export function DashboardPage() {
   const { currentCompany, subscription, refresh } = useApp()
   const checkout = useStripeCheckoutLauncher()
   const [searchParams] = useSearchParams()
+  const checkoutResult = searchParams.get('checkout')
   const hasAccess = accessOk(currentCompany, subscription)
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [openSentCents, setOpenSentCents] = useState(0)
@@ -130,10 +132,10 @@ export function DashboardPage() {
   const [periodMode, setPeriodMode] = useState<PeriodMode>('month')
 
   useEffect(() => {
-    if (searchParams.get('checkout') === 'success') {
+    if (checkoutResult === 'success') {
       void refresh()
     }
-  }, [searchParams, refresh])
+  }, [checkoutResult, refresh])
 
   useEffect(() => {
     if (!currentCompany) return
@@ -270,6 +272,7 @@ export function DashboardPage() {
 
   return (
     <AppPageLayout maxWidth="full" className="space-y-6 md:space-y-8">
+      <CheckoutResultNotice result={checkoutResult} />
       <section className="space-y-6">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div>

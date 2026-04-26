@@ -22,7 +22,6 @@ serve(async (req) => {
   }
 
   const stripeSecret = (Deno.env.get('STRIPE_SECRET_KEY') ?? '').trim()
-  const priceId = (Deno.env.get('STRIPE_PRICE_ID') ?? '').trim()
   if (!stripeSecret) {
     return jsonResponse(
       {
@@ -32,15 +31,7 @@ serve(async (req) => {
       500,
     )
   }
-  if (!priceId) {
-    return jsonResponse(
-      {
-        error:
-          'STRIPE_PRICE_ID mangler. Sæt Price ID (price_…) fra Stripe Dashboard under Edge Function secrets.',
-      },
-      500,
-    )
-  }
+  const fallbackPriceId = (Deno.env.get('STRIPE_PRICE_ID') ?? '').trim()
 
   const stripe = new Stripe(stripeSecret, {
     apiVersion: '2024-11-20.acacia',
@@ -64,7 +55,12 @@ serve(async (req) => {
     }
     const user = auth.user
 
-    let body: { company_id?: string; return_path?: 'dashboard' | 'onboarding'; billing_plan_id?: string }
+    let body: {
+      company_id?: string
+      return_path?: 'dashboard' | 'onboarding'
+      billing_plan_id?: string
+      billing_plan_slug?: string
+    }
     try {
       body = await req.json()
     } catch {
@@ -76,6 +72,8 @@ serve(async (req) => {
     }
     const returnPath = body.return_path === 'onboarding' ? 'onboarding' : 'dashboard'
     const billingPlanId = typeof body.billing_plan_id === 'string' ? body.billing_plan_id.trim() : ''
+    const billingPlanSlug =
+      typeof body.billing_plan_slug === 'string' ? body.billing_plan_slug.trim() : ''
 
     const admin = createClient(supabaseUrl, serviceKey)
 
@@ -142,24 +140,44 @@ serve(async (req) => {
       )
     }
 
-    // Prislås: hvis virksomheden tidligere har haft en subscription, brug det
-    // oprindelige stripe_price_id — så de bevarer den pris de tilmeldte sig med,
-    // også efter kort-lapse eller kortere opsigelse. Nye kunder får env-var prisen.
-    let checkoutPriceId = priceId
+    // Nye kunder skal bruge Stripe Price ID fra den valgte plan i billing_plans.
+    // STRIPE_PRICE_ID beholdes kun som gammel nød-fallback hvis der ikke er planer.
+    let checkoutPriceId = ''
     let checkoutBillingPlanId: string | null = null
-    if (billingPlanId) {
-      const { data: plan, error: planErr } = await admin
+
+    if (billingPlanId || billingPlanSlug) {
+      let planQuery = admin
         .from('billing_plans')
-        .select('id, stripe_price_id, active')
-        .eq('id', billingPlanId)
+        .select('id, stripe_price_id')
         .eq('active', true)
-        .maybeSingle()
+      planQuery = billingPlanId
+        ? planQuery.eq('id', billingPlanId)
+        : planQuery.eq('slug', billingPlanSlug)
+
+      const { data: plan, error: planErr } = await planQuery.maybeSingle()
       if (planErr || !plan?.stripe_price_id) {
         return jsonResponse({ error: 'Den valgte plan mangler et aktivt Stripe Price ID.' }, 400)
       }
       checkoutPriceId = plan.stripe_price_id
       checkoutBillingPlanId = plan.id
+    } else {
+      const { data: defaultPlan, error: defaultPlanErr } = await admin
+        .from('billing_plans')
+        .select('id, stripe_price_id')
+        .eq('active', true)
+        .not('stripe_price_id', 'is', null)
+        .gt('monthly_price_cents', 0)
+        .order('sort_order', { ascending: true })
+        .order('monthly_price_cents', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+
+      if (!defaultPlanErr && defaultPlan?.stripe_price_id) {
+        checkoutPriceId = defaultPlan.stripe_price_id
+        checkoutBillingPlanId = defaultPlan.id
+      }
     }
+
     const lockedPriceId = subRow?.stripe_price_id as string | undefined
     if (!checkoutBillingPlanId && lockedPriceId) {
       try {
@@ -170,6 +188,18 @@ serve(async (req) => {
       } catch (e) {
         console.warn('stripe-checkout locked price retrieve failed', stripeErrorMessage(e))
       }
+    }
+    if (!checkoutPriceId && fallbackPriceId) {
+      checkoutPriceId = fallbackPriceId
+    }
+    if (!checkoutPriceId) {
+      return jsonResponse(
+        {
+          error:
+            'Der er ikke valgt en aktiv plan med Stripe Price ID. Udfyld Stripe Price ID på planen under Platform → Billing.',
+        },
+        400,
+      )
     }
 
     const afterStripeBase =
