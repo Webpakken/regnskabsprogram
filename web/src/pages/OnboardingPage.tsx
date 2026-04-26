@@ -93,12 +93,11 @@ export function OnboardingPage() {
       setBusy(false)
       return
     }
-    const { data: company, error: cErr } = await supabase
-      .from('companies')
-      .insert({ name: name.trim(), cvr: cvrDigits })
-      .select('id')
-      .single()
-    if (cErr || !company) {
+    const { data: companyId, error: cErr } = await supabase.rpc('create_company_with_owner', {
+      p_name: name.trim(),
+      p_cvr: cvrDigits,
+    })
+    if (cErr || !companyId) {
       setBusy(false)
       if (isPostgresUniqueViolation(cErr)) {
         setError(
@@ -109,20 +108,6 @@ export function OnboardingPage() {
       }
       return
     }
-    const { error: mErr } = await supabase.from('company_members').insert({
-      company_id: company.id,
-      user_id: user.id,
-      role: 'owner',
-    })
-    if (mErr) {
-      setBusy(false)
-      setError(mErr.message)
-      return
-    }
-    await supabase
-      .from('profiles')
-      .update({ current_company_id: company.id })
-      .eq('id', user.id)
     setBusy(false)
     await refresh()
   }

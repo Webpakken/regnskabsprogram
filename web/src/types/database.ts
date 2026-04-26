@@ -921,6 +921,10 @@ export interface Database {
       }
       get_my_platform_role: { Args: Record<string, never>; Returns: string | null }
       ensure_platform_smtp_profiles: { Args: Record<string, never>; Returns: undefined }
+      create_company_with_owner: {
+        Args: { p_name: string; p_cvr?: string | null }
+        Returns: string
+      }
       support_unread_staff_count: { Args: { p_company_id: string }; Returns: number }
       support_mark_ticket_read: { Args: { p_company_id: string }; Returns: undefined }
     }

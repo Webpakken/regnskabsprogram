@@ -13,6 +13,7 @@ import { wrapBilagoEmailPreview } from '@/lib/emailPreview'
 import { supabase } from '@/lib/supabase'
 
 const ORDER: EmailTemplateKey[] = [
+  'signup_confirmation',
   'welcome_new_user',
   'password_reset',
   'company_member_invite',
@@ -95,6 +96,11 @@ export function PlatformEmailTemplateSectionPage() {
 
   const previews = useMemo(() => {
     const demo: Record<EmailTemplateKey, Record<string, string>> = {
+      signup_confirmation: {
+        user_name: 'Test Bruger',
+        user_email: 'test@eksempel.dk',
+        confirmation_link: 'https://bilago.dk/onboarding',
+      },
       welcome_new_user: {
         user_name: 'Test Bruger',
         login_url: 'https://bilago.dk/login',

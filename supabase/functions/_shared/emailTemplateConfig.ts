@@ -1,6 +1,7 @@
 import { applyTemplate, escapeHtml, wrapBilagoEmail } from './emailLayout.ts'
 
 export type TemplateKey =
+  | 'signup_confirmation'
   | 'welcome_new_user'
   | 'password_reset'
   | 'company_member_invite'
@@ -16,6 +17,16 @@ export type TemplateBlock = {
 }
 
 export const DEFAULT_EMAIL_TEMPLATES: Record<TemplateKey, TemplateBlock> = {
+  signup_confirmation: {
+    enabled: true,
+    subject: 'Bekræft din e-mail — Bilago',
+    html: `<p style="margin:0 0 16px;">Hej {{user_name}},</p>
+<p style="margin:0 0 16px;">Tak fordi du har oprettet en konto i Bilago. Bekræft din e-mail, så sender vi dig videre til Kom i gang, hvor du kan tilføje CVR og virksomhed.</p>
+<p style="margin:0 0 20px;">
+  <a href="{{confirmation_link}}" style="display:inline-block;background:#4f46e5;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:10px;font-weight:600;font-size:14px;">Bekræft e-mail</a>
+</p>
+<p style="margin:0;color:#64748b;font-size:13px;">Hvis du ikke selv har oprettet kontoen, kan du ignorere denne mail.</p>`,
+  },
   welcome_new_user: {
     enabled: false,
     subject: 'Velkommen til Bilago',
@@ -86,6 +97,7 @@ export function mergeEmailTemplates(db: unknown): Record<TemplateKey, TemplateBl
   if (!db || typeof db !== 'object') return out
   const o = db as Record<string, Partial<TemplateBlock>>
   const keys: TemplateKey[] = [
+    'signup_confirmation',
     'welcome_new_user',
     'password_reset',
     'company_member_invite',

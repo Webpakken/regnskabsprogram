@@ -57,6 +57,9 @@ verify_jwt = false
 [functions.auth-password-reset]
 verify_jwt = false
 
+[functions.auth-signup-confirmation]
+verify_jwt = false
+
 [functions.push-subscribe]
 verify_jwt = false
 

@@ -1,5 +1,6 @@
 /** Synk med supabase/functions/_shared/emailTemplateConfig.ts (standardtekster). */
 export type EmailTemplateKey =
+  | 'signup_confirmation'
   | 'welcome_new_user'
   | 'password_reset'
   | 'company_member_invite'
@@ -17,6 +18,11 @@ export const EMAIL_TEMPLATE_LABELS: Record<
   EmailTemplateKey,
   { title: string; description: string; placeholders: string }
 > = {
+  signup_confirmation: {
+    title: 'Bekræft e-mail — ny konto',
+    description: 'Sendes ved oprettelse af konto. Link genereres af Bilago og sendes via jeres SMTP.',
+    placeholders: '{{user_name}}, {{user_email}}, {{confirmation_link}}',
+  },
   welcome_new_user: {
     title: 'Velkomst — ny bruger',
     description: 'Sendes efter tilmelding når session oprettes med det samme (ikke ved e-mail-bekræftelse).',
@@ -57,6 +63,16 @@ export const EMAIL_TEMPLATE_LABELS: Record<
 }
 
 export const DEFAULT_EMAIL_TEMPLATES: Record<EmailTemplateKey, EmailTemplateBlock> = {
+  signup_confirmation: {
+    enabled: true,
+    subject: 'Bekræft din e-mail — Bilago',
+    html: `<p style="margin:0 0 16px;">Hej {{user_name}},</p>
+<p style="margin:0 0 16px;">Tak fordi du har oprettet en konto i Bilago. Bekræft din e-mail, så sender vi dig videre til Kom i gang, hvor du kan tilføje CVR og virksomhed.</p>
+<p style="margin:0 0 20px;">
+  <a href="{{confirmation_link}}" style="display:inline-block;background:#4f46e5;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:10px;font-weight:600;font-size:14px;">Bekræft e-mail</a>
+</p>
+<p style="margin:0;color:#64748b;font-size:13px;">Hvis du ikke selv har oprettet kontoen, kan du ignorere denne mail.</p>`,
+  },
   welcome_new_user: {
     enabled: false,
     subject: 'Velkommen til Bilago',
@@ -131,6 +147,7 @@ export function mergeEmailTemplates(
   if (!db || typeof db !== 'object') return out
   const o = db as Record<string, Partial<EmailTemplateBlock>>
   const keys: EmailTemplateKey[] = [
+    'signup_confirmation',
     'welcome_new_user',
     'password_reset',
     'company_member_invite',

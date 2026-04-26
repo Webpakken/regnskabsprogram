@@ -369,3 +369,29 @@ export async function invokeAuthPasswordReset(email: string) {
   if (!res.ok) throw new Error(json.error ?? 'Kunne ikke sende nulstillingsmail')
   return json
 }
+
+/** Opret konto og send bekræftelsesmail via Bilagos SMTP i stedet for Supabase-mailen. */
+export async function invokeAuthSignupConfirmation(input: {
+  email: string
+  password: string
+  fullName?: string
+  plan?: string | null
+}) {
+  const anon = import.meta.env.VITE_SUPABASE_ANON_KEY as string
+  const res = await fetch(fnUrl('auth-signup-confirmation'), {
+    method: 'POST',
+    headers: {
+      apikey: anon,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      email: input.email.trim().toLowerCase(),
+      password: input.password,
+      full_name: input.fullName?.trim() ?? '',
+      plan: input.plan ?? null,
+    }),
+  })
+  const json = (await res.json()) as { ok?: boolean; error?: string }
+  if (!res.ok) throw new Error(json.error ?? 'Kunne ikke sende bekræftelsesmail')
+  return json
+}

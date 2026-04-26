@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
-import { invokePlatformEmail } from '@/lib/edge'
+import { invokeAuthSignupConfirmation } from '@/lib/edge'
 import { supabase } from '@/lib/supabase'
 import { useApp } from '@/context/AppProvider'
 import { BrandMark } from '@/components/BrandMark'
@@ -14,14 +14,13 @@ type SignupPlan = {
 }
 
 export function SignupPage() {
-  const { session, loading, refresh } = useApp()
+  const { session, loading } = useApp()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [info, setInfo] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [plans, setPlans] = useState<SignupPlan[]>([])
   const planSlug = searchParams.get('plan') ?? ''
@@ -60,45 +59,29 @@ export function SignupPage() {
     e.preventDefault()
     setBusy(true)
     setError(null)
-    setInfo(null)
     const pwErr = validateSignupPassword(password)
     if (pwErr) {
       setError(pwErr)
       setBusy(false)
       return
     }
-    const origin = window.location.origin
-    const onboardingPath = planSlug ? `/onboarding?plan=${encodeURIComponent(planSlug)}` : '/onboarding'
-    const { data, error: err } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { full_name: fullName, plan: planSlug || null },
-        emailRedirectTo: `${origin}${onboardingPath}`,
-      },
-    })
-    if (err) {
-      setError(err.message)
+    try {
+      await invokeAuthSignupConfirmation({
+        email,
+        password,
+        fullName,
+        plan: planSlug || null,
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Kunne ikke sende bekræftelsesmail')
       setBusy(false)
       return
     }
-    if (!data.session) {
-      setInfo(
-        'Vi har sendt et bekræftelseslink til din e-mail. Når du har bekræftet, kommer du til «Kom i gang» (CVR og virksomhed).',
-      )
-      setBusy(false)
-      return
-    }
-    if (data.session) {
-      try {
-        await invokePlatformEmail('welcome_new_user')
-      } catch {
-        /* valgfri velkomst — fortsæt onboarding */
-      }
-    }
-    await refresh()
     setBusy(false)
-    navigate(onboardingPath, { replace: true })
+    const params = new URLSearchParams()
+    params.set('email', email)
+    if (planSlug) params.set('plan', planSlug)
+    navigate(`/signup/bekraeft-email?${params.toString()}`, { replace: true })
   }
 
   return (
@@ -178,11 +161,6 @@ export function SignupPage() {
           {error ? (
             <p className="text-sm text-red-600" role="alert">
               {error}
-            </p>
-          ) : null}
-          {info ? (
-            <p className="text-sm text-emerald-800" role="status">
-              {info}
             </p>
           ) : null}
           <button

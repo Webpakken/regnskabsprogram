@@ -21,6 +21,7 @@ export const EMAIL_TEMPLATE_NAV: {
   key: EmailTemplateKey
   label: string
 }[] = [
+  { slug: 'bekraeft-email-ny-konto', key: 'signup_confirmation', label: 'Bekræft e-mail — ny konto' },
   { slug: 'velkomst-ny-bruger', key: 'welcome_new_user', label: 'Velkomst — ny bruger' },
   { slug: 'nulstil-adgangskode', key: 'password_reset', label: 'Nulstil adgangskode' },
   {
