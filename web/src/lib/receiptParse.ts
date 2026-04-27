@@ -116,11 +116,101 @@ function extractLineItems(lines: string[]): string[] {
   return out.slice(0, 20)
 }
 
-function firstLineMerchant(lines: string[]): string | null {
-  for (const line of lines.slice(0, 6)) {
-    const t = line.trim()
-    if (t.length >= 3 && t.length < 60 && !/^\d/.test(t) && !/CVR|TLF|\.dk/i.test(t))
-      return t
+/** Fjern parenteser med branch/butiks-koder ("F24 (8132)" → "F24"), trim støj. */
+function cleanMerchantCandidate(raw: string): string | null {
+  let t = raw
+    .replace(/\s*\(\s*\d{2,6}\s*\)\s*/g, ' ') // (8132), (123)
+    .replace(/\s+/g, ' ')
+    .trim()
+  // Strip ledende/efterstillede ikke-tegn
+  t = t.replace(/^[^\p{L}\p{N}]+/u, '').replace(/[^\p{L}\p{N}.&'-]+$/u, '')
+  if (t.length < 2 || t.length > 60) return null
+  return t
+}
+
+/** Heuristisk afvisning af linjer der IKKE er forretningsnavne. */
+function isObviouslyNotMerchant(t: string): boolean {
+  if (/^\d/.test(t)) return true
+  if (/CVR|TLF|TELEFON|FAX|E-mail|@|\.dk\b|\.com\b|www\./i.test(t)) return true
+  if (/\bkvittering\b|\bbon\s*[:#]/i.test(t)) return true
+  if (/^[a-zæøå .'-]+\s+\d{1,4}[a-z]?$/i.test(t)) return true // adresse: "Ribevej 9"
+  if (/^\d{4}\s+[a-zæøå]/i.test(t)) return true // postnr+by: "6800 Varde"
+  if (/^kassenr|kasse\s*\d/i.test(t)) return true
+  if (/^(dato|tid|kl\.?\s*\d|reg\s*nr|kontonr)/i.test(t)) return true
+  return false
+}
+
+/** Score linje som muligt forretningsnavn. Højere = bedre. 0 = afvis. */
+function scoreMerchant(t: string): number {
+  if (isObviouslyNotMerchant(t)) return 0
+  const letters = t.replace(/[^a-zæøåA-ZÆØÅ]/g, '')
+  if (letters.length === 0) return 0
+
+  const tokens = t.split(/\s+/)
+  const maxTokenLen = Math.max(...tokens.map((tok) => tok.length))
+  const isBrandCode =
+    tokens.length === 1 && /^[A-ZÆØÅ][A-ZÆØÅ0-9-]{1,5}$/.test(t)
+
+  // OCR-garbage: korte tokens uden noget ordlignende ("TEE TE SNS", "JX QQ ZZ").
+  // Brand-koder som "F24" undtages.
+  if (maxTokenLen < 4 && !isBrandCode) return 0
+
+  // Mange korte tokens uden vokaler er typisk OCR-støj.
+  const noisyTokens = tokens.filter(
+    (tok) => tok.length <= 3 && !/[aeiouæøåAEIOUÆØÅ]/.test(tok),
+  ).length
+  if (noisyTokens >= 2) return 0
+
+  let score = letters.length + tokens.length * 2
+  // Bonus for ord-lignende tokens (≥4 tegn med vokal — "Netto", "Føtex", "Shell")
+  if (tokens.some((tok) => tok.length >= 4 && /[aeiouæøåAEIOUÆØÅ]/.test(tok))) {
+    score += 20
+  }
+  // Bonus for korte brand-koder med blandet bogstav+tal ("F24", "7-Eleven")
+  if (isBrandCode) {
+    score += 12
+  }
+  return score
+}
+
+/**
+ * Forsøg at finde forretningsnavnet — flere strategier i prioritetsrækkefølge:
+ *  1. Eksplicitte mønstre ("Velkommen til X", "Tak for besøget hos X", "Faktura fra X")
+ *  2. Linjer over CVR/TLF-blokken, scoret efter "navn-likeness"
+ *  3. Fallback: bedst-scorede linje i top-8
+ */
+function extractMerchant(lines: string[], normalized: string): string | null {
+  // 1) Eksplicitte signaler
+  const welcome =
+    normalized.match(
+      /(?:Velkommen\s+(?:til|hos)|Tak\s+for\s+bes[øo]get\s+(?:hos|i)|Faktura\s+fra)\s+([A-ZÆØÅa-zæøå0-9 .&'-]{2,40})/i,
+    )
+  if (welcome) {
+    const cleaned = cleanMerchantCandidate(welcome[1])
+    if (cleaned && scoreMerchant(cleaned) > 0) return cleaned
+  }
+
+  // 2) Linjer over CVR/TLF-blokken
+  const stopIdx = lines.findIndex((l) =>
+    /^\s*(?:CVR|TLF|TELEFON|FAX)\b|^\d{4}\s+[a-zæøå]/i.test(l),
+  )
+  const headLines = lines.slice(0, stopIdx > 0 ? stopIdx : 8)
+
+  let best: { name: string; score: number } | null = null
+  for (const raw of headLines) {
+    const cleaned = cleanMerchantCandidate(raw)
+    if (!cleaned) continue
+    const s = scoreMerchant(cleaned)
+    if (s <= 0) continue
+    if (!best || s > best.score) best = { name: cleaned, score: s }
+  }
+  if (best) return best.name
+
+  // 3) Fallback: udvid til top-8 hvis intet ramte ovenfor
+  for (const raw of lines.slice(0, 8)) {
+    const cleaned = cleanMerchantCandidate(raw)
+    if (!cleaned) continue
+    if (scoreMerchant(cleaned) > 0) return cleaned
   }
   return null
 }
@@ -158,7 +248,7 @@ export function parseDanishReceiptText(ocrText: string): ParsedReceipt {
   const dateInfo = extractDate(normalized)
   const totalKr = extractTotal(lines)
   const lineItems = extractLineItems(lines)
-  const merchantGuess = firstLineMerchant(lines)
+  const merchantGuess = extractMerchant(lines, normalized)
   const vatRateGuess = extractVatRate(normalized)
 
   return {
