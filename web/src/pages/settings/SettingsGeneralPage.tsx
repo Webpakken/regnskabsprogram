@@ -6,11 +6,13 @@ import {
   isPostgresUniqueViolation,
   normalizeCvrDigits,
 } from '@/lib/cvr'
+import type { EntityType } from '@/lib/cvrLookup'
 
 export function SettingsGeneralPage() {
   const { currentCompany, refresh } = useApp()
   const [name, setName] = useState('')
   const [cvr, setCvr] = useState('')
+  const [entityType, setEntityType] = useState<EntityType>('virksomhed')
   const [street, setStreet] = useState('')
   const [postalCode, setPostalCode] = useState('')
   const [city, setCity] = useState('')
@@ -30,6 +32,7 @@ export function SettingsGeneralPage() {
     hydratedForCompanyId.current = currentCompany.id
     setName(currentCompany.name)
     setCvr(currentCompany.cvr ?? '')
+    setEntityType(currentCompany.entity_type ?? 'virksomhed')
     setStreet(currentCompany.street_address ?? '')
     setPostalCode(currentCompany.postal_code ?? '')
     setCity(currentCompany.city ?? '')
@@ -53,6 +56,7 @@ export function SettingsGeneralPage() {
       .update({
         name: name.trim(),
         cvr: cvrDigits,
+        entity_type: entityType,
         street_address: street.trim() || null,
         postal_code: postalCode.trim() || null,
         city: city.trim() || null,
@@ -112,6 +116,50 @@ export function SettingsGeneralPage() {
             onChange={(e) => setCvr(e.target.value)}
           />
         </div>
+        <fieldset>
+          <legend className="text-sm font-medium text-slate-700">Type</legend>
+          <p className="mt-1 text-xs text-slate-500">
+            Styrer fx om moms-fanen vises og hvilke indtægts-typer (tilskud, bevillinger, kontingent) der er tilgængelige.
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <label
+              className={
+                'flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ' +
+                (entityType === 'virksomhed'
+                  ? 'border-indigo-300 bg-indigo-50 text-indigo-950 ring-1 ring-indigo-200'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50')
+              }
+            >
+              <input
+                type="radio"
+                name="entity_type"
+                value="virksomhed"
+                checked={entityType === 'virksomhed'}
+                onChange={() => setEntityType('virksomhed')}
+                className="h-4 w-4 text-indigo-600"
+              />
+              <span className="font-medium">Virksomhed</span>
+            </label>
+            <label
+              className={
+                'flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ' +
+                (entityType === 'forening'
+                  ? 'border-indigo-300 bg-indigo-50 text-indigo-950 ring-1 ring-indigo-200'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50')
+              }
+            >
+              <input
+                type="radio"
+                name="entity_type"
+                value="forening"
+                checked={entityType === 'forening'}
+                onChange={() => setEntityType('forening')}
+                className="h-4 w-4 text-indigo-600"
+              />
+              <span className="font-medium">Forening</span>
+            </label>
+          </div>
+        </fieldset>
         <div>
           <label className="text-sm font-medium text-slate-700" htmlFor="sstreet">
             Adresse

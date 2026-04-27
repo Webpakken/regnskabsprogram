@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { lookupCVR } from '@/lib/cvrLookup'
+import { detectEntityTypeFromCvr, lookupCVR, type EntityType } from '@/lib/cvrLookup'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useApp, subscriptionOk } from '@/context/AppProvider'
@@ -29,6 +29,7 @@ export function OnboardingPage() {
   const checkoutResult = searchParams.get('checkout')
   const [name, setName] = useState('')
   const [cvr, setCvr] = useState('')
+  const [entityType, setEntityType] = useState<EntityType>('virksomhed')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [cvrLoading, setCvrLoading] = useState(false)
@@ -41,6 +42,7 @@ export function OnboardingPage() {
       const data = await lookupCVR(digits ?? cvr)
       if (data && data.name) {
         setName(data.name)
+        setEntityType(detectEntityTypeFromCvr(data))
       } else {
         setError('Ingen virksomhed fundet på dette CVR')
       }
@@ -100,6 +102,7 @@ export function OnboardingPage() {
     const { data: companyId, error: cErr } = await supabase.rpc('create_company_with_owner', {
       p_name: name.trim(),
       p_cvr: cvrDigits,
+      p_entity_type: entityType,
     })
     if (cErr || !companyId) {
       setBusy(false)
@@ -196,6 +199,57 @@ export function OnboardingPage() {
               </button>
             </div>
           </div>
+          <fieldset>
+            <legend className="text-sm font-medium text-slate-700">Type</legend>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <label
+                className={
+                  'flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2.5 text-sm ' +
+                  (entityType === 'virksomhed'
+                    ? 'border-indigo-300 bg-indigo-50 text-indigo-950 ring-1 ring-indigo-200'
+                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50')
+                }
+              >
+                <input
+                  type="radio"
+                  name="entity_type"
+                  value="virksomhed"
+                  checked={entityType === 'virksomhed'}
+                  onChange={() => setEntityType('virksomhed')}
+                  className="mt-0.5 h-4 w-4 text-indigo-600"
+                />
+                <span>
+                  <span className="block font-medium">Virksomhed</span>
+                  <span className="mt-0.5 block text-xs text-slate-500">
+                    Aps, A/S, enkeltmand m.fl. Bruger moms og kunde-fakturering.
+                  </span>
+                </span>
+              </label>
+              <label
+                className={
+                  'flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2.5 text-sm ' +
+                  (entityType === 'forening'
+                    ? 'border-indigo-300 bg-indigo-50 text-indigo-950 ring-1 ring-indigo-200'
+                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50')
+                }
+              >
+                <input
+                  type="radio"
+                  name="entity_type"
+                  value="forening"
+                  checked={entityType === 'forening'}
+                  onChange={() => setEntityType('forening')}
+                  className="mt-0.5 h-4 w-4 text-indigo-600"
+                />
+                <span>
+                  <span className="block font-medium">Forening</span>
+                  <span className="mt-0.5 block text-xs text-slate-500">
+                    Bruger tilskud, bevillinger og medlemskontingent. Typisk uden moms.
+                  </span>
+                </span>
+              </label>
+            </div>
+          </fieldset>
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
           <button
             type="submit"

@@ -34,6 +34,7 @@ export interface Database {
           id: string
           name: string
           cvr: string | null
+          entity_type: 'virksomhed' | 'forening'
           base_currency: string
           invoice_attach_pdf_to_email: boolean
           street_address: string | null
@@ -59,6 +60,7 @@ export interface Database {
           id?: string
           name: string
           cvr?: string | null
+          entity_type?: 'virksomhed' | 'forening'
           base_currency?: string
           invoice_attach_pdf_to_email?: boolean
           street_address?: string | null
@@ -81,6 +83,7 @@ export interface Database {
         Update: {
           name?: string
           cvr?: string | null
+          entity_type?: 'virksomhed' | 'forening'
           base_currency?: string
           invoice_attach_pdf_to_email?: boolean
           street_address?: string | null
@@ -922,7 +925,11 @@ export interface Database {
       get_my_platform_role: { Args: Record<string, never>; Returns: string | null }
       ensure_platform_smtp_profiles: { Args: Record<string, never>; Returns: undefined }
       create_company_with_owner: {
-        Args: { p_name: string; p_cvr?: string | null }
+        Args: {
+          p_name: string
+          p_cvr?: string | null
+          p_entity_type?: 'virksomhed' | 'forening'
+        }
         Returns: string
       }
       support_unread_staff_count: { Args: { p_company_id: string }; Returns: number }
