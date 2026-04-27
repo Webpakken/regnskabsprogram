@@ -1,6 +1,7 @@
-import { useState, type ReactElement } from 'react'
+import { useMemo, useState, type ReactElement } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
+import { useApp } from '@/context/AppProvider'
 import { useSupportUnread } from '@/context/SupportUnreadContext'
 
 type IconProps = { className?: string }
@@ -80,6 +81,16 @@ function PercentIcon({ className }: IconProps) {
   )
 }
 
+function CoinIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <ellipse cx="12" cy="6" rx="8" ry="3" />
+      <path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6" />
+      <path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
+    </svg>
+  )
+}
+
 function UsersIcon({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -91,9 +102,16 @@ function UsersIcon({ className }: IconProps) {
   )
 }
 
-const tabs = [
+const TABS_VIRKSOMHED = [
   { to: '/app/dashboard', label: 'Overblik', icon: HomeIcon },
   { to: '/app/invoices', label: 'Fakturaer', icon: InvoiceIcon },
+  { to: '/app/vouchers', label: 'Bilag', icon: ReceiptIcon },
+  { to: '/app/more', label: 'Mere', icon: MoreIcon },
+]
+
+const TABS_FORENING = [
+  { to: '/app/dashboard', label: 'Overblik', icon: HomeIcon },
+  { to: '/app/income', label: 'Indtægter', icon: CoinIcon },
   { to: '/app/vouchers', label: 'Bilag', icon: ReceiptIcon },
   { to: '/app/more', label: 'Mere', icon: MoreIcon },
 ]
@@ -112,6 +130,12 @@ export function MobileBottomNav() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const navigate = useNavigate()
   const { unreadCount } = useSupportUnread()
+  const { currentCompany } = useApp()
+  const isForening = currentCompany?.entity_type === 'forening'
+  const tabs = useMemo(
+    () => (isForening ? TABS_FORENING : TABS_VIRKSOMHED),
+    [isForening],
+  )
 
   function go(path: string) {
     setSheetOpen(false)
@@ -177,18 +201,28 @@ export function MobileBottomNav() {
                 label="Scan bilag"
                 onClick={() => go('/app/vouchers/scan')}
               />
-              <SheetTile
-                Icon={DocumentAddIcon}
-                label="Ny faktura"
-                onClick={() => go('/app/invoices/new')}
-              />
+              {isForening ? (
+                <SheetTile
+                  Icon={CoinIcon}
+                  label="Ny indtægt"
+                  onClick={() => go('/app/income')}
+                />
+              ) : (
+                <SheetTile
+                  Icon={DocumentAddIcon}
+                  label="Ny faktura"
+                  onClick={() => go('/app/invoices/new')}
+                />
+              )}
             </div>
             <div className="mt-3 grid gap-2">
-              <SheetRow
-                Icon={PercentIcon}
-                label="Moms-rapport"
-                onClick={() => go('/app/vat')}
-              />
+              {isForening ? null : (
+                <SheetRow
+                  Icon={PercentIcon}
+                  label="Moms-rapport"
+                  onClick={() => go('/app/vat')}
+                />
+              )}
               <SheetRow
                 Icon={UsersIcon}
                 label="Inviter medlem"

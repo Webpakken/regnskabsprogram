@@ -130,12 +130,12 @@ function ListIcon({ className }: IconProps) {
   )
 }
 
-function CoinIcon({ className }: { className?: string }) {
+function InvoiceIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <ellipse cx="12" cy="6" rx="8" ry="3" />
-      <path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6" />
-      <path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
+      <path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" />
+      <path d="M14 2v6h6" />
+      <path d="M8 13h8M8 17h6" />
     </svg>
   )
 }
@@ -147,12 +147,15 @@ type MoreItem = {
   onlyFor?: 'virksomhed' | 'forening'
 }
 
+// Bottom-nav viser allerede [Overblik, Fakturaer/Indtægter, Bilag, Mere], så vi
+// medtager ikke samme primærfane to steder. Foreninger får dog Fakturaer her, da
+// den er flyttet ud af bottom-nav'en for dem.
 const items: MoreItem[] = [
   { to: '/app/support', label: 'Support', icon: ChatIcon },
   { to: '/app/hjaelp', label: 'Hjælp & svar', icon: HelpIcon },
   { to: '/app/activity', label: 'Aktivitetslog', icon: ListIcon },
   { to: '/app/bank', label: 'Bank', icon: BankIcon },
-  { to: '/app/income', label: 'Indtægter', icon: CoinIcon, onlyFor: 'forening' },
+  { to: '/app/invoices', label: 'Fakturaer', icon: InvoiceIcon, onlyFor: 'forening' },
   { to: '/app/vat', label: 'Moms', icon: PercentIcon, onlyFor: 'virksomhed' },
   { to: '/app/members', label: 'Medlemmer', icon: UsersIcon },
   { to: '/app/settings', label: 'Indstillinger', icon: CogIcon },
