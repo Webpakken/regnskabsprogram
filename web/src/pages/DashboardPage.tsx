@@ -5,6 +5,9 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -29,13 +32,33 @@ import { activityDisplayTitle, activityLooksLikeCreditNote } from '@/lib/activit
 import { activityEventHref } from '@/lib/activityNavigation'
 import { AppPageLayout } from '@/components/AppPageLayout'
 import { CheckoutResultNotice } from '@/components/CheckoutResultNotice'
-import type { Database } from '@/types/database'
+import type { Database, IncomeKind } from '@/types/database'
 
 const DASHBOARD_ACTIVITY_PREVIEW = 7
 const INVOICE_FETCH_DAYS = 400
 
 type Invoice = Database['public']['Tables']['invoices']['Row']
 type Activity = Database['public']['Tables']['activity_events']['Row']
+type VoucherLite = { gross_cents: number; expense_date: string }
+type IncomeLite = { amount_cents: number; entry_date: string; kind: IncomeKind }
+
+const INCOME_KIND_LABEL: Record<IncomeKind, string> = {
+  kommunalt_tilskud: 'Kommunalt tilskud',
+  fondsbevilling: 'Fondsbevilling',
+  medlemskontingent: 'Kontingent',
+  donation: 'Donation',
+  event: 'Eventindtægt',
+  andet: 'Andet',
+}
+
+const INCOME_KIND_COLOR: Record<IncomeKind, string> = {
+  kommunalt_tilskud: '#4338ca', // indigo-700
+  fondsbevilling: '#7c3aed', // violet-600
+  medlemskontingent: '#059669', // emerald-600
+  donation: '#0891b2', // cyan-600
+  event: '#d97706', // amber-600
+  andet: '#64748b', // slate-500
+}
 
 type PeriodMode = 'month' | '30d'
 
@@ -124,10 +147,13 @@ export function DashboardPage() {
   const [searchParams] = useSearchParams()
   const checkoutResult = searchParams.get('checkout')
   const hasAccess = accessOk(currentCompany, subscription)
+  const isForening = currentCompany?.entity_type === 'forening'
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [openSentCents, setOpenSentCents] = useState(0)
   const [activity, setActivity] = useState<Activity[]>([])
   const [voucherCount, setVoucherCount] = useState(0)
+  const [vouchers, setVouchers] = useState<VoucherLite[]>([])
+  const [incomeEntries, setIncomeEntries] = useState<IncomeLite[]>([])
   const [loading, setLoading] = useState(true)
   const [periodMode, setPeriodMode] = useState<PeriodMode>('month')
 
@@ -143,7 +169,7 @@ export function DashboardPage() {
     void (async () => {
       setLoading(true)
       const { from, to } = copenhagenLastNDaysInclusive(INVOICE_FETCH_DAYS)
-      const [inv, openSent, act, vc] = await Promise.all([
+      const [inv, openSent, act, vc, vouchAmt, incomes] = await Promise.all([
         supabase
           .from('invoices')
           .select('*')
@@ -166,6 +192,18 @@ export function DashboardPage() {
           .from('vouchers')
           .select('id', { count: 'exact', head: true })
           .eq('company_id', currentCompany.id),
+        supabase
+          .from('vouchers')
+          .select('gross_cents, expense_date')
+          .eq('company_id', currentCompany.id)
+          .gte('expense_date', from)
+          .lte('expense_date', to),
+        supabase
+          .from('income_entries')
+          .select('amount_cents, entry_date, kind')
+          .eq('company_id', currentCompany.id)
+          .gte('entry_date', from)
+          .lte('entry_date', to),
       ])
       if (cancelled) return
       setInvoices(inv.data ?? [])
@@ -175,6 +213,8 @@ export function DashboardPage() {
       setOpenSentCents(openSum)
       setActivity(act.data ?? [])
       setVoucherCount(vc.count ?? 0)
+      setVouchers((vouchAmt.data ?? []) as VoucherLite[])
+      setIncomeEntries((incomes.data ?? []) as IncomeLite[])
       setLoading(false)
     })()
     return () => {
@@ -197,6 +237,88 @@ export function DashboardPage() {
     () => invoiceMetrics(periodInvoices),
     [periodInvoices],
   )
+
+  const periodVouchers = useMemo(() => {
+    const { from, to } = periodRange
+    return vouchers.filter((v) => v.expense_date >= from && v.expense_date <= to)
+  }, [vouchers, periodRange])
+
+  const periodIncome = useMemo(() => {
+    const { from, to } = periodRange
+    return incomeEntries.filter((i) => i.entry_date >= from && i.entry_date <= to)
+  }, [incomeEntries, periodRange])
+
+  const incomeCents = useMemo(
+    () => periodIncome.reduce((s, i) => s + i.amount_cents, 0),
+    [periodIncome],
+  )
+  const expenseCents = useMemo(
+    () => periodVouchers.reduce((s, v) => s + v.gross_cents, 0),
+    [periodVouchers],
+  )
+  const resultCents = incomeCents - expenseCents
+
+  const incomeByKind = useMemo(() => {
+    const map = new Map<IncomeKind, number>()
+    for (const e of periodIncome) {
+      map.set(e.kind, (map.get(e.kind) ?? 0) + e.amount_cents)
+    }
+    return [...map.entries()]
+      .map(([kind, value]) => ({ kind, value, label: INCOME_KIND_LABEL[kind] }))
+      .sort((a, b) => b.value - a.value)
+  }, [periodIncome])
+
+  /** Sparks for Indtægter / Udgifter / Resultat (4 chunks for periode). */
+  const foreningSparks = useMemo(() => {
+    const { from, to } = periodRange
+    const dates = eachCopenhagenYmdInRange(from, to)
+    const chunk = Math.max(1, Math.ceil(dates.length / 4))
+    const inc = [0, 0, 0, 0]
+    const exp = [0, 0, 0, 0]
+    const res = [0, 0, 0, 0]
+    for (const e of periodIncome) {
+      const idx = dates.indexOf(e.entry_date)
+      if (idx < 0) continue
+      const b = Math.min(3, Math.floor(idx / chunk))
+      inc[b] += e.amount_cents
+      res[b] += e.amount_cents
+    }
+    for (const v of periodVouchers) {
+      const idx = dates.indexOf(v.expense_date)
+      if (idx < 0) continue
+      const b = Math.min(3, Math.floor(idx / chunk))
+      exp[b] += v.gross_cents
+      res[b] -= v.gross_cents
+    }
+    return { inc, exp, res: res.map((v) => Math.abs(v)) }
+  }, [periodIncome, periodVouchers, periodRange])
+
+  /** Linje-data til "Indtægter vs udgifter pr. dag" for foreninger. */
+  const foreningChartData = useMemo(() => {
+    const { from, to } = periodRange
+    const incomeMap = new Map<string, number>()
+    const expenseMap = new Map<string, number>()
+    for (const key of eachCopenhagenYmdInRange(from, to)) {
+      incomeMap.set(key, 0)
+      expenseMap.set(key, 0)
+    }
+    for (const e of periodIncome) {
+      if (incomeMap.has(e.entry_date)) {
+        incomeMap.set(e.entry_date, (incomeMap.get(e.entry_date) ?? 0) + e.amount_cents)
+      }
+    }
+    for (const v of periodVouchers) {
+      if (expenseMap.has(v.expense_date)) {
+        expenseMap.set(v.expense_date, (expenseMap.get(v.expense_date) ?? 0) + v.gross_cents)
+      }
+    }
+    return [...incomeMap.keys()].map((date) => ({
+      date,
+      label: formatDate(date),
+      indtaegter: (incomeMap.get(date) ?? 0) / 100,
+      udgifter: (expenseMap.get(date) ?? 0) / 100,
+    }))
+  }, [periodIncome, periodVouchers, periodRange])
 
   const momsCalendarMonth = useMemo(() => {
     return invoices
@@ -323,47 +445,95 @@ export function DashboardPage() {
             </p>
           </div>
           <div className="grid divide-y divide-slate-100 md:grid-cols-3 md:divide-x md:divide-y-0">
-            <div className="flex flex-col gap-1 px-4 py-2.5 md:gap-3 md:p-8">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500 md:text-xs">
-                  Faktureret
-                </span>
-                <MiniBars values={sparks.inc} color={emerald} />
-              </div>
-              <div
-                className={`text-lg font-bold tabular-nums leading-tight tracking-tight sm:text-xl md:text-3xl ${signedAmountClass(invoicedPos)}`}
-              >
-                {formatDkk(invoicedPos)}
-              </div>
-            </div>
-            <div className="flex flex-col gap-1 px-4 py-2.5 md:gap-3 md:p-8">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500 md:text-xs">
-                  Kreditnotaer
-                </span>
-                <MiniBars values={sparks.cred} color={rose} />
-              </div>
-              <div
-                className={`text-lg font-bold tabular-nums leading-tight tracking-tight sm:text-xl md:text-3xl ${
-                  creditAbs > 0 ? 'text-rose-600' : 'text-slate-400'
-                }`}
-              >
-                {formatDkk(creditAbs)}
-              </div>
-            </div>
-            <div className="flex flex-col gap-1 px-4 py-2.5 md:gap-3 md:p-8">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500 md:text-xs">
-                  Netto
-                </span>
-                <MiniBars values={netSpark} color={slateBar} />
-              </div>
-              <div
-                className={`text-lg font-bold tabular-nums leading-tight tracking-tight sm:text-xl md:text-3xl ${signedAmountClass(net)}`}
-              >
-                {formatDkk(net)}
-              </div>
-            </div>
+            {isForening ? (
+              <>
+                <div className="flex flex-col gap-1 px-4 py-2.5 md:gap-3 md:p-8">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500 md:text-xs">
+                      Indtægter
+                    </span>
+                    <MiniBars values={foreningSparks.inc} color={emerald} />
+                  </div>
+                  <div
+                    className={`text-lg font-bold tabular-nums leading-tight tracking-tight sm:text-xl md:text-3xl ${signedAmountClass(incomeCents)}`}
+                  >
+                    {formatDkk(incomeCents)}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1 px-4 py-2.5 md:gap-3 md:p-8">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500 md:text-xs">
+                      Udgifter
+                    </span>
+                    <MiniBars values={foreningSparks.exp} color={rose} />
+                  </div>
+                  <div
+                    className={`text-lg font-bold tabular-nums leading-tight tracking-tight sm:text-xl md:text-3xl ${
+                      expenseCents > 0 ? 'text-rose-600' : 'text-slate-400'
+                    }`}
+                  >
+                    {formatDkk(expenseCents)}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1 px-4 py-2.5 md:gap-3 md:p-8">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500 md:text-xs">
+                      Resultat
+                    </span>
+                    <MiniBars values={foreningSparks.res} color={slateBar} />
+                  </div>
+                  <div
+                    className={`text-lg font-bold tabular-nums leading-tight tracking-tight sm:text-xl md:text-3xl ${signedAmountClass(resultCents)}`}
+                  >
+                    {formatDkk(resultCents)}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex flex-col gap-1 px-4 py-2.5 md:gap-3 md:p-8">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500 md:text-xs">
+                      Faktureret
+                    </span>
+                    <MiniBars values={sparks.inc} color={emerald} />
+                  </div>
+                  <div
+                    className={`text-lg font-bold tabular-nums leading-tight tracking-tight sm:text-xl md:text-3xl ${signedAmountClass(invoicedPos)}`}
+                  >
+                    {formatDkk(invoicedPos)}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1 px-4 py-2.5 md:gap-3 md:p-8">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500 md:text-xs">
+                      Kreditnotaer
+                    </span>
+                    <MiniBars values={sparks.cred} color={rose} />
+                  </div>
+                  <div
+                    className={`text-lg font-bold tabular-nums leading-tight tracking-tight sm:text-xl md:text-3xl ${
+                      creditAbs > 0 ? 'text-rose-600' : 'text-slate-400'
+                    }`}
+                  >
+                    {formatDkk(creditAbs)}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1 px-4 py-2.5 md:gap-3 md:p-8">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500 md:text-xs">
+                      Netto
+                    </span>
+                    <MiniBars values={netSpark} color={slateBar} />
+                  </div>
+                  <div
+                    className={`text-lg font-bold tabular-nums leading-tight tracking-tight sm:text-xl md:text-3xl ${signedAmountClass(net)}`}
+                  >
+                    {formatDkk(net)}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </section>
@@ -389,47 +559,126 @@ export function DashboardPage() {
       ) : null}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <DashTile
-          to="/app/invoices"
-          title="Til gode"
-          subtitle="Sendt, ikke betalt"
-          value={formatDkk(openSentCents)}
-          valueClass={signedAmountClass(openSentCents)}
-        />
-        <DashTile
-          to="/app/vat"
-          title="Moms"
-          subtitle="Fakturaer i måned"
-          value={formatDkk(momsCalendarMonth)}
-          valueClass={momsCalendarMonth > 0 ? 'text-rose-600' : momsCalendarMonth < 0 ? 'text-emerald-600' : 'text-slate-700'}
-        />
-        <DashTile
-          to="/app/invoices"
-          title="Fakturaer"
-          subtitle={periodMode === 'month' ? 'I valgt måned' : 'Seneste 30 dage'}
-          value={String(periodInvoices.filter((i) => i.status !== 'cancelled').length)}
-          valueClass="text-slate-900"
-        />
-        <DashTile
-          to="/app/vouchers"
-          title="Bilag"
-          subtitle="Uploadet i alt"
-          value={String(voucherCount)}
-          valueClass="text-slate-900"
-        />
+        {isForening ? (
+          <>
+            <DashTile
+              to="/app/income"
+              title="Indtægter"
+              subtitle={periodMode === 'month' ? 'Poster i valgt måned' : 'Seneste 30 dage'}
+              value={String(periodIncome.length)}
+              valueClass="text-slate-900"
+            />
+            <DashTile
+              to="/app/vouchers"
+              title="Udgifter"
+              subtitle={periodMode === 'month' ? 'Bilag i valgt måned' : 'Seneste 30 dage'}
+              value={String(periodVouchers.length)}
+              valueClass="text-slate-900"
+            />
+            <DashTile
+              to="/app/income"
+              title="Indtægter / md."
+              subtitle="Sum i denne måned"
+              value={formatDkk(incomeCents)}
+              valueClass={signedAmountClass(incomeCents)}
+            />
+            <DashTile
+              to="/app/vouchers"
+              title="Bilag"
+              subtitle="Uploadet i alt"
+              value={String(voucherCount)}
+              valueClass="text-slate-900"
+            />
+          </>
+        ) : (
+          <>
+            <DashTile
+              to="/app/invoices"
+              title="Til gode"
+              subtitle="Sendt, ikke betalt"
+              value={formatDkk(openSentCents)}
+              valueClass={signedAmountClass(openSentCents)}
+            />
+            <DashTile
+              to="/app/vat"
+              title="Moms"
+              subtitle="Fakturaer i måned"
+              value={formatDkk(momsCalendarMonth)}
+              valueClass={momsCalendarMonth > 0 ? 'text-rose-600' : momsCalendarMonth < 0 ? 'text-emerald-600' : 'text-slate-700'}
+            />
+            <DashTile
+              to="/app/invoices"
+              title="Fakturaer"
+              subtitle={periodMode === 'month' ? 'I valgt måned' : 'Seneste 30 dage'}
+              value={String(periodInvoices.filter((i) => i.status !== 'cancelled').length)}
+              valueClass="text-slate-900"
+            />
+            <DashTile
+              to="/app/vouchers"
+              title="Bilag"
+              subtitle="Uploadet i alt"
+              value={String(voucherCount)}
+              valueClass="text-slate-900"
+            />
+          </>
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8 lg:col-span-2">
           <h2 className="text-sm font-semibold text-slate-900">
-            Brutto pr. dag ({periodMode === 'month' ? `${monthTabLabel} ${yearLabel}` : '30 dage'})
+            {isForening
+              ? `Indtægter vs udgifter pr. dag (${periodMode === 'month' ? `${monthTabLabel} ${yearLabel}` : '30 dage'})`
+              : `Brutto pr. dag (${periodMode === 'month' ? `${monthTabLabel} ${yearLabel}` : '30 dage'})`}
           </h2>
-          <p className="mt-1 text-xs text-slate-500">Inkl. kreditnotaer (negative dage trækker fra)</p>
+          <p className="mt-1 text-xs text-slate-500">
+            {isForening
+              ? 'Grøn = indtægter, rosa = udgifter.'
+              : 'Inkl. kreditnotaer (negative dage trækker fra)'}
+          </p>
           <div className="mt-6 h-56 sm:h-64">
             {loading ? (
               <div className="flex h-full items-center justify-center text-slate-400">
                 Indlæser…
               </div>
+            ) : isForening ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={foreningChartData}>
+                  <defs>
+                    <linearGradient id="foreningIncome" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#059669" stopOpacity={0.32} />
+                      <stop offset="100%" stopColor="#059669" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="foreningExpense" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#e11d48" stopOpacity={0.28} />
+                      <stop offset="100%" stopColor="#e11d48" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="label" tick={{ fontSize: 10 }} stroke="#94a3b8" />
+                  <YAxis tick={{ fontSize: 10 }} stroke="#94a3b8" />
+                  <Tooltip
+                    formatter={(value, name) => [
+                      formatDkk(Math.round((typeof value === 'number' ? value : 0) * 100)),
+                      name === 'indtaegter' ? 'Indtægter' : 'Udgifter',
+                    ]}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="indtaegter"
+                    stroke="#059669"
+                    fill="url(#foreningIncome)"
+                    strokeWidth={2}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="udgifter"
+                    stroke="#e11d48"
+                    fill="url(#foreningExpense)"
+                    strokeWidth={2}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData}>
@@ -462,6 +711,68 @@ export function DashboardPage() {
             )}
           </div>
         </div>
+
+        <div className="space-y-6">
+          {isForening ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+              <h2 className="text-sm font-semibold text-slate-900">Indtægter pr. type</h2>
+              <p className="mt-1 text-xs text-slate-500">Fordeling i valgt periode</p>
+              {incomeByKind.length === 0 ? (
+                <p className="mt-6 py-8 text-center text-sm text-slate-500">
+                  Ingen indtægter i perioden.
+                </p>
+              ) : (
+                <>
+                  <div className="mt-4 h-44">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={incomeByKind}
+                          dataKey="value"
+                          nameKey="label"
+                          innerRadius={42}
+                          outerRadius={72}
+                          stroke="none"
+                        >
+                          {incomeByKind.map((entry) => (
+                            <Cell key={entry.kind} fill={INCOME_KIND_COLOR[entry.kind]} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(value) => [
+                            formatDkk(typeof value === 'number' ? value : 0),
+                            'Beløb',
+                          ]}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <ul className="mt-4 space-y-1.5 text-xs">
+                    {incomeByKind.map((entry) => {
+                      const pct = incomeCents > 0 ? (entry.value / incomeCents) * 100 : 0
+                      return (
+                        <li
+                          key={entry.kind}
+                          className="flex items-center justify-between gap-2"
+                        >
+                          <span className="flex items-center gap-2">
+                            <span
+                              className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                              style={{ backgroundColor: INCOME_KIND_COLOR[entry.kind] }}
+                            />
+                            <span className="font-medium text-slate-700">{entry.label}</span>
+                          </span>
+                          <span className="tabular-nums text-slate-600">
+                            {formatDkk(entry.value)} ({pct.toFixed(0)}%)
+                          </span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </>
+              )}
+            </div>
+          ) : null}
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
           <h2 className="text-sm font-semibold text-slate-900">Seneste aktivitet</h2>
@@ -544,6 +855,7 @@ export function DashboardPage() {
               </Link>
             </div>
           ) : null}
+        </div>
         </div>
       </div>
     </AppPageLayout>
