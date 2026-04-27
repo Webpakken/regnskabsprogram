@@ -9,8 +9,9 @@ import { supabase } from '@/lib/supabase'
 import { useApp } from '@/context/AppProvider'
 import { logActivity } from '@/lib/activity'
 import { formatDateOnly, formatDkk } from '@/lib/format'
-import { formatParsedNotes, parseDanishReceiptText } from '@/lib/receiptParse'
-import { canAttemptVoucherOcr, ocrImageOrPdfFile } from '@/lib/voucherOcr'
+import { formatParsedNotes } from '@/lib/receiptParse'
+import { canAttemptVoucherOcr } from '@/lib/voucherOcr'
+import { extractVoucherFromFile } from '@/lib/voucherExtractClient'
 import { VOUCHER_CATEGORY_OPTIONS, inferVoucherCategory } from '@/lib/voucherCategories'
 import { expenseLinkUrl, randomExpenseLinkToken, sha256Hex } from '@/lib/expenseLinks'
 import {
@@ -282,8 +283,7 @@ export function VouchersPage() {
 
     if (canOcr) {
       try {
-        const text = await ocrImageOrPdfFile(file, (p) => setOcrProgress(p))
-        const parsed = parseDanishReceiptText(text)
+        const parsed = await extractVoucherFromFile(file, (p) => setOcrProgress(p))
         notesForDb = formatParsedNotes(parsed)
         titleForDb = parsed.merchantGuess ?? titleForDb
         categoryForDb =
@@ -297,12 +297,16 @@ export function VouchersPage() {
         }
         if (parsed.totalKr != null) {
           grossKrForDb = parsed.totalKr.toFixed(2).replace('.', ',')
+        } else {
+          setOcrWarning(
+            'Beløbet kunne ikke aflæses automatisk. Bilaget er uploadet — klik på det i listen og indtast beløbet manuelt.',
+          )
         }
         if (parsed.vatRateGuess !== null) {
           vatRateForDb = String(parsed.vatRateGuess)
         }
       } catch (e) {
-        console.warn('[bilag OCR]', e)
+        console.warn('[bilag extract]', e)
         setOcrWarning(
           'Kunne ikke læse bilaget automatisk — det er uploadet; du kan tjekke beløb i listen eller bruge «Scan bilag» til kamera. HEIC: eksporter som JPEG hvis nødvendigt.',
         )
@@ -909,9 +913,15 @@ export function VouchersPage() {
                   <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
                     {dateStr}
                   </span>
-                  <span className="text-sm font-semibold text-slate-900">
-                    {v.gross_cents ? formatDkk(v.gross_cents) : '—'}
-                  </span>
+                  {v.gross_cents ? (
+                    <span className="text-sm font-semibold text-slate-900">
+                      {formatDkk(v.gross_cents)}
+                    </span>
+                  ) : (
+                    <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">
+                      Indtast beløb
+                    </span>
+                  )}
                 </div>
                 <p className="line-clamp-2 text-sm font-medium text-slate-800">{v.title ?? '—'}</p>
                 {reimbursement ? (
@@ -1140,7 +1150,13 @@ export function VouchersPage() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-right text-slate-800">
-                    {v.gross_cents ? formatDkk(v.gross_cents) : '—'}
+                    {v.gross_cents ? (
+                      formatDkk(v.gross_cents)
+                    ) : (
+                      <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">
+                        Indtast beløb
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right text-slate-600">
                     {v.vat_cents ? formatDkk(v.vat_cents) : '—'}

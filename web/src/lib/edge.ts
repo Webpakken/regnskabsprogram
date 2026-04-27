@@ -379,6 +379,60 @@ export async function invokeAuthPasswordReset(email: string) {
   return json
 }
 
+export type VoucherExtractionLineItem = {
+  description: string
+  amount_cents: number
+}
+
+export type VoucherExtractionResult = {
+  merchant: string | null
+  total_cents: number | null
+  vat_cents: number | null
+  net_cents: number | null
+  vat_rate: number | null
+  expense_date: string | null
+  currency: string | null
+  line_items: VoucherExtractionLineItem[]
+  confidence: number
+  notes: string | null
+}
+
+/**
+ * Bed AI om at læse bilag-billede (Claude Haiku 4.5 vision).
+ * Returnerer strukturerede felter (merchant, total, dato, moms, linjer).
+ */
+export async function invokeVoucherExtract(input: {
+  imageBase64: string
+  imageMimeType: string
+}): Promise<VoucherExtractionResult> {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const token = sessionData.session?.access_token
+  if (!token) throw new Error('Ikke logget ind')
+
+  const anon = import.meta.env.VITE_SUPABASE_ANON_KEY as string
+  const res = await fetch(fnUrl('voucher-extract'), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      apikey: anon,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      image_base64: input.imageBase64,
+      image_mime_type: input.imageMimeType,
+    }),
+  })
+  const json = (await res.json()) as {
+    ok?: boolean
+    result?: VoucherExtractionResult
+    error?: string
+  }
+  if (!res.ok || !json.result) {
+    throw new Error(json.error ?? 'AI-bilagslæsning fejlede')
+  }
+  return json.result
+}
+
 /** Opret konto og send bekræftelsesmail via Bilagos SMTP i stedet for Supabase-mailen. */
 export async function invokeAuthSignupConfirmation(input: {
   email: string

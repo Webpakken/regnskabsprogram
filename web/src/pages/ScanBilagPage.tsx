@@ -4,9 +4,12 @@ import { supabase } from '@/lib/supabase'
 import { useApp } from '@/context/AppProvider'
 import { logActivity } from '@/lib/activity'
 import { downscaleToCanvas, scoreDocumentPresence } from '@/lib/documentDetect'
-import { parseDanishReceiptText } from '@/lib/receiptParse'
-import { renderPdfFirstPageToCanvas } from '@/lib/pdfToCanvas'
-import { maxOcrDimension, ocrReceiptCanvas } from '@/lib/voucherOcr'
+import { maxOcrDimension } from '@/lib/voucherOcr'
+import {
+  extractVoucherFromCanvas,
+  extractVoucherFromFile,
+  type ExtractedVoucher,
+} from '@/lib/voucherExtractClient'
 import { VOUCHER_CATEGORY_OPTIONS, inferVoucherCategory } from '@/lib/voucherCategories'
 import type { Database } from '@/types/database'
 
@@ -76,9 +79,8 @@ export function ScanBilagPage() {
     }, [phase, documentFound, searching])
   const [ocrProgress, setOcrProgress] = useState(0)
   const [ocrText, setOcrText] = useState('')
-  const [parsed, setParsed] = useState<ReturnType<typeof parseDanishReceiptText> | null>(
-    null,
-  )
+  const [parsed, setParsed] = useState<ExtractedVoucher | null>(null)
+  const totalAutoDetected = parsed?.totalKr != null
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState('')
   const [expenseDate, setExpenseDate] = useState(() =>
@@ -249,9 +251,8 @@ export function ScanBilagPage() {
     stopCamera()
 
     try {
-      const text = await ocrReceiptCanvas(cap, (p) => setOcrProgress(p))
-      setOcrText(text)
-      const p = parseDanishReceiptText(text)
+      const p = await extractVoucherFromCanvas(cap, (pct) => setOcrProgress(pct))
+      setOcrText('')
       setParsed(p)
       setTitle(p.merchantGuess ?? 'Kvittering')
       setCategory(
@@ -264,7 +265,7 @@ export function ScanBilagPage() {
       setNotes('')
       setPhase('review')
     } catch (e) {
-      console.warn('[scan OCR]', e)
+      console.warn('[scan extract]', e)
       const raw = e instanceof Error ? e.message : String(e)
       const msg =
         raw.includes('invalid state') || raw.includes('InvalidStateError')
@@ -285,38 +286,16 @@ export function ScanBilagPage() {
     setOcrProgress(0)
     setSaveError(null)
     try {
-      let canvas: HTMLCanvasElement
-      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-        canvas = await renderPdfFirstPageToCanvas(file, 2.5)
-      } else {
-        const img = new Image()
-        const url = URL.createObjectURL(file)
-        await new Promise<void>((resolve, reject) => {
-          img.onload = () => resolve()
-          img.onerror = () => reject(new Error('Billede kunne ikke læses'))
-          img.src = url
-        })
-        canvas = document.createElement('canvas')
-        canvas.width = img.naturalWidth
-        canvas.height = img.naturalHeight
-        const ctx = canvas.getContext('2d')
-        if (!ctx) throw new Error('Canvas')
-        ctx.drawImage(img, 0, 0)
-        URL.revokeObjectURL(url)
-      }
-      const blob = await new Promise<Blob | null>((res) =>
-        canvas.toBlob((b) => res(b), 'image/jpeg', 0.92),
-      )
-      if (blob) {
-        const u = URL.createObjectURL(blob)
-        setPreviewUrl((prev) => {
-          if (prev) URL.revokeObjectURL(prev)
-          return u
-        })
-      }
-      const text = await ocrReceiptCanvas(canvas, (p) => setOcrProgress(p))
-      setOcrText(text)
-      const p = parseDanishReceiptText(text)
+      // Vis preview af det valgte billede mens vi venter på AI/OCR
+      const previewBlob = await file.arrayBuffer().then((b) => new Blob([b], { type: file.type }))
+      const u = URL.createObjectURL(previewBlob)
+      setPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev)
+        return u
+      })
+
+      const p = await extractVoucherFromFile(file, (pct) => setOcrProgress(pct))
+      setOcrText('')
       setParsed(p)
       setTitle(p.merchantGuess ?? file.name)
       setCategory(
@@ -465,10 +444,21 @@ export function ScanBilagPage() {
           />
           <label className="block text-sm font-medium text-slate-700">
             Beløb inkl. moms (kr.)
+            {parsed && !totalAutoDetected ? (
+              <span className="ml-1 text-xs font-normal text-amber-700">
+                — kunne ikke aflæses, indtast selv
+              </span>
+            ) : null}
           </label>
           <input
             inputMode="decimal"
-            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+            placeholder={parsed && !totalAutoDetected ? 'Fx 525,07' : ''}
+            className={
+              'w-full rounded-xl px-3 py-2 text-sm ' +
+              (parsed && !totalAutoDetected
+                ? 'border-2 border-amber-400 bg-amber-50 focus:border-amber-500 focus:outline-none'
+                : 'border border-slate-200')
+            }
             value={grossKr}
             onChange={(e) => setGrossKr(e.target.value)}
           />
