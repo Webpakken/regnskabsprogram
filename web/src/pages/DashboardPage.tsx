@@ -21,6 +21,7 @@ import {
   copenhagenYearMonth,
   eachCopenhagenYmdInRange,
   formatDate,
+  formatDateOnly,
   formatDkk,
   formatDateTime,
 } from '@/lib/format'
@@ -35,7 +36,7 @@ import { CheckoutResultNotice } from '@/components/CheckoutResultNotice'
 import type { Database, IncomeKind } from '@/types/database'
 
 const DASHBOARD_ACTIVITY_PREVIEW = 7
-const INVOICE_FETCH_DAYS = 400
+const INVOICE_FETCH_DAYS = 1825
 
 type Invoice = Database['public']['Tables']['invoices']['Row']
 type Activity = Database['public']['Tables']['activity_events']['Row']
@@ -60,7 +61,7 @@ const INCOME_KIND_COLOR: Record<IncomeKind, string> = {
   andet: '#64748b', // slate-500
 }
 
-type PeriodMode = 'month' | '30d'
+type PeriodMode = 'month' | 'ytd' | 'all'
 
 function monthRangeYm(ym: string): { from: string; to: string } {
   const from = `${ym}-01`
@@ -223,10 +224,40 @@ export function DashboardPage() {
   }, [currentCompany])
 
   const ym = copenhagenYearMonth()
+  const today = useMemo(() => copenhagenLastNDaysInclusive(1).to, [])
   const periodRange = useMemo(() => {
-    if (periodMode === '30d') return copenhagenLastNDaysInclusive(30)
+    if (periodMode === 'ytd') {
+      const year = ym.slice(0, 4)
+      return { from: `${year}-01-01`, to: today }
+    }
+    if (periodMode === 'all') {
+      return { from: '2000-01-01', to: today }
+    }
     return monthRangeYm(ym)
+  }, [periodMode, ym, today])
+
+  const periodLabel = useMemo(() => {
+    if (periodMode === 'ytd') {
+      return `År til dato (${ym.slice(0, 4)})`
+    }
+    if (periodMode === 'all') {
+      return 'Hele tiden'
+    }
+    const monthLong = new Intl.DateTimeFormat('da-DK', {
+      timeZone: APP_TIMEZONE,
+      month: 'long',
+      year: 'numeric',
+    }).format(new Date(Date.UTC(parseInt(ym.slice(0, 4), 10), parseInt(ym.slice(5, 7), 10) - 1, 15, 12, 0, 0)))
+    return monthLong.charAt(0).toUpperCase() + monthLong.slice(1)
   }, [periodMode, ym])
+
+  const periodSubLabel = useMemo(() => {
+    const { from, to } = periodRange
+    if (periodMode === 'all') {
+      return `Til og med ${formatDateOnly(to)}`
+    }
+    return `${formatDateOnly(from)} – ${formatDateOnly(to)}`
+  }, [periodMode, periodRange])
 
   const periodInvoices = useMemo(() => {
     const { from, to } = periodRange
@@ -237,6 +268,17 @@ export function DashboardPage() {
     () => invoiceMetrics(periodInvoices),
     [periodInvoices],
   )
+
+  const { positiveInvoiceCount, negativeInvoiceCount } = useMemo(() => {
+    let pos = 0
+    let neg = 0
+    for (const i of periodInvoices) {
+      if (i.status === 'cancelled') continue
+      if (i.gross_cents > 0) pos += 1
+      else if (i.gross_cents < 0) neg += 1
+    }
+    return { positiveInvoiceCount: pos, negativeInvoiceCount: neg }
+  }, [periodInvoices])
 
   const periodVouchers = useMemo(() => {
     const { from, to } = periodRange
@@ -369,10 +411,6 @@ export function DashboardPage() {
   }, [periodInvoices, periodRange])
 
   const monthTabLabel = monthNameShort(ym)
-  const yearLabel = useMemo(() => {
-    const y = parseInt(ym.slice(0, 4), 10)
-    return `${y}`
-  }, [ym])
 
   if (!currentCompany) {
     return (
@@ -401,14 +439,18 @@ export function DashboardPage() {
             <p className="text-lg font-semibold tracking-tight text-slate-900 md:text-xl">
               {currentCompany.name}
             </p>
-            <p className="mt-0.5 text-sm text-slate-500">Beløb og udvikling for valgt periode</p>
+            <p className="mt-1 text-sm text-slate-600">
+              <span className="text-slate-500">Viser data for: </span>
+              <span className="font-semibold text-slate-900">{periodLabel}</span>
+              <span className="text-slate-500"> · {periodSubLabel}</span>
+            </p>
           </div>
           <div className="flex w-full shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-1 sm:w-auto">
             <button
               type="button"
               onClick={() => setPeriodMode('month')}
               className={clsx(
-                'min-h-[40px] flex-1 rounded-md px-4 py-2 text-center text-xs font-semibold transition sm:flex-none',
+                'min-h-[40px] flex-1 rounded-md px-3 py-2 text-center text-xs font-semibold transition sm:flex-none sm:px-4',
                 periodMode === 'month'
                   ? 'bg-indigo-600 text-white shadow-sm'
                   : 'text-slate-600 hover:bg-white/90 hover:text-slate-900',
@@ -418,15 +460,27 @@ export function DashboardPage() {
             </button>
             <button
               type="button"
-              onClick={() => setPeriodMode('30d')}
+              onClick={() => setPeriodMode('ytd')}
               className={clsx(
-                'min-h-[40px] flex-1 rounded-md px-4 py-2 text-center text-xs font-semibold transition sm:flex-none',
-                periodMode === '30d'
+                'min-h-[40px] flex-1 rounded-md px-3 py-2 text-center text-xs font-semibold transition sm:flex-none sm:px-4',
+                periodMode === 'ytd'
                   ? 'bg-indigo-600 text-white shadow-sm'
                   : 'text-slate-600 hover:bg-white/90 hover:text-slate-900',
               )}
             >
-              30 dage
+              År til dato
+            </button>
+            <button
+              type="button"
+              onClick={() => setPeriodMode('all')}
+              className={clsx(
+                'min-h-[40px] flex-1 rounded-md px-3 py-2 text-center text-xs font-semibold transition sm:flex-none sm:px-4',
+                periodMode === 'all'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-white/90 hover:text-slate-900',
+              )}
+            >
+              Hele tiden
             </button>
           </div>
         </div>
@@ -459,6 +513,9 @@ export function DashboardPage() {
                   >
                     {formatDkk(incomeCents)}
                   </div>
+                  <p className="text-[11px] text-slate-500 md:text-xs">
+                    Baseret på {periodIncome.length} {periodIncome.length === 1 ? 'indtægt' : 'indtægter'}
+                  </p>
                 </div>
                 <div className="flex flex-col gap-1 px-4 py-2.5 md:gap-3 md:p-8">
                   <div className="flex items-center justify-between gap-2">
@@ -474,6 +531,9 @@ export function DashboardPage() {
                   >
                     {formatDkk(expenseCents)}
                   </div>
+                  <p className="text-[11px] text-slate-500 md:text-xs">
+                    Baseret på {periodVouchers.length} {periodVouchers.length === 1 ? 'bilag' : 'bilag'}
+                  </p>
                 </div>
                 <div className="flex flex-col gap-1 px-4 py-2.5 md:gap-3 md:p-8">
                   <div className="flex items-center justify-between gap-2">
@@ -487,6 +547,9 @@ export function DashboardPage() {
                   >
                     {formatDkk(resultCents)}
                   </div>
+                  <p className="text-[11px] text-slate-500 md:text-xs">
+                    Indtægter − udgifter
+                  </p>
                 </div>
               </>
             ) : (
@@ -503,6 +566,9 @@ export function DashboardPage() {
                   >
                     {formatDkk(invoicedPos)}
                   </div>
+                  <p className="text-[11px] text-slate-500 md:text-xs">
+                    {positiveInvoiceCount} {positiveInvoiceCount === 1 ? 'faktura' : 'fakturaer'}
+                  </p>
                 </div>
                 <div className="flex flex-col gap-1 px-4 py-2.5 md:gap-3 md:p-8">
                   <div className="flex items-center justify-between gap-2">
@@ -518,6 +584,9 @@ export function DashboardPage() {
                   >
                     {formatDkk(creditAbs)}
                   </div>
+                  <p className="text-[11px] text-slate-500 md:text-xs">
+                    {negativeInvoiceCount} {negativeInvoiceCount === 1 ? 'kreditnota' : 'kreditnotaer'}
+                  </p>
                 </div>
                 <div className="flex flex-col gap-1 px-4 py-2.5 md:gap-3 md:p-8">
                   <div className="flex items-center justify-between gap-2">
@@ -531,6 +600,9 @@ export function DashboardPage() {
                   >
                     {formatDkk(net)}
                   </div>
+                  <p className="text-[11px] text-slate-500 md:text-xs">
+                    Faktureret − kreditnotaer
+                  </p>
                 </div>
               </>
             )}
@@ -564,23 +636,26 @@ export function DashboardPage() {
             <DashTile
               to="/app/income"
               title="Indtægter"
-              subtitle={periodMode === 'month' ? 'Poster i valgt måned' : 'Seneste 30 dage'}
+              subtitle="Poster i valgt periode"
               value={String(periodIncome.length)}
               valueClass="text-slate-900"
+              scope="periode"
             />
             <DashTile
               to="/app/vouchers"
               title="Udgifter"
-              subtitle={periodMode === 'month' ? 'Bilag i valgt måned' : 'Seneste 30 dage'}
+              subtitle="Bilag i valgt periode"
               value={String(periodVouchers.length)}
               valueClass="text-slate-900"
+              scope="periode"
             />
             <DashTile
               to="/app/income"
-              title="Indtægter / md."
-              subtitle="Sum i denne måned"
+              title="Indtægter"
+              subtitle="Sum i valgt periode"
               value={formatDkk(incomeCents)}
               valueClass={signedAmountClass(incomeCents)}
+              scope="periode"
             />
             <DashTile
               to="/app/vouchers"
@@ -588,6 +663,7 @@ export function DashboardPage() {
               subtitle="Uploadet i alt"
               value={String(voucherCount)}
               valueClass="text-slate-900"
+              scope="total"
             />
           </>
         ) : (
@@ -598,20 +674,23 @@ export function DashboardPage() {
               subtitle="Sendt, ikke betalt"
               value={formatDkk(openSentCents)}
               valueClass={signedAmountClass(openSentCents)}
+              scope="total"
             />
             <DashTile
               to="/app/vat"
               title="Moms"
-              subtitle="Fakturaer i måned"
+              subtitle="Fakturaer i indeværende måned"
               value={formatDkk(momsCalendarMonth)}
               valueClass={momsCalendarMonth > 0 ? 'text-rose-600' : momsCalendarMonth < 0 ? 'text-emerald-600' : 'text-slate-700'}
+              scope="måned"
             />
             <DashTile
               to="/app/invoices"
               title="Fakturaer"
-              subtitle={periodMode === 'month' ? 'I valgt måned' : 'Seneste 30 dage'}
+              subtitle="I valgt periode"
               value={String(periodInvoices.filter((i) => i.status !== 'cancelled').length)}
               valueClass="text-slate-900"
+              scope="periode"
             />
             <DashTile
               to="/app/vouchers"
@@ -619,6 +698,7 @@ export function DashboardPage() {
               subtitle="Uploadet i alt"
               value={String(voucherCount)}
               valueClass="text-slate-900"
+              scope="total"
             />
           </>
         )}
@@ -628,8 +708,8 @@ export function DashboardPage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8 lg:col-span-2">
           <h2 className="text-sm font-semibold text-slate-900">
             {isForening
-              ? `Indtægter vs udgifter pr. dag (${periodMode === 'month' ? `${monthTabLabel} ${yearLabel}` : '30 dage'})`
-              : `Brutto pr. dag (${periodMode === 'month' ? `${monthTabLabel} ${yearLabel}` : '30 dage'})`}
+              ? `Indtægter vs udgifter pr. dag (${periodLabel})`
+              : `Brutto pr. dag (${periodLabel})`}
           </h2>
           <p className="mt-1 text-xs text-slate-500">
             {isForening
@@ -868,13 +948,23 @@ function DashTile({
   subtitle,
   value,
   valueClass,
+  scope,
 }: {
   to: string
   title: string
   subtitle: string
   value: string
   valueClass: string
+  scope: 'periode' | 'total' | 'måned'
 }) {
+  const scopeStyle =
+    scope === 'periode'
+      ? 'bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-100'
+      : scope === 'måned'
+        ? 'bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-100'
+        : 'bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200'
+  const scopeLabel =
+    scope === 'periode' ? 'Periode' : scope === 'måned' ? 'Denne måned' : 'Total'
   return (
     <Link
       to={to}
@@ -884,7 +974,12 @@ function DashTile({
         <span className="text-sm font-semibold text-slate-900">{title}</span>
         <span className="text-slate-300 group-hover:text-indigo-600">›</span>
       </div>
-      <div className="mt-1.5 text-xs leading-relaxed text-slate-500">{subtitle}</div>
+      <div className="mt-1.5 flex items-center gap-2">
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${scopeStyle}`}>
+          {scopeLabel}
+        </span>
+        <span className="text-xs leading-relaxed text-slate-500">{subtitle}</span>
+      </div>
       <div className={`mt-4 text-lg font-bold tabular-nums leading-tight md:text-xl ${valueClass}`}>
         {value}
       </div>
