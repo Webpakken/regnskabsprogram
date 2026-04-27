@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { AppPageLayout } from '@/components/AppPageLayout'
+import { InvoicePdfCanvasViewer } from '@/components/InvoicePdfCanvasViewer'
 import { SortableTh } from '@/components/SortableTh'
 import { nextColumnSortState, type ColumnSortDir } from '@/lib/tableSort'
 import { DesktopListCardsToggle } from '@/components/DesktopListCardsToggle'
@@ -116,6 +117,7 @@ export function VouchersPage() {
   const [creatingExpenseLink, setCreatingExpenseLink] = useState(false)
   const [expenseLink, setExpenseLink] = useState<string | null>(null)
   const [projectOverviewOpen, setProjectOverviewOpen] = useState(false)
+  const [preview, setPreview] = useState<{ voucher: Voucher; url: string } | null>(null)
 
   const canDeleteVoucher = canWriterDeleteVouchers(currentRole)
   const featureGateKnown = billingEntitlements.length > 0
@@ -588,7 +590,6 @@ export function VouchersPage() {
 
   async function openSigned(v: Voucher) {
     setError(null)
-    let url: string
     try {
       const { data, error: err } = await supabase.storage
         .from('vouchers')
@@ -597,15 +598,10 @@ export function VouchersPage() {
         setError(err?.message ?? 'Kunne ikke åbne fil')
         return
       }
-      url = data.signedUrl
+      setPreview({ voucher: v, url: data.signedUrl })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Kunne ikke åbne fil')
-      return
     }
-    const w = window.open(url, '_blank', 'noopener,noreferrer')
-    if (w) return
-    // Pop op blokeret: åbn i samme fane så brugeren ikke får en tom fane
-    window.location.assign(url)
   }
 
   if (!currentCompany) {
@@ -1189,7 +1185,97 @@ export function VouchersPage() {
           </tbody>
         </table>
       </div>
+      {preview ? (
+        <VoucherPreviewModal
+          voucher={preview.voucher}
+          url={preview.url}
+          onClose={() => setPreview(null)}
+        />
+      ) : null}
       </AppPageLayout>
+    </div>
+  )
+}
+
+function VoucherPreviewModal({
+  voucher,
+  url,
+  onClose,
+}: {
+  voucher: Voucher
+  url: string
+  onClose: () => void
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const mime = voucher.mime_type ?? ''
+  const isImage =
+    mime.startsWith('image/') || /\.(png|jpe?g|gif|webp|heic|heif)$/i.test(voucher.storage_path)
+
+  return (
+    <div
+      role="dialog"
+      aria-modal
+      onClick={onClose}
+      className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/70 p-4"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+      >
+        <header className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+          <h2 className="truncate text-base font-semibold text-slate-900">
+            {voucher.title ?? 'Bilag'}
+          </h2>
+          <div className="flex items-center gap-3">
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-medium text-indigo-600 hover:underline"
+            >
+              Åbn i ny fane
+            </a>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Luk forhåndsvisning"
+              className="rounded-full p-1 text-slate-500 hover:bg-slate-100"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M18 6 6 18" />
+                <path d="m6 6 12 12" />
+              </svg>
+            </button>
+          </div>
+        </header>
+        <div className="flex-1 overflow-auto bg-slate-100">
+          {isImage ? (
+            <img
+              src={url}
+              alt={voucher.title ?? 'Bilag'}
+              className="mx-auto block max-h-[80vh] object-contain"
+            />
+          ) : (
+            <InvoicePdfCanvasViewer pdfUrl={url} title={voucher.title ?? 'Bilag'} />
+          )}
+        </div>
+      </div>
     </div>
   )
 }
