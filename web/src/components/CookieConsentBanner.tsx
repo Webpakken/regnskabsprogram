@@ -37,12 +37,12 @@ export function CookieConsentBanner() {
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-[200] border-t border-slate-200 bg-white/95 px-4 py-4 shadow-[0_-8px_30px_rgba(0,0,0,0.12)] backdrop-blur-sm pb-[max(1rem,env(safe-area-inset-bottom))]"
+      className="fixed inset-x-0 bottom-0 z-[200] border-t border-slate-200 bg-white/95 px-6 py-4 shadow-[0_-8px_30px_rgba(0,0,0,0.12)] backdrop-blur-sm pb-[max(1rem,env(safe-area-inset-bottom))]"
       role="dialog"
       aria-labelledby="cookie-consent-title"
       aria-modal="false"
     >
-      <div className="mx-auto flex max-w-3xl flex-col gap-3 text-sm text-slate-700">
+      <div className="mx-auto flex max-w-6xl flex-col gap-3 text-sm text-slate-700">
         <h2 id="cookie-consent-title" className="text-base font-semibold text-slate-900">
           Cookies og dit samtykke
         </h2>
