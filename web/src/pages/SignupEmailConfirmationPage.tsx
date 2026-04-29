@@ -48,18 +48,12 @@ export function SignupEmailConfirmationPage() {
           Linket kan nogle gange lande i spam eller uønsket mail. Hold denne side åben, eller åbn
           bekræftelseslinket direkte fra mailen.
         </p>
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+        <div className="mt-6">
           <Link
             to="/login"
-            className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700"
+            className="inline-flex min-h-[44px] w-full items-center justify-center rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700"
           >
             Gå til login
-          </Link>
-          <Link
-            to="/signup"
-            className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
-            Brug anden e-mail
           </Link>
         </div>
       </div>

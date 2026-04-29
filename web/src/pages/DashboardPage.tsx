@@ -756,6 +756,7 @@ export function DashboardPage() {
                     stroke="#059669"
                     fill="url(#foreningIncome)"
                     strokeWidth={2}
+                    isAnimationActive={false}
                   />
                   <Area
                     type="monotone"
@@ -763,6 +764,7 @@ export function DashboardPage() {
                     stroke="#e11d48"
                     fill="url(#foreningExpense)"
                     strokeWidth={2}
+                    isAnimationActive={false}
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -792,6 +794,7 @@ export function DashboardPage() {
                     stroke="#4338ca"
                     fill="url(#bilagoDashArea)"
                     strokeWidth={2}
+                    isAnimationActive={false}
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -820,6 +823,7 @@ export function DashboardPage() {
                           innerRadius={42}
                           outerRadius={72}
                           stroke="none"
+                          isAnimationActive={false}
                         >
                           {incomeByKind.map((entry) => (
                             <Cell key={entry.kind} fill={INCOME_KIND_COLOR[entry.kind]} />

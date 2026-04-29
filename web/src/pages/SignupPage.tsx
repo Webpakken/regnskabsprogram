@@ -8,6 +8,7 @@ import { PasswordInput } from '@/components/PasswordInput'
 import { translateAuthErrorDa } from '@/lib/authErrors'
 import { validateSignupPassword } from '@/lib/passwordPolicy'
 import { formatKrPerMonth } from '@/lib/format'
+import { ButtonSpinner } from '@/lib/useStripeCheckoutLauncher'
 
 type SignupPlan = {
   slug: string
@@ -197,8 +198,9 @@ export function SignupPage() {
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
           >
+            {busy ? <ButtonSpinner /> : null}
             {busy ? 'Opretter…' : 'Opret konto'}
           </button>
         </form>
