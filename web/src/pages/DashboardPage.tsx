@@ -19,6 +19,8 @@ import {
   APP_TIMEZONE,
   copenhagenLastNDaysInclusive,
   copenhagenYearMonth,
+  copenhagenYmd,
+  daysBetweenYmd,
   eachCopenhagenYmdInRange,
   formatDate,
   formatDateOnly,
@@ -107,15 +109,15 @@ function sparkFourParts(
   to: string,
   mode: 'positive' | 'negative_abs',
 ): number[] {
-  const dates = eachCopenhagenYmdInRange(from, to)
-  if (dates.length === 0) return [0, 0, 0, 0]
-  const chunk = Math.ceil(dates.length / 4)
+  const totalDays = daysBetweenYmd(from, to) + 1
+  if (totalDays <= 0) return [0, 0, 0, 0]
+  const chunk = Math.max(1, Math.ceil(totalDays / 4))
   const buckets = [0, 0, 0, 0]
-  const active = rows.filter((i) => i.status !== 'cancelled')
-  for (const inv of active) {
-    const idx = dates.indexOf(inv.issue_date)
-    if (idx < 0) continue
-    const b = Math.min(3, Math.floor(idx / chunk))
+  for (const inv of rows) {
+    if (inv.status === 'cancelled') continue
+    const d = daysBetweenYmd(from, inv.issue_date)
+    if (d < 0 || d >= totalDays) continue
+    const b = Math.min(3, Math.floor(d / chunk))
     const g = inv.gross_cents
     if (mode === 'positive' && g > 0) buckets[b] += g
     if (mode === 'negative_abs' && g < 0) buckets[b] += -g
@@ -126,7 +128,7 @@ function sparkFourParts(
 function MiniBars({ values, color }: { values: number[]; color: string }) {
   const max = Math.max(...values, 1)
   return (
-    <div className="flex h-8 w-10 shrink-0 items-end justify-end gap-0.5 md:h-12 md:w-14 md:gap-1">
+    <div className="flex h-8 w-10 shrink-0 items-end justify-center gap-0.5 md:h-12 md:w-14 md:gap-1">
       {values.map((v, i) => (
         <div
           key={i}
@@ -225,16 +227,20 @@ export function DashboardPage() {
 
   const ym = copenhagenYearMonth()
   const today = useMemo(() => copenhagenLastNDaysInclusive(1).to, [])
+  const companyCreatedYmd = useMemo(
+    () => (currentCompany ? copenhagenYmd(new Date(currentCompany.created_at)) : today),
+    [currentCompany, today],
+  )
   const periodRange = useMemo(() => {
     if (periodMode === 'ytd') {
       const year = ym.slice(0, 4)
       return { from: `${year}-01-01`, to: today }
     }
     if (periodMode === 'all') {
-      return { from: '2000-01-01', to: today }
+      return { from: companyCreatedYmd, to: today }
     }
     return monthRangeYm(ym)
-  }, [periodMode, ym, today])
+  }, [periodMode, ym, today, companyCreatedYmd])
 
   const periodLabel = useMemo(() => {
     if (periodMode === 'ytd') {
@@ -313,22 +319,22 @@ export function DashboardPage() {
   /** Sparks for Indtægter / Udgifter / Resultat (4 chunks for periode). */
   const foreningSparks = useMemo(() => {
     const { from, to } = periodRange
-    const dates = eachCopenhagenYmdInRange(from, to)
-    const chunk = Math.max(1, Math.ceil(dates.length / 4))
+    const totalDays = daysBetweenYmd(from, to) + 1
+    const chunk = Math.max(1, Math.ceil(totalDays / 4))
     const inc = [0, 0, 0, 0]
     const exp = [0, 0, 0, 0]
     const res = [0, 0, 0, 0]
     for (const e of periodIncome) {
-      const idx = dates.indexOf(e.entry_date)
-      if (idx < 0) continue
-      const b = Math.min(3, Math.floor(idx / chunk))
+      const d = daysBetweenYmd(from, e.entry_date)
+      if (d < 0 || d >= totalDays) continue
+      const b = Math.min(3, Math.floor(d / chunk))
       inc[b] += e.amount_cents
       res[b] += e.amount_cents
     }
     for (const v of periodVouchers) {
-      const idx = dates.indexOf(v.expense_date)
-      if (idx < 0) continue
-      const b = Math.min(3, Math.floor(idx / chunk))
+      const d = daysBetweenYmd(from, v.expense_date)
+      if (d < 0 || d >= totalDays) continue
+      const b = Math.min(3, Math.floor(d / chunk))
       exp[b] += v.gross_cents
       res[b] -= v.gross_cents
     }
@@ -397,14 +403,15 @@ export function DashboardPage() {
 
   const netSpark = useMemo(() => {
     const { from, to } = periodRange
-    const dates = eachCopenhagenYmdInRange(from, to)
-    if (dates.length === 0) return [0, 0, 0, 0]
-    const chunk = Math.ceil(dates.length / 4)
+    const totalDays = daysBetweenYmd(from, to) + 1
+    if (totalDays <= 0) return [0, 0, 0, 0]
+    const chunk = Math.max(1, Math.ceil(totalDays / 4))
     const buckets = [0, 0, 0, 0]
-    for (const inv of periodInvoices.filter((i) => i.status !== 'cancelled')) {
-      const idx = dates.indexOf(inv.issue_date)
-      if (idx < 0) continue
-      const b = Math.min(3, Math.floor(idx / chunk))
+    for (const inv of periodInvoices) {
+      if (inv.status === 'cancelled') continue
+      const d = daysBetweenYmd(from, inv.issue_date)
+      if (d < 0 || d >= totalDays) continue
+      const b = Math.min(3, Math.floor(d / chunk))
       buckets[b] += inv.gross_cents
     }
     return buckets.map((v) => Math.abs(v))

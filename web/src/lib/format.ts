@@ -43,26 +43,31 @@ export function copenhagenLastNDaysInclusive(n: number): { from: string; to: str
   return { from, to }
 }
 
-/** Alle YYYY-MM-DD fra from til to (inkl.) i rækkefølge, baseret på CPH-midddags-instanter. */
+/** Alle YYYY-MM-DD fra from til to (inkl.) i rækkefølge. */
 export function eachCopenhagenYmdInRange(from: string, to: string): string[] {
   const [fy, fm, fd] = from.split('-').map(Number)
   const [ty, tm, td] = to.split('-').map(Number)
-  let cur = new Date(Date.UTC(fy, fm - 1, fd, 12, 0, 0))
-  const end = new Date(Date.UTC(ty, tm - 1, td, 12, 0, 0))
-  const out: string[] = []
-  while (cur <= end) {
-    out.push(
-      new Intl.DateTimeFormat('en-CA', {
-        timeZone: APP_TIMEZONE,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      }).format(cur),
-    )
-    cur = new Date(cur)
-    cur.setUTCDate(cur.getUTCDate() + 1)
+  const startMs = Date.UTC(fy, fm - 1, fd)
+  const endMs = Date.UTC(ty, tm - 1, td)
+  if (endMs < startMs) return []
+  const days = Math.round((endMs - startMs) / 86_400_000) + 1
+  const out: string[] = new Array(days)
+  const cur = new Date(startMs)
+  for (let i = 0; i < days; i++) {
+    const y = cur.getUTCFullYear()
+    const m = cur.getUTCMonth() + 1
+    const d = cur.getUTCDate()
+    out[i] = `${y}-${m < 10 ? '0' + m : m}-${d < 10 ? '0' + d : d}`
+    cur.setUTCDate(d + 1)
   }
   return out
+}
+
+/** Antal kalenderdage fra `from` til `to` (begge YYYY-MM-DD). Negativ hvis to < from. */
+export function daysBetweenYmd(from: string, to: string): number {
+  const [fy, fm, fd] = from.split('-').map(Number)
+  const [ty, tm, td] = to.split('-').map(Number)
+  return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86_400_000)
 }
 
 function parseForDisplay(iso: string): Date {
