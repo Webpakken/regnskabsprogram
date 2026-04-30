@@ -131,7 +131,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAalNeedsUpgrade(needsUpgrade)
     if (needsUpgrade) {
       // Stop her — ProtectedRoute viderestiller til /login/2fa.
-      shouldBlockUiForAuthLoad.current = false
+      // Bevar `shouldBlockUiForAuthLoad=true` så næste load (efter MFA-verify) viser
+      // "Indlæser…" mens companies/profile hentes — ellers flasher HomeRedirect /onboarding.
       setLoading(false)
       return
     }
