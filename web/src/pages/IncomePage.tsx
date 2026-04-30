@@ -436,24 +436,25 @@ export function IncomePage() {
         </p>
       ) : null}
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <input
-            type="search"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Søg i kilde, øremærkning, type, beløb…"
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 sm:max-w-md"
-          />
-          <div className="flex flex-wrap gap-2 text-sm">
-            <span className="rounded-full bg-slate-100 px-3 py-1.5 font-medium text-slate-700">
-              {filteredTotalCount} {filteredTotalCount === 1 ? 'post' : 'poster'}
-            </span>
-            <span className="rounded-full bg-slate-100 px-3 py-1.5 font-medium text-slate-700">
-              {formatDkk(filteredTotalCents)}
-            </span>
-          </div>
-        </div>
+      <label className="block">
+        <span className="sr-only">Søg i indtægter</span>
+        <input
+          type="search"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Søg i kilde, øremærkning, type, beløb…"
+          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+          autoComplete="off"
+        />
+      </label>
+
+      <div className="flex flex-wrap gap-1.5 text-xs">
+        <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700">
+          {filteredTotalCount} {filteredTotalCount === 1 ? 'post' : 'poster'}
+        </span>
+        <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700">
+          {formatDkk(filteredTotalCents)}
+        </span>
       </div>
 
       <div className="space-y-3">
