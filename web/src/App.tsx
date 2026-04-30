@@ -32,6 +32,7 @@ import { InvoiceDetailPage } from '@/pages/InvoiceDetailPage'
 import { InvoicePdfPage } from '@/pages/InvoicePdfPage'
 import { VouchersPage } from '@/pages/VouchersPage'
 import { ScanBilagPage } from '@/pages/ScanBilagPage'
+import { VoucherDetailPage } from '@/pages/VoucherDetailPage'
 import { BankPage } from '@/pages/BankPage'
 import { IncomePage } from '@/pages/IncomePage'
 import { SettingsLayout } from '@/pages/settings/SettingsLayout'
@@ -199,6 +200,7 @@ export default function App() {
                 <Route path="/app/invoices/:id" element={<InvoiceDetailPage />} />
                 <Route path="/app/vouchers" element={<VouchersPage />} />
                 <Route path="/app/vouchers/scan" element={<ScanBilagPage />} />
+                <Route path="/app/vouchers/:id" element={<VoucherDetailPage />} />
                 <Route path="/app/bank" element={<BankPage />} />
                 <Route path="/app/vat" element={<VatPage />} />
                 <Route path="/app/income" element={<IncomePage />} />

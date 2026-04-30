@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { AppPageLayout } from '@/components/AppPageLayout'
 import { InvoicePdfCanvasViewer } from '@/components/InvoicePdfCanvasViewer'
 import { SortableTh } from '@/components/SortableTh'
@@ -71,6 +71,7 @@ export function VouchersPage() {
   const { currentCompany, user, currentRole, billingEntitlements, canUse } = useApp()
   const isForening = currentCompany?.entity_type === 'forening'
   const checkout = useStripeCheckoutLauncher()
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [desktopView, setDesktopView] = useDesktopListViewPreference(VOUCHERS_VIEW_KEY, 'list')
   const [rows, setRows] = useState<Voucher[]>([])
@@ -106,7 +107,6 @@ export function VouchersPage() {
   const [expenseLinkModalOpen, setExpenseLinkModalOpen] = useState(false)
   const [expenseLinkCopied, setExpenseLinkCopied] = useState(false)
   const [projectOverviewOpen, setProjectOverviewOpen] = useState(false)
-  const [preview, setPreview] = useState<{ voucher: Voucher; url: string } | null>(null)
 
   const canDeleteVoucher = canWriterDeleteVouchers(currentRole)
   const featureGateKnown = billingEntitlements.length > 0
@@ -523,25 +523,6 @@ export function VouchersPage() {
     }
   }
 
-  async function updateVoucherDetails(
-    v: Voucher,
-    updates: Partial<VoucherEditableFields>,
-  ) {
-    if (!currentCompany) throw new Error('Ingen virksomhed valgt')
-    const { error: updateErr } = await supabase
-      .from('vouchers')
-      .update(updates)
-      .eq('id', v.id)
-      .eq('company_id', currentCompany.id)
-    if (updateErr) throw new Error(updateErr.message)
-    setRows((prev) => prev.map((row) => (row.id === v.id ? { ...row, ...updates } : row)))
-    setPreview((prev) =>
-      prev && prev.voucher.id === v.id
-        ? { ...prev, voucher: { ...prev.voucher, ...updates } }
-        : prev,
-    )
-  }
-
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -628,20 +609,8 @@ export function VouchersPage() {
     }
   }
 
-  async function openSigned(v: Voucher) {
-    setError(null)
-    try {
-      const { data, error: err } = await supabase.storage
-        .from('vouchers')
-        .createSignedUrl(v.storage_path, 3600)
-      if (err || !data?.signedUrl) {
-        setError(err?.message ?? 'Kunne ikke åbne fil')
-        return
-      }
-      setPreview({ voucher: v, url: data.signedUrl })
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Kunne ikke åbne fil')
-    }
+  function openVoucher(v: Voucher) {
+    navigate(`/app/vouchers/${v.id}`)
   }
 
   if (!currentCompany) {
@@ -946,11 +915,11 @@ export function VouchersPage() {
                 id={`voucher-row-${v.id}`}
                 role="button"
                 tabIndex={0}
-                onClick={() => openSigned(v)}
+                onClick={() => openVoucher(v)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault()
-                    openSigned(v)
+                    openVoucher(v)
                   }
                 }}
                 className="flex cursor-pointer flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
@@ -1200,7 +1169,7 @@ export function VouchersPage() {
                 <tr
                   key={v.id}
                   id={`voucher-row-${v.id}`}
-                  onClick={() => openSigned(v)}
+                  onClick={() => openVoucher(v)}
                   className="cursor-pointer border-t border-slate-100 transition hover:bg-indigo-50/40"
                 >
                   <td className="px-4 py-3 text-slate-600">
@@ -1290,7 +1259,7 @@ export function VouchersPage() {
                         className="text-sm font-medium text-indigo-600 hover:underline"
                         onClick={(e) => {
                           e.stopPropagation()
-                          void openSigned(v)
+                          void openVoucher(v)
                         }}
                       >
                         Åbn
@@ -1324,20 +1293,6 @@ export function VouchersPage() {
         >
           {hasMore ? (loadingMore ? 'Indlæser flere…' : 'Scroll for at hente flere') : 'Ingen flere bilag.'}
         </div>
-      ) : null}
-      {preview ? (
-        <VoucherPreviewModal
-          voucher={preview.voucher}
-          url={preview.url}
-          canEdit={canDeleteVoucher}
-          showVat={!isForening}
-          projects={projects}
-          canUseVoucherProjects={canUseVoucherProjects && !projectFeatureUnavailable}
-          reimbursement={reimbursementByVoucherId.get(preview.voucher.id) ?? null}
-          onUpdateReimbursementStatus={updateReimbursementStatus}
-          onClose={() => setPreview(null)}
-          onSave={(updates) => updateVoucherDetails(preview.voucher, updates)}
-        />
       ) : null}
       {expenseLinkModalOpen ? (
         <div
@@ -1452,310 +1407,3 @@ export function VouchersPage() {
   )
 }
 
-type VoucherEditableFields = Pick<
-  Voucher,
-  | 'title'
-  | 'expense_date'
-  | 'gross_cents'
-  | 'vat_cents'
-  | 'net_cents'
-  | 'vat_rate'
-  | 'category'
-  | 'voucher_project_id'
->
-
-function centsToKrInput(cents: number): string {
-  if (!cents) return ''
-  return (cents / 100).toFixed(2).replace('.', ',')
-}
-
-function parseKrToCents(input: string): number | null {
-  const trimmed = input.trim()
-  if (!trimmed) return 0
-  const normalized = trimmed.replace(/\./g, '').replace(',', '.')
-  const n = Number(normalized)
-  if (!Number.isFinite(n) || n < 0) return null
-  return Math.round(n * 100)
-}
-
-function VoucherPreviewModal({
-  voucher,
-  url,
-  canEdit,
-  showVat,
-  projects,
-  canUseVoucherProjects,
-  reimbursement,
-  onUpdateReimbursementStatus,
-  onClose,
-  onSave,
-}: {
-  voucher: Voucher
-  url: string
-  canEdit: boolean
-  showVat: boolean
-  projects: VoucherProject[]
-  canUseVoucherProjects: boolean
-  reimbursement: Reimbursement | null
-  onUpdateReimbursementStatus: (reimbursement: Reimbursement, status: ReimbursementStatus) => Promise<void>
-  onClose: () => void
-  onSave: (updates: Partial<VoucherEditableFields>) => Promise<void>
-}) {
-  const [title, setTitle] = useState(voucher.title ?? '')
-  const [date, setDate] = useState(voucher.expense_date)
-  const [grossKr, setGrossKr] = useState(centsToKrInput(voucher.gross_cents))
-  const [vatKr, setVatKr] = useState(centsToKrInput(voucher.vat_cents))
-  const [category, setCategory] = useState<string>(voucher.category ?? '')
-  const [projectId, setProjectId] = useState<string>(voucher.voucher_project_id ?? '')
-  const [saving, setSaving] = useState(false)
-  const [formError, setFormError] = useState<string | null>(null)
-
-  useEffect(() => {
-    setTitle(voucher.title ?? '')
-    setDate(voucher.expense_date)
-    setGrossKr(centsToKrInput(voucher.gross_cents))
-    setVatKr(centsToKrInput(voucher.vat_cents))
-    setCategory(voucher.category ?? '')
-    setProjectId(voucher.voucher_project_id ?? '')
-    setFormError(null)
-  }, [
-    voucher.id,
-    voucher.title,
-    voucher.expense_date,
-    voucher.gross_cents,
-    voucher.vat_cents,
-    voucher.category,
-    voucher.voucher_project_id,
-  ])
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
-  const mime = voucher.mime_type ?? ''
-  const isImage =
-    mime.startsWith('image/') || /\.(png|jpe?g|gif|webp|heic|heif)$/i.test(voucher.storage_path)
-
-  async function handleSave() {
-    setFormError(null)
-    if (!date) {
-      setFormError('Dato mangler')
-      return
-    }
-    const grossCents = parseKrToCents(grossKr)
-    if (grossCents === null) {
-      setFormError('Beløb er ugyldigt')
-      return
-    }
-    let vatCents = 0
-    if (showVat) {
-      const parsed = parseKrToCents(vatKr)
-      if (parsed === null) {
-        setFormError('Moms er ugyldig')
-        return
-      }
-      if (parsed > grossCents) {
-        setFormError('Moms kan ikke være højere end beløbet')
-        return
-      }
-      vatCents = parsed
-    }
-    const netCents = grossCents - vatCents
-    const vatRate = netCents > 0 ? Math.round((vatCents / netCents) * 10000) / 100 : 0
-    setSaving(true)
-    try {
-      await onSave({
-        title: title.trim() ? title.trim() : null,
-        expense_date: date,
-        gross_cents: grossCents,
-        vat_cents: vatCents,
-        net_cents: netCents,
-        vat_rate: vatRate,
-        category: category || null,
-        voucher_project_id: canUseVoucherProjects ? (projectId || null) : voucher.voucher_project_id,
-      })
-      onClose()
-    } catch (e) {
-      setFormError(e instanceof Error ? e.message : 'Kunne ikke gemme')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div
-      role="dialog"
-      aria-modal
-      onClick={onClose}
-      className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/70 p-4"
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
-      >
-        <header className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
-          <h2 className="truncate text-base font-semibold text-slate-900">
-            {voucher.title ?? 'Bilag'}
-          </h2>
-          <div className="flex items-center gap-3">
-            <a
-              href={url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm font-medium text-indigo-600 hover:underline"
-            >
-              Åbn i ny fane
-            </a>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Luk forhåndsvisning"
-              className="rounded-full p-1 text-slate-500 hover:bg-slate-100"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                className="h-5 w-5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                <path d="M18 6 6 18" />
-                <path d="m6 6 12 12" />
-              </svg>
-            </button>
-          </div>
-        </header>
-        {canEdit ? (
-          <section className="border-b border-slate-200 bg-white px-4 py-3">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
-              <label className="block text-xs font-medium text-slate-600 sm:col-span-2">
-                Titel
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
-                  placeholder="Fx Cafébesøg"
-                />
-              </label>
-              <label className="block text-xs font-medium text-slate-600">
-                Dato
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
-                />
-              </label>
-              <label className="block text-xs font-medium text-slate-600">
-                Beløb (kr)
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={grossKr}
-                  onChange={(e) => setGrossKr(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
-                  placeholder="0,00"
-                />
-              </label>
-              {showVat ? (
-                <label className="block text-xs font-medium text-slate-600">
-                  Moms (kr)
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={vatKr}
-                    onChange={(e) => setVatKr(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
-                    placeholder="0,00"
-                  />
-                </label>
-              ) : null}
-              <label className="block text-xs font-medium text-slate-600">
-                Kategori
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
-                >
-                  <option value="">Uden kategori</option>
-                  {VOUCHER_CATEGORY_OPTIONS.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {canUseVoucherProjects ? (
-                <label className="block text-xs font-medium text-slate-600">
-                  Event/projekt
-                  <select
-                    value={projectId}
-                    onChange={(e) => setProjectId(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
-                  >
-                    <option value="">Uden event/projekt</option>
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : null}
-              {reimbursement ? (
-                <label className="block text-xs font-medium text-slate-600">
-                  Udlæg-status
-                  <select
-                    value={reimbursement.status}
-                    onChange={(e) =>
-                      void onUpdateReimbursementStatus(reimbursement, e.target.value as ReimbursementStatus)
-                    }
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
-                  >
-                    {Object.entries(reimbursementStatusLabels).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : null}
-            </div>
-            <div className="mt-3 flex flex-wrap items-center justify-end gap-3">
-              {formError ? (
-                <span className="text-xs font-medium text-rose-700">{formError}</span>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => void handleSave()}
-                disabled={saving}
-                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {saving ? 'Gemmer…' : 'Gem ændringer'}
-              </button>
-            </div>
-          </section>
-        ) : null}
-        <div className="flex-1 overflow-auto bg-slate-100">
-          {isImage ? (
-            <img
-              src={url}
-              alt={voucher.title ?? 'Bilag'}
-              className="mx-auto block max-h-[80vh] object-contain"
-            />
-          ) : (
-            <InvoicePdfCanvasViewer pdfUrl={url} title={voucher.title ?? 'Bilag'} />
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}

@@ -40,9 +40,9 @@ const nav: NavItem[] = [
   { to: '/app/vouchers', label: 'Bilag', icon: ReceiptIcon },
   { to: '/app/bank', label: 'Bank', icon: BankIcon },
   { to: '/app/vat', label: 'Moms', icon: PercentIcon, onlyFor: 'virksomhed' },
-  { to: '/app/hjaelp', label: 'Hjælp & svar', icon: HelpIcon },
   { to: '/app/members', label: 'Medlemmer', icon: UsersIcon },
   { to: '/app/settings', label: 'Indstillinger', icon: CogIcon },
+  { to: '/app/hjaelp', label: 'Hjælp & svar', icon: HelpIcon },
   { to: '/app/support', label: 'Support', icon: ChatIcon },
 ]
 
