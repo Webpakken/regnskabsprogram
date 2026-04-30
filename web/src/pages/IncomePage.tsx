@@ -253,26 +253,27 @@ export function IncomePage() {
 
   return (
     <AppPageLayout maxWidth="full" className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Indtægter</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Registrér tilskud, bevillinger, kontingent og donationer. Til kunde-fakturering brug fanen Fakturaer.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold text-slate-900">Indtægter</h1>
+          <p className="text-sm text-slate-600">
+            Tilskud, bevillinger, kontingent og donationer
+          </p>
+        </div>
+        {canWrite && !formOpen ? (
+          <button
+            type="button"
+            onClick={() => {
+              setFormOpen(true)
+              setMessage(null)
+              setError(null)
+            }}
+            className="shrink-0 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          >
+            Ny indtægt
+          </button>
+        ) : null}
       </div>
-
-      {canWrite && !formOpen ? (
-        <button
-          type="button"
-          onClick={() => {
-            setFormOpen(true)
-            setMessage(null)
-            setError(null)
-          }}
-          className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
-        >
-          <span aria-hidden>+</span> Ny indtægt
-        </button>
-      ) : null}
 
       {canWrite && formOpen ? (
         <form
@@ -435,83 +436,116 @@ export function IncomePage() {
         </p>
       ) : null}
 
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-6 py-4">
-          <h2 className="text-lg font-medium text-slate-900">Registrerede indtægter</h2>
-          <div className="text-sm text-slate-600">
-            {filteredTotalCount} {filteredTotalCount === 1 ? 'post' : 'poster'} —{' '}
-            <span className="font-semibold text-slate-900">{formatDkk(filteredTotalCents)}</span> i alt
-          </div>
-        </div>
-        <div className="border-b border-slate-100 px-6 py-3">
+      <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <input
             type="search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Søg i kilde, øremærkning, type, beløb…"
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400"
+            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 sm:max-w-md"
           />
+          <div className="flex flex-wrap gap-2 text-sm">
+            <span className="rounded-full bg-slate-100 px-3 py-1.5 font-medium text-slate-700">
+              {filteredTotalCount} {filteredTotalCount === 1 ? 'post' : 'poster'}
+            </span>
+            <span className="rounded-full bg-slate-100 px-3 py-1.5 font-medium text-slate-700">
+              {formatDkk(filteredTotalCents)}
+            </span>
+          </div>
         </div>
+      </div>
+
+      <div className="space-y-3">
         {loading ? (
-          <p className="px-6 py-6 text-sm text-slate-500">Indlæser…</p>
+          <p className="rounded-2xl border border-slate-200 bg-white py-6 text-center text-sm text-slate-500 shadow-sm">
+            Indlæser…
+          </p>
         ) : entries.length === 0 ? (
-          <p className="px-6 py-6 text-sm text-slate-500">
+          <p className="rounded-2xl border border-slate-200 bg-white py-6 text-center text-sm text-slate-500 shadow-sm">
             Ingen indtægter endnu. Registrér den første ovenfor.
           </p>
         ) : displayEntries.length === 0 ? (
-          <p className="px-6 py-6 text-sm text-slate-500">
+          <p className="rounded-2xl border border-slate-200 bg-white py-6 text-center text-sm text-slate-500 shadow-sm">
             Ingen indtægter matcher søgningen.
           </p>
         ) : (
           <>
-          <div className="space-y-3 px-4 py-4 md:hidden">
-            {displayEntries.map((entry) => (
-              <div
-                key={entry.id}
-                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          <div className="space-y-3 md:hidden">
+            {displayEntries.map((entry) => {
+              const clickable = canWrite
+              return (
+                <div
+                  key={entry.id}
+                  role={clickable ? 'button' : undefined}
+                  tabIndex={clickable ? 0 : undefined}
+                  onClick={clickable ? () => startEdit(entry) : undefined}
+                  onKeyDown={
+                    clickable
+                      ? (e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            startEdit(entry)
+                          }
+                        }
+                      : undefined
+                  }
+                  className={`flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition ${
+                    clickable
+                      ? 'cursor-pointer hover:border-indigo-200 hover:bg-indigo-50/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500'
+                      : ''
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <span className="font-medium uppercase tracking-wide text-slate-500">
                       {formatDateOnly(entry.entry_date)}
-                    </p>
-                    <p className="mt-1 truncate text-sm font-semibold text-slate-900">
+                    </span>
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                        {KIND_LABEL[entry.kind]}
+                      </span>
+                      {entry.earmarking ? (
+                        <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
+                          {entry.earmarking}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="line-clamp-2 text-sm font-medium text-slate-800">
                       {entry.source_name}
                     </p>
-                    <p className="mt-0.5 text-xs text-slate-600">{KIND_LABEL[entry.kind]}</p>
+                    <span className="shrink-0 text-sm font-semibold text-slate-900">
+                      {formatDkk(entry.amount_cents)}
+                    </span>
                   </div>
-                  <p className="shrink-0 text-base font-bold tabular-nums text-slate-900">
-                    {formatDkk(entry.amount_cents)}
-                  </p>
+                  {canWrite ? (
+                    <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-100 pt-2">
+                      <span className="text-sm font-medium text-indigo-600">Rediger →</span>
+                      <button
+                        type="button"
+                        aria-label="Slet indtægt"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void remove(entry)
+                        }}
+                        className="rounded-lg p-2 text-rose-700 hover:bg-rose-50"
+                      >
+                        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <path d="M3 6h18" />
+                          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                          <line x1="10" y1="11" x2="10" y2="17" />
+                          <line x1="14" y1="11" x2="14" y2="17" />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
-                {entry.earmarking ? (
-                  <p className="mt-3 rounded-lg bg-slate-50 px-3 py-1.5 text-xs text-slate-700">
-                    <span className="text-slate-500">Øremærket:</span>{' '}
-                    <span className="font-medium">{entry.earmarking}</span>
-                  </p>
-                ) : null}
-                {canWrite ? (
-                  <div className="mt-3 flex justify-end gap-2 border-t border-slate-100 pt-3">
-                    <button
-                      type="button"
-                      onClick={() => startEdit(entry)}
-                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                    >
-                      Rediger
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void remove(entry)}
-                      className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50"
-                    >
-                      Slet
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            ))}
+              )
+            })}
           </div>
-          <div className="hidden overflow-x-auto md:block">
+          <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
             <table className="min-w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <tr>

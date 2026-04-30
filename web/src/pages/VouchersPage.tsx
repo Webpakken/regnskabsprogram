@@ -35,41 +35,6 @@ const VOUCHERS_VIEW_KEY = 'bilago:vouchersDesktopView'
 
 type VoucherSortKey = 'date' | 'title' | 'category' | 'project' | 'gross' | 'vat'
 
-function voucherLedgerDate(v: Voucher): string {
-  return v.expense_date ?? v.uploaded_at.slice(0, 10)
-}
-
-function sortVouchers(
-  list: Voucher[],
-  key: VoucherSortKey,
-  dir: ColumnSortDir,
-  projectNameForVoucher: (v: Voucher) => string,
-): Voucher[] {
-  const mul = dir === 'asc' ? 1 : -1
-  return [...list].sort((a, b) => {
-    switch (key) {
-      case 'date':
-        return (
-          mul *
-          String(voucherLedgerDate(a)).localeCompare(String(voucherLedgerDate(b))) ||
-          String(a.uploaded_at).localeCompare(String(b.uploaded_at))
-        )
-      case 'title':
-        return mul * String(a.title ?? '').localeCompare(String(b.title ?? ''), 'da', { sensitivity: 'base' })
-      case 'category':
-        return mul * String(a.category ?? '').localeCompare(String(b.category ?? ''), 'da', { sensitivity: 'base' })
-      case 'project':
-        return mul * projectNameForVoucher(a).localeCompare(projectNameForVoucher(b), 'da', { sensitivity: 'base' })
-      case 'gross':
-        return mul * ((a.gross_cents ?? 0) - (b.gross_cents ?? 0))
-      case 'vat':
-        return mul * ((a.vat_cents ?? 0) - (b.vat_cents ?? 0))
-      default:
-        return 0
-    }
-  })
-}
-
 function canWriterDeleteVouchers(role: CompanyRole | null) {
   return role === 'owner' || role === 'manager' || role === 'bookkeeper'
 }
@@ -86,15 +51,36 @@ function isVoucherProjectSchemaError(error: { message?: string; code?: string } 
   return error?.code === 'PGRST205' || msg.includes('voucher_projects') || msg.includes('voucher_project_id')
 }
 
+const VOUCHER_PAGE_SIZE = 25
+
+const VOUCHER_SORT_COLUMN: Record<VoucherSortKey, string> = {
+  date: 'expense_date',
+  title: 'title',
+  category: 'category',
+  project: 'voucher_project_id',
+  gross: 'gross_cents',
+  vat: 'vat_cents',
+}
+
+/** Escape brugerinput så det ikke ødelægger PostgREST `or()`-syntaksen. */
+function sanitizeIlikeQuery(input: string): string {
+  return input.replace(/[%,()*]/g, ' ').trim()
+}
+
 export function VouchersPage() {
   const { currentCompany, user, currentRole, billingEntitlements, canUse } = useApp()
+  const isForening = currentCompany?.entity_type === 'forening'
   const checkout = useStripeCheckoutLauncher()
   const [searchParams, setSearchParams] = useSearchParams()
   const [desktopView, setDesktopView] = useDesktopListViewPreference(VOUCHERS_VIEW_KEY, 'list')
   const [rows, setRows] = useState<Voucher[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [projects, setProjects] = useState<VoucherProject[]>([])
   const [reimbursements, setReimbursements] = useState<Reimbursement[]>([])
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [projectFilter, setProjectFilter] = useState<'all' | 'none' | string>('all')
   const [newProjectName, setNewProjectName] = useState('')
   const [projectCreateOpen, setProjectCreateOpen] = useState(false)
@@ -108,11 +94,12 @@ export function VouchersPage() {
   const [dragActive, setDragActive] = useState(false)
   const overlayDragDepthRef = useRef(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
+  const addMenuRef = useRef<HTMLDivElement>(null)
+  const [addOpen, setAddOpen] = useState(false)
   const [sortKey, setSortKey] = useState<VoucherSortKey | null>(null)
   const [sortDir, setSortDir] = useState<ColumnSortDir>('desc')
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [assigningCategoryId, setAssigningCategoryId] = useState<string | null>(null)
-  const [assigningVoucherId, setAssigningVoucherId] = useState<string | null>(null)
   const [expenseLinkMode, setExpenseLinkMode] = useState<ExpenseLinkMode>('single_use')
   const [creatingExpenseLink, setCreatingExpenseLink] = useState(false)
   const [expenseLink, setExpenseLink] = useState<string | null>(null)
@@ -126,46 +113,162 @@ export function VouchersPage() {
   const canUseVoucherProjects = !featureGateKnown || canUse('voucher_projects')
   const canUseExpenseLinks = !featureGateKnown || canUse('expense_links')
 
-  const load = useCallback(async function load() {
-    if (!currentCompany) return
-    setLoading(true)
-    setError(null)
-    const [voucherRes, projectRes, reimbursementRes] = await Promise.all([
-      supabase
-      .from('vouchers')
-      .select('*')
-      .eq('company_id', currentCompany.id)
-        .order('uploaded_at', { ascending: false }),
-      supabase
-        .from('voucher_projects')
-        .select('*')
-        .eq('company_id', currentCompany.id)
-        .eq('active', true)
-        .order('name', { ascending: true }),
-      supabase
-        .from('voucher_reimbursements')
-        .select('*')
-        .eq('company_id', currentCompany.id)
-        .order('created_at', { ascending: false }),
-    ])
-    if (voucherRes.error) {
-      setError(voucherRes.error.message)
-    }
-    setRows(voucherRes.data ?? [])
-    setReimbursements(reimbursementRes.data ?? [])
-    if (isVoucherProjectSchemaError(projectRes.error)) {
-      setProjectFeatureUnavailable(true)
-      setProjects([])
-    } else {
-      setProjectFeatureUnavailable(false)
-      setProjects(projectRes.data ?? [])
-    }
-    setLoading(false)
-  }, [currentCompany])
-
+  // Debounce søgefeltet (300ms) så vi ikke fyrer en server-query af på hvert tastetryk.
   useEffect(() => {
-    void load()
-  }, [load])
+    const t = window.setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300)
+    return () => window.clearTimeout(t)
+  }, [searchQuery])
+
+  const buildVoucherQuery = useCallback(
+    (offset: number, limit: number) => {
+      if (!currentCompany) return null
+      let q = supabase
+        .from('vouchers')
+        .select('*', { count: 'exact' })
+        .eq('company_id', currentCompany.id)
+      const safe = sanitizeIlikeQuery(debouncedSearch)
+      if (safe) {
+        q = q.or(
+          `title.ilike.%${safe}%,filename.ilike.%${safe}%,category.ilike.%${safe}%,notes.ilike.%${safe}%`,
+        )
+      }
+      if (projectFilter === 'none') {
+        q = q.is('voucher_project_id', null)
+      } else if (projectFilter !== 'all') {
+        q = q.eq('voucher_project_id', projectFilter)
+      }
+      const sortCol = sortKey ? VOUCHER_SORT_COLUMN[sortKey] : 'uploaded_at'
+      const ascending = sortKey ? sortDir === 'asc' : false
+      q = q.order(sortCol, { ascending, nullsFirst: false })
+      // Stabil tiebreaker så pagineringen ikke springer i rækkefølge.
+      q = q.order('id', { ascending: false })
+      return q.range(offset, offset + limit - 1)
+    },
+    [currentCompany, debouncedSearch, projectFilter, sortKey, sortDir],
+  )
+
+  // Hent første side + sideforløb-data (projekter, refusioner) når deps ændres.
+  useEffect(() => {
+    if (!currentCompany) return
+    let cancelled = false
+    void (async () => {
+      setLoading(true)
+      setError(null)
+      const query = buildVoucherQuery(0, VOUCHER_PAGE_SIZE)
+      const [voucherRes, projectRes, reimbursementRes] = await Promise.all([
+        query,
+        supabase
+          .from('voucher_projects')
+          .select('*')
+          .eq('company_id', currentCompany.id)
+          .eq('active', true)
+          .order('name', { ascending: true }),
+        supabase
+          .from('voucher_reimbursements')
+          .select('*')
+          .eq('company_id', currentCompany.id)
+          .order('created_at', { ascending: false }),
+      ])
+      if (cancelled) return
+      if (voucherRes?.error) {
+        setError(voucherRes.error.message)
+      }
+      const data = voucherRes?.data ?? []
+      const count = voucherRes?.count ?? 0
+      setRows(data)
+      setTotalCount(count)
+      setHasMore(data.length < count)
+      setReimbursements(reimbursementRes.data ?? [])
+      if (isVoucherProjectSchemaError(projectRes.error)) {
+        setProjectFeatureUnavailable(true)
+        setProjects([])
+      } else {
+        setProjectFeatureUnavailable(false)
+        setProjects(projectRes.data ?? [])
+      }
+      setLoading(false)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [buildVoucherQuery, currentCompany])
+
+  const loadMoreVouchers = useCallback(async () => {
+    if (loadingMore || !hasMore || !currentCompany) return
+    setLoadingMore(true)
+    const offset = rows.length
+    const query = buildVoucherQuery(offset, VOUCHER_PAGE_SIZE)
+    if (!query) {
+      setLoadingMore(false)
+      return
+    }
+    const { data, count, error: pageErr } = await query
+    if (pageErr) {
+      setError(pageErr.message)
+      setLoadingMore(false)
+      return
+    }
+    const next = data ?? []
+    setRows((prev) => [...prev, ...next])
+    if (typeof count === 'number') setTotalCount(count)
+    const totalNow = typeof count === 'number' ? count : totalCount
+    setHasMore(offset + next.length < totalNow)
+    setLoadingMore(false)
+  }, [loadingMore, hasMore, currentCompany, rows.length, buildVoucherQuery, totalCount])
+
+  // Refresh til ekstern brug (fx efter upload). Sætter triggeret state der re-fyrer effekten.
+  // Henter første side igen — bruges efter upload mv. hvor deps ikke ændres.
+  const refresh = useCallback(() => {
+    if (!currentCompany) return
+    void (async () => {
+      setLoading(true)
+      const query = buildVoucherQuery(0, VOUCHER_PAGE_SIZE)
+      if (!query) {
+        setLoading(false)
+        return
+      }
+      const { data, count, error: err } = await query
+      if (err) setError(err.message)
+      const list = data ?? []
+      setRows(list)
+      setTotalCount(count ?? 0)
+      setHasMore(list.length < (count ?? 0))
+      setLoading(false)
+    })()
+  }, [buildVoucherQuery, currentCompany])
+
+  // IntersectionObserver: hent næste side når brugeren scroller bunden af listen i syne.
+  useEffect(() => {
+    const node = loadMoreSentinelRef.current
+    if (!node || !hasMore) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) void loadMoreVouchers()
+      },
+      { rootMargin: '300px' },
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [hasMore, loadMoreVouchers])
+
+  // Luk "Tilføj bilag"-menuen ved klik udenfor / ESC.
+  useEffect(() => {
+    if (!addOpen) return
+    function onClickOutside(e: MouseEvent) {
+      if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) {
+        setAddOpen(false)
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setAddOpen(false)
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [addOpen])
 
   const voucherHighlight = searchParams.get('voucher')
   useEffect(() => {
@@ -191,57 +294,14 @@ export function VouchersPage() {
     return () => window.clearTimeout(t)
   }, [voucherHighlight, loading, setSearchParams])
 
-  const projectById = useMemo(() => {
-    return new Map(projects.map((p) => [p.id, p]))
-  }, [projects])
-
   const reimbursementByVoucherId = useMemo(() => {
     return new Map(reimbursements.map((r) => [r.voucher_id, r]))
   }, [reimbursements])
 
-  const projectNameForVoucher = useCallback(function projectNameForVoucher(v: Voucher) {
-    return v.voucher_project_id ? (projectById.get(v.voucher_project_id)?.name ?? '') : ''
-  }, [projectById])
-
-  const searchMatched = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase()
-    if (!q) return rows
-    const tokens = q.split(/\s+/).filter(Boolean)
-    return rows.filter((v) => {
-      const dateStr = v.expense_date
-        ? formatDateOnly(v.expense_date)
-        : formatDateOnly(v.uploaded_at)
-      const grossStr = v.gross_cents ? formatDkk(v.gross_cents) : ''
-      const vatStr = v.vat_cents ? formatDkk(v.vat_cents) : ''
-      const projectStr = projectNameForVoucher(v)
-      const hay = [
-        v.title ?? '',
-        v.filename ?? '',
-        v.category ?? '',
-        projectStr,
-        v.notes ?? '',
-        dateStr,
-        grossStr,
-        vatStr,
-      ]
-        .join(' ')
-        .toLowerCase()
-      return tokens.every((t) => hay.includes(t))
-    })
-  }, [rows, searchQuery, projectNameForVoucher])
-
-  const filteredRows = useMemo(() => {
-    const projectMatched = searchMatched.filter((v) => {
-      if (projectFilter === 'all') return true
-      if (projectFilter === 'none') return !v.voucher_project_id
-      return v.voucher_project_id === projectFilter
-    })
-    if (sortKey === null) return projectMatched
-    return sortVouchers(projectMatched, sortKey, sortDir, projectNameForVoucher)
-  }, [searchMatched, projectFilter, sortKey, sortDir, projectNameForVoucher])
-
+  // Server-side search/filter/sort: rækkerne i `rows` er allerede filtreret + sorteret.
+  // Vi bevarer client-side `voucherTotals` over indlæste rækker; viser "X af Y" hvis flere venter.
   const voucherTotals = useMemo(() => {
-    return filteredRows.reduce(
+    return rows.reduce(
       (acc, v) => ({
         gross: acc.gross + Number(v.gross_cents ?? 0),
         vat: acc.vat + Number(v.vat_cents ?? 0),
@@ -249,7 +309,7 @@ export function VouchersPage() {
       }),
       { gross: 0, vat: 0, net: 0 },
     )
-  }, [filteredRows])
+  }, [rows])
 
   const projectTotals = useMemo(() => {
     return projects
@@ -374,7 +434,7 @@ export function VouchersPage() {
     })
     if (fileInputRef.current) fileInputRef.current.value = ''
     setUploading(false)
-    await load()
+    refresh()
   }
 
   async function createProject() {
@@ -463,41 +523,9 @@ export function VouchersPage() {
     }
   }
 
-  async function updateVoucherProject(v: Voucher, projectId: string | null) {
-    if (!currentCompany) return
-    if (!canUseVoucherProjects) return
-    setAssigningVoucherId(v.id)
-    setError(null)
-    const { error: updateErr } = await supabase
-      .from('vouchers')
-      .update({ voucher_project_id: projectId })
-      .eq('id', v.id)
-      .eq('company_id', currentCompany.id)
-    setAssigningVoucherId(null)
-    if (updateErr) {
-      if (isVoucherProjectSchemaError(updateErr)) {
-        setProjectFeatureUnavailable(true)
-        setError(
-          'Event/projekt er ikke aktiveret i databasen endnu. Kør den nye Supabase migration og genindlæs siden.',
-        )
-      } else {
-        setError(updateErr.message)
-      }
-      return
-    }
-    setRows((prev) =>
-      prev.map((row) => (row.id === v.id ? { ...row, voucher_project_id: projectId } : row)),
-    )
-  }
-
   async function updateVoucherDetails(
     v: Voucher,
-    updates: Partial<
-      Pick<
-        Voucher,
-        'title' | 'expense_date' | 'gross_cents' | 'vat_cents' | 'net_cents' | 'vat_rate'
-      >
-    >,
+    updates: Partial<VoucherEditableFields>,
   ) {
     if (!currentCompany) throw new Error('Ingen virksomhed valgt')
     const { error: updateErr } = await supabase
@@ -511,25 +539,6 @@ export function VouchersPage() {
       prev && prev.voucher.id === v.id
         ? { ...prev, voucher: { ...prev.voucher, ...updates } }
         : prev,
-    )
-  }
-
-  async function updateVoucherCategory(v: Voucher, category: string | null) {
-    if (!currentCompany) return
-    setAssigningCategoryId(v.id)
-    setError(null)
-    const { error: updateErr } = await supabase
-      .from('vouchers')
-      .update({ category })
-      .eq('id', v.id)
-      .eq('company_id', currentCompany.id)
-    setAssigningCategoryId(null)
-    if (updateErr) {
-      setError(updateErr.message)
-      return
-    }
-    setRows((prev) =>
-      prev.map((row) => (row.id === v.id ? { ...row, category } : row)),
     )
   }
 
@@ -661,55 +670,83 @@ export function VouchersPage() {
       ) : null}
 
       <AppPageLayout maxWidth="full" className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold text-slate-900">Bilag</h1>
           <p className="text-sm text-slate-600">
-            Scan med kamera, upload en fil, eller træk filer ind et vilkårligt sted på siden. Kun
-            denne virksomhed.
+            Scan med kamera, upload en fil, eller træk filer ind et vilkårligt sted på siden.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2 sm:shrink-0 sm:justify-end">
-          <Link
-            to="/app/vouchers/scan"
-            className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
-          >
-            Scan bilag
-          </Link>
-          <label
-            className={
-              'inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 ' +
-              (uploading ? 'pointer-events-none opacity-60' : '')
-            }
+        <div ref={addMenuRef} className="relative shrink-0">
+          <button
+            type="button"
+            disabled={uploading}
+            onClick={() => setAddOpen((o) => !o)}
+            aria-haspopup="menu"
+            aria-expanded={addOpen}
+            className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {uploading ? <ButtonSpinner /> : null}
             {uploading
               ? ocrProgress != null
                 ? `Læser… ${ocrProgress}%`
                 : 'Uploader…'
-              : 'Upload bilag'}
-            <input
-              ref={fileInputRef}
-              type="file"
-              className="hidden"
-              disabled={uploading}
-              onChange={(e) => void onFile(e)}
-            />
-          </label>
-          <button
-            type="button"
-            disabled={!canUseExpenseLinks}
-            onClick={() => {
-              setExpenseLink(null)
-              setExpenseLinkCopied(false)
-              setExpenseLinkMode('single_use')
-              setExpenseLinkModalOpen(true)
-            }}
-            className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-indigo-700 shadow-sm hover:bg-indigo-50 disabled:opacity-60"
-            title={!canUseExpenseLinks ? 'Udlægslink er ikke aktivt i den nuværende plan' : undefined}
-          >
-            Udlægslink
+              : 'Tilføj bilag'}
+            {!uploading ? (
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            ) : null}
           </button>
+          {addOpen && !uploading ? (
+            <div
+              role="menu"
+              className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg"
+            >
+              <Link
+                to="/app/vouchers/scan"
+                role="menuitem"
+                onClick={() => setAddOpen(false)}
+                className="flex min-h-[48px] items-center px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+              >
+                Scan bilag
+              </Link>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setAddOpen(false)
+                  fileInputRef.current?.click()
+                }}
+                className="flex min-h-[48px] w-full items-center px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+              >
+                Upload bilag
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                disabled={!canUseExpenseLinks}
+                onClick={() => {
+                  setAddOpen(false)
+                  setExpenseLink(null)
+                  setExpenseLinkCopied(false)
+                  setExpenseLinkMode('single_use')
+                  setExpenseLinkModalOpen(true)
+                }}
+                title={!canUseExpenseLinks ? 'Udlægslink er ikke aktivt i den nuværende plan' : undefined}
+                className="flex min-h-[48px] w-full items-center px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Udlægslink
+              </button>
+            </div>
+          ) : null}
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            disabled={uploading}
+            onChange={(e) => void onFile(e)}
+          />
         </div>
       </div>
 
@@ -721,10 +758,76 @@ export function VouchersPage() {
 
       {error ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</p> : null}
 
-      <div className="flex flex-wrap items-end justify-between gap-3 border-t border-slate-200 pt-2">
-        <h2 className="text-base font-semibold text-slate-900">Dine bilag</h2>
+      <div className="flex items-center gap-2">
+        <label className="min-w-0 flex-1">
+          <span className="sr-only">Filtrer på event/projekt</span>
+          <select
+            value={projectFilter}
+            disabled={projectFeatureUnavailable || !canUseVoucherProjects}
+            onChange={(e) => {
+              const value = e.target.value
+              if (value === '__create__') {
+                setProjectCreateOpen(true)
+                return
+              }
+              setProjectFilter(value)
+            }}
+            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm disabled:bg-slate-50 disabled:text-slate-400"
+          >
+            <option value="all">Alle bilag</option>
+            <option value="none">Uden event/projekt</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+            {canUseVoucherProjects && !projectFeatureUnavailable ? (
+              <option value="__create__">+ Opret nyt event…</option>
+            ) : null}
+          </select>
+        </label>
         <DesktopListCardsToggle mode={desktopView} onChange={setDesktopView} />
       </div>
+
+      {projectCreateOpen ? (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Navn på nyt event/projekt
+            </span>
+            <button
+              type="button"
+              aria-label="Annullér"
+              onClick={() => {
+                setProjectCreateOpen(false)
+                setNewProjectName('')
+              }}
+              className="rounded-full p-1 text-slate-500 hover:bg-slate-200"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M18 6 6 18" />
+                <path d="m6 6 12 12" />
+              </svg>
+            </button>
+          </div>
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+            <input
+              value={newProjectName}
+              onChange={(e) => setNewProjectName(e.target.value)}
+              placeholder="Sommerlejr 2026"
+              className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
+            />
+            <button
+              type="button"
+              disabled={creatingProject || !newProjectName.trim()}
+              onClick={() => void createProject()}
+              className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {creatingProject ? 'Opretter…' : 'Opret'}
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <label className="block">
         <span className="sr-only">Søg i bilag</span>
@@ -737,6 +840,33 @@ export function VouchersPage() {
           autoComplete="off"
         />
       </label>
+
+      <div className="flex flex-wrap gap-1.5 text-xs">
+        <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700">
+          {hasMore ? `${rows.length} af ${totalCount} bilag` : `${totalCount} bilag`}
+        </span>
+        <span
+          className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700"
+          title={hasMore ? 'Sum opdateres efterhånden som du scroller' : undefined}
+        >
+          {formatDkk(voucherTotals.gross)}
+          {hasMore ? '+' : ''}
+        </span>
+        {!isForening ? (
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700">
+            Moms {formatDkk(voucherTotals.vat)}{hasMore ? '+' : ''}
+          </span>
+        ) : null}
+        {projectTotals.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => setProjectOverviewOpen((open) => !open)}
+            className="rounded-full border border-slate-200 bg-white px-2 py-0.5 font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Event-overblik
+          </button>
+        ) : null}
+      </div>
 
       {projectFeatureUnavailable ? (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
@@ -766,85 +896,6 @@ export function VouchersPage() {
           </div>
         </div>
       ) : null}
-
-      <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center">
-            <label className="min-w-0 flex-1 sm:max-w-md">
-              <span className="sr-only">Filtrer på event/projekt</span>
-              <select
-                value={projectFilter}
-                disabled={projectFeatureUnavailable || !canUseVoucherProjects}
-                onChange={(e) => setProjectFilter(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 disabled:bg-slate-50 disabled:text-slate-400"
-              >
-                <option value="all">Alle bilag</option>
-                <option value="none">Uden event/projekt</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="button"
-              disabled={projectFeatureUnavailable || !canUseVoucherProjects}
-              onClick={() => setProjectCreateOpen((open) => !open)}
-              className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
-            >
-              {projectCreateOpen ? 'Luk' : '+ Event'}
-            </button>
-          </div>
-
-          <div className="flex flex-wrap gap-2 text-sm">
-            <span className="rounded-full bg-slate-100 px-3 py-1.5 font-medium text-slate-700">
-              {filteredRows.length} bilag
-            </span>
-            <span className="rounded-full bg-slate-100 px-3 py-1.5 font-medium text-slate-700">
-              {formatDkk(voucherTotals.gross)}
-            </span>
-            <span className="rounded-full bg-slate-100 px-3 py-1.5 font-medium text-slate-700">
-              Moms {formatDkk(voucherTotals.vat)}
-            </span>
-            {projectTotals.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => setProjectOverviewOpen((open) => !open)}
-                className="rounded-full border border-slate-200 bg-white px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50"
-              >
-                Event-overblik
-              </button>
-            ) : null}
-          </div>
-        </div>
-
-          {projectCreateOpen ? (
-            <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <label className="block">
-                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Navn på nyt event/projekt
-                </span>
-                <div className="mt-1 flex flex-col gap-2 sm:flex-row">
-                  <input
-                    value={newProjectName}
-                    onChange={(e) => setNewProjectName(e.target.value)}
-                    placeholder="Sommerlejr 2026"
-                    className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
-                  />
-                  <button
-                    type="button"
-                    disabled={creatingProject || !newProjectName.trim()}
-                    onClick={() => void createProject()}
-                    className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-                  >
-                    {creatingProject ? 'Opretter…' : 'Opret'}
-                  </button>
-                </div>
-              </label>
-            </div>
-          ) : null}
-      </div>
 
       {projectTotals.length > 0 && projectOverviewOpen ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -881,14 +932,12 @@ export function VouchersPage() {
           </p>
         ) : rows.length === 0 ? (
           <p className="col-span-full rounded-2xl border border-slate-200 bg-white py-10 text-center text-sm text-slate-500 shadow-sm">
-            Ingen bilag endnu.
-          </p>
-        ) : filteredRows.length === 0 ? (
-          <p className="col-span-full rounded-2xl border border-slate-200 bg-white py-10 text-center text-sm text-slate-500 shadow-sm">
-            Ingen bilag matcher søgningen.
+            {debouncedSearch || projectFilter !== 'all'
+              ? 'Ingen bilag matcher søgningen.'
+              : 'Ingen bilag endnu.'}
           </p>
         ) : (
-          filteredRows.map((v) => {
+          rows.map((v) => {
             const dateStr = v.expense_date
               ? formatDateOnly(v.expense_date)
               : formatDateOnly(v.uploaded_at)
@@ -908,105 +957,169 @@ export function VouchersPage() {
                 }}
                 className="flex cursor-pointer flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                    {dateStr}
-                  </span>
-                  {v.gross_cents ? (
-                    <span className="text-sm font-semibold text-slate-900">
-                      {formatDkk(v.gross_cents)}
-                    </span>
-                  ) : (
-                    <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">
-                      Indtast beløb
-                    </span>
-                  )}
-                </div>
-                <p className="line-clamp-2 text-sm font-medium text-slate-800">{v.title ?? '—'}</p>
-                {reimbursement ? (
-                  <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-950">
-                    <div className="font-semibold">Udlæg: {reimbursement.requester_name}</div>
-                    <select
-                      value={reimbursement.status}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => {
-                        e.stopPropagation()
-                        void updateReimbursementStatus(reimbursement, e.target.value as ReimbursementStatus)
-                      }}
-                      className="mt-2 w-full rounded-lg border border-emerald-200 bg-white px-2 py-1.5 text-xs"
-                    >
-                      {Object.entries(reimbursementStatusLabels).map(([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="mt-1 text-emerald-900/80">
-                      {reimbursement.bank_reg_number || reimbursement.bank_account_number
-                        ? `Reg. ${reimbursement.bank_reg_number ?? '—'} / Konto ${reimbursement.bank_account_number ?? '—'}`
-                        : 'Ingen konto angivet'}
+                {isForening ? (
+                  <>
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <span className="font-medium uppercase tracking-wide text-slate-500">
+                        {dateStr}
+                      </span>
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                          {v.category ?? 'Uden kategori'}
+                        </span>
+                        {v.voucher_project_id ? (
+                          <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
+                            {projects.find((p) => p.id === v.voucher_project_id)?.name ?? 'Event/projekt'}
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
-                ) : null}
-                <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 text-xs text-slate-600">
-                  <label className="min-w-0 flex-1">
-                    <span className="sr-only">Kategori</span>
-                    <select
-                      value={v.category ?? ''}
-                      disabled={assigningCategoryId === v.id}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => {
-                        e.stopPropagation()
-                        void updateVoucherCategory(v, e.target.value || null)
-                      }}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs text-slate-700"
-                    >
-                      <option value="">Uden kategori</option>
-                      {VOUCHER_CATEGORY_OPTIONS.map((category) => (
-                        <option key={category} value={category}>
-                          {category}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <span>{v.vat_cents ? `Moms ${formatDkk(v.vat_cents)}` : 'Moms —'}</span>
-                </div>
-                <label className="block border-t border-slate-100 pt-2">
-                  <span className="sr-only">Event/projekt</span>
-                  <select
-                    value={v.voucher_project_id ?? ''}
-                    disabled={!canUseVoucherProjects || projectFeatureUnavailable || assigningVoucherId === v.id}
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={(e) => {
-                      e.stopPropagation()
-                      void updateVoucherProject(v, e.target.value || null)
-                    }}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs text-slate-700"
-                  >
-                    <option value="">Uden event/projekt</option>
-                    {projects.map((project) => (
-                      <option key={project.id} value={project.id}>
-                        {project.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-sm font-medium text-indigo-600">Åbn bilag →</span>
-                  {canDeleteVoucher ? (
-                    <button
-                      type="button"
-                      disabled={deletingId === v.id}
-                      className="min-h-[44px] rounded-lg px-2 text-sm font-medium text-rose-700 hover:bg-rose-50 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        void deleteVoucher(v)
-                      }}
-                    >
-                      {deletingId === v.id ? 'Sletter…' : 'Slet'}
-                    </button>
-                  ) : null}
-                </div>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="line-clamp-2 text-sm font-medium text-slate-800">{v.title ?? '—'}</p>
+                      {v.gross_cents ? (
+                        <span className="shrink-0 text-sm font-semibold text-slate-900">
+                          {formatDkk(v.gross_cents)}
+                        </span>
+                      ) : (
+                        <span className="shrink-0 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">
+                          Indtast beløb
+                        </span>
+                      )}
+                    </div>
+                    {reimbursement ? (
+                      <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-950">
+                        <div className="font-semibold">Udlæg: {reimbursement.requester_name}</div>
+                        {reimbursement.status === 'refunded' ? (
+                          <span className="mt-2 inline-flex rounded-full bg-emerald-200/70 px-2 py-0.5 text-[11px] font-semibold text-emerald-900">
+                            {reimbursementStatusLabels.refunded}
+                          </span>
+                        ) : (
+                          <select
+                            value={reimbursement.status}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => {
+                              e.stopPropagation()
+                              void updateReimbursementStatus(reimbursement, e.target.value as ReimbursementStatus)
+                            }}
+                            className="mt-2 w-full rounded-lg border border-emerald-200 bg-white px-2 py-1.5 text-xs"
+                          >
+                            {Object.entries(reimbursementStatusLabels).map(([value, label]) => (
+                              <option key={value} value={value}>
+                                {label}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        <div className="mt-1 text-emerald-900/80">
+                          {reimbursement.bank_reg_number || reimbursement.bank_account_number
+                            ? `Reg. ${reimbursement.bank_reg_number ?? '—'} / Konto ${reimbursement.bank_account_number ?? '—'}`
+                            : 'Ingen konto angivet'}
+                        </div>
+                      </div>
+                    ) : null}
+                    <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-100 pt-2">
+                      <span className="text-sm font-medium text-indigo-600">Åbn bilag →</span>
+                      {canDeleteVoucher ? (
+                        <button
+                          type="button"
+                          aria-label={deletingId === v.id ? 'Sletter…' : 'Slet bilag'}
+                          disabled={deletingId === v.id}
+                          className="rounded-lg p-2 text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            void deleteVoucher(v)
+                          }}
+                        >
+                          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                            <path d="M3 6h18" />
+                            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                            <line x1="10" y1="11" x2="10" y2="17" />
+                            <line x1="14" y1="11" x2="14" y2="17" />
+                          </svg>
+                        </button>
+                      ) : null}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                        {dateStr}
+                      </span>
+                      {v.gross_cents ? (
+                        <span className="text-sm font-semibold text-slate-900">
+                          {formatDkk(v.gross_cents)}
+                        </span>
+                      ) : (
+                        <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">
+                          Indtast beløb
+                        </span>
+                      )}
+                    </div>
+                    <p className="line-clamp-2 text-sm font-medium text-slate-800">{v.title ?? '—'}</p>
+                    {reimbursement ? (
+                      <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-950">
+                        <div className="font-semibold">Udlæg: {reimbursement.requester_name}</div>
+                        {reimbursement.status === 'refunded' ? (
+                          <span className="mt-2 inline-flex rounded-full bg-emerald-200/70 px-2 py-0.5 text-[11px] font-semibold text-emerald-900">
+                            {reimbursementStatusLabels.refunded}
+                          </span>
+                        ) : (
+                          <select
+                            value={reimbursement.status}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => {
+                              e.stopPropagation()
+                              void updateReimbursementStatus(reimbursement, e.target.value as ReimbursementStatus)
+                            }}
+                            className="mt-2 w-full rounded-lg border border-emerald-200 bg-white px-2 py-1.5 text-xs"
+                          >
+                            {Object.entries(reimbursementStatusLabels).map(([value, label]) => (
+                              <option key={value} value={value}>
+                                {label}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        <div className="mt-1 text-emerald-900/80">
+                          {reimbursement.bank_reg_number || reimbursement.bank_account_number
+                            ? `Reg. ${reimbursement.bank_reg_number ?? '—'} / Konto ${reimbursement.bank_account_number ?? '—'}`
+                            : 'Ingen konto angivet'}
+                        </div>
+                      </div>
+                    ) : null}
+                    <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2 text-xs text-slate-600">
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                        {v.category ?? 'Uden kategori'}
+                      </span>
+                      {v.voucher_project_id ? (
+                        <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
+                          {projects.find((p) => p.id === v.voucher_project_id)?.name ?? 'Event/projekt'}
+                        </span>
+                      ) : null}
+                      <span className="ml-auto">
+                        {v.vat_cents ? `Moms ${formatDkk(v.vat_cents)}` : 'Moms —'}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-indigo-600">Åbn bilag →</span>
+                      {canDeleteVoucher ? (
+                        <button
+                          type="button"
+                          disabled={deletingId === v.id}
+                          className="min-h-[44px] rounded-lg px-2 text-sm font-medium text-rose-700 hover:bg-rose-50 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            void deleteVoucher(v)
+                          }}
+                        >
+                          {deletingId === v.id ? 'Sletter…' : 'Slet'}
+                        </button>
+                      ) : null}
+                    </div>
+                  </>
+                )}
               </div>
             )
           })
@@ -1051,37 +1164,35 @@ export function VouchersPage() {
                 onClick={() => onSortColumn('gross')}
                 align="right"
               />
-              <SortableTh
-                label="Moms"
-                isActive={sortKey === 'vat'}
-                direction={sortKey === 'vat' ? sortDir : null}
-                onClick={() => onSortColumn('vat')}
-                align="right"
-              />
+              {!isForening ? (
+                <SortableTh
+                  label="Moms"
+                  isActive={sortKey === 'vat'}
+                  direction={sortKey === 'vat' ? sortDir : null}
+                  onClick={() => onSortColumn('vat')}
+                  align="right"
+                />
+              ) : null}
               <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={isForening ? 7 : 8} className="px-4 py-8 text-center text-slate-500">
                   Indlæser…
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
-                  Ingen bilag endnu.
-                </td>
-              </tr>
-            ) : filteredRows.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
-                  Ingen bilag matcher søgningen.
+                <td colSpan={isForening ? 7 : 8} className="px-4 py-8 text-center text-slate-500">
+                  {debouncedSearch || projectFilter !== 'all'
+                    ? 'Ingen bilag matcher søgningen.'
+                    : 'Ingen bilag endnu.'}
                 </td>
               </tr>
             ) : (
-              filteredRows.map((v) => {
+              rows.map((v) => {
                 const reimbursement = reimbursementByVoucherId.get(v.id)
                 return (
                 <tr
@@ -1097,42 +1208,22 @@ export function VouchersPage() {
                   </td>
                   <td className="px-4 py-3 text-slate-800">{v.title ?? '—'}</td>
                   <td className="px-4 py-3 text-slate-600">
-                    <select
-                      value={v.category ?? ''}
-                      disabled={assigningCategoryId === v.id}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => {
-                        e.stopPropagation()
-                        void updateVoucherCategory(v, e.target.value || null)
-                      }}
-                      className="w-full min-w-40 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm"
-                    >
-                      <option value="">—</option>
-                      {VOUCHER_CATEGORY_OPTIONS.map((category) => (
-                        <option key={category} value={category}>
-                          {category}
-                        </option>
-                      ))}
-                    </select>
+                    {v.category ? (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                        {v.category}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-400">Uden kategori</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-slate-600">
-                    <select
-                      value={v.voucher_project_id ?? ''}
-                      disabled={!canUseVoucherProjects || projectFeatureUnavailable || assigningVoucherId === v.id}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => {
-                        e.stopPropagation()
-                        void updateVoucherProject(v, e.target.value || null)
-                      }}
-                      className="w-full min-w-40 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm"
-                    >
-                      <option value="">—</option>
-                      {projects.map((project) => (
-                        <option key={project.id} value={project.id}>
-                          {project.name}
-                        </option>
-                      ))}
-                    </select>
+                    {v.voucher_project_id ? (
+                      <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
+                        {projects.find((p) => p.id === v.voucher_project_id)?.name ?? '—'}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-slate-600">
                     {reimbursement ? (
@@ -1145,24 +1236,30 @@ export function VouchersPage() {
                             ? `Reg. ${reimbursement.bank_reg_number ?? '—'} / Konto ${reimbursement.bank_account_number ?? '—'}`
                             : 'Ingen konto angivet'}
                         </div>
-                        <select
-                          value={reimbursement.status}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => {
-                            e.stopPropagation()
-                            void updateReimbursementStatus(
-                              reimbursement,
-                              e.target.value as ReimbursementStatus,
-                            )
-                          }}
-                          className="w-full min-w-44 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs"
-                        >
-                          {Object.entries(reimbursementStatusLabels).map(([value, label]) => (
-                            <option key={value} value={value}>
-                              {label}
-                            </option>
-                          ))}
-                        </select>
+                        {reimbursement.status === 'refunded' ? (
+                          <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+                            {reimbursementStatusLabels.refunded}
+                          </span>
+                        ) : (
+                          <select
+                            value={reimbursement.status}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => {
+                              e.stopPropagation()
+                              void updateReimbursementStatus(
+                                reimbursement,
+                                e.target.value as ReimbursementStatus,
+                              )
+                            }}
+                            className="w-full min-w-44 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs"
+                          >
+                            {Object.entries(reimbursementStatusLabels).map(([value, label]) => (
+                              <option key={value} value={value}>
+                                {label}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </div>
                     ) : (
                       '—'
@@ -1177,9 +1274,11 @@ export function VouchersPage() {
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-right text-slate-600">
-                    {v.vat_cents ? formatDkk(v.vat_cents) : '—'}
-                  </td>
+                  {!isForening ? (
+                    <td className="px-4 py-3 text-right text-slate-600">
+                      {v.vat_cents ? formatDkk(v.vat_cents) : '—'}
+                    </td>
+                  ) : null}
                   <td className="px-4 py-3 text-right">
                     <div className="flex flex-wrap items-center justify-end gap-3">
                       <button
@@ -1214,11 +1313,24 @@ export function VouchersPage() {
           </tbody>
         </table>
       </div>
+      {!loading && rows.length > 0 ? (
+        <div
+          ref={loadMoreSentinelRef}
+          className="flex items-center justify-center py-4 text-xs text-slate-500"
+        >
+          {hasMore ? (loadingMore ? 'Indlæser flere…' : 'Scroll for at hente flere') : 'Ingen flere bilag.'}
+        </div>
+      ) : null}
       {preview ? (
         <VoucherPreviewModal
           voucher={preview.voucher}
           url={preview.url}
           canEdit={canDeleteVoucher}
+          showVat={!isForening}
+          projects={projects}
+          canUseVoucherProjects={canUseVoucherProjects && !projectFeatureUnavailable}
+          reimbursement={reimbursementByVoucherId.get(preview.voucher.id) ?? null}
+          onUpdateReimbursementStatus={updateReimbursementStatus}
           onClose={() => setPreview(null)}
           onSave={(updates) => updateVoucherDetails(preview.voucher, updates)}
         />
@@ -1338,7 +1450,14 @@ export function VouchersPage() {
 
 type VoucherEditableFields = Pick<
   Voucher,
-  'title' | 'expense_date' | 'gross_cents' | 'vat_cents' | 'net_cents' | 'vat_rate'
+  | 'title'
+  | 'expense_date'
+  | 'gross_cents'
+  | 'vat_cents'
+  | 'net_cents'
+  | 'vat_rate'
+  | 'category'
+  | 'voucher_project_id'
 >
 
 function centsToKrInput(cents: number): string {
@@ -1359,12 +1478,22 @@ function VoucherPreviewModal({
   voucher,
   url,
   canEdit,
+  showVat,
+  projects,
+  canUseVoucherProjects,
+  reimbursement,
+  onUpdateReimbursementStatus,
   onClose,
   onSave,
 }: {
   voucher: Voucher
   url: string
   canEdit: boolean
+  showVat: boolean
+  projects: VoucherProject[]
+  canUseVoucherProjects: boolean
+  reimbursement: Reimbursement | null
+  onUpdateReimbursementStatus: (reimbursement: Reimbursement, status: ReimbursementStatus) => Promise<void>
   onClose: () => void
   onSave: (updates: Partial<VoucherEditableFields>) => Promise<void>
 }) {
@@ -1372,6 +1501,8 @@ function VoucherPreviewModal({
   const [date, setDate] = useState(voucher.expense_date)
   const [grossKr, setGrossKr] = useState(centsToKrInput(voucher.gross_cents))
   const [vatKr, setVatKr] = useState(centsToKrInput(voucher.vat_cents))
+  const [category, setCategory] = useState<string>(voucher.category ?? '')
+  const [projectId, setProjectId] = useState<string>(voucher.voucher_project_id ?? '')
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -1380,8 +1511,18 @@ function VoucherPreviewModal({
     setDate(voucher.expense_date)
     setGrossKr(centsToKrInput(voucher.gross_cents))
     setVatKr(centsToKrInput(voucher.vat_cents))
+    setCategory(voucher.category ?? '')
+    setProjectId(voucher.voucher_project_id ?? '')
     setFormError(null)
-  }, [voucher.id, voucher.title, voucher.expense_date, voucher.gross_cents, voucher.vat_cents])
+  }, [
+    voucher.id,
+    voucher.title,
+    voucher.expense_date,
+    voucher.gross_cents,
+    voucher.vat_cents,
+    voucher.category,
+    voucher.voucher_project_id,
+  ])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -1402,18 +1543,22 @@ function VoucherPreviewModal({
       return
     }
     const grossCents = parseKrToCents(grossKr)
-    const vatCents = parseKrToCents(vatKr)
     if (grossCents === null) {
       setFormError('Beløb er ugyldigt')
       return
     }
-    if (vatCents === null) {
-      setFormError('Moms er ugyldig')
-      return
-    }
-    if (vatCents > grossCents) {
-      setFormError('Moms kan ikke være højere end beløbet')
-      return
+    let vatCents = 0
+    if (showVat) {
+      const parsed = parseKrToCents(vatKr)
+      if (parsed === null) {
+        setFormError('Moms er ugyldig')
+        return
+      }
+      if (parsed > grossCents) {
+        setFormError('Moms kan ikke være højere end beløbet')
+        return
+      }
+      vatCents = parsed
     }
     const netCents = grossCents - vatCents
     const vatRate = netCents > 0 ? Math.round((vatCents / netCents) * 10000) / 100 : 0
@@ -1426,6 +1571,8 @@ function VoucherPreviewModal({
         vat_cents: vatCents,
         net_cents: netCents,
         vat_rate: vatRate,
+        category: category || null,
+        voucher_project_id: canUseVoucherProjects ? (projectId || null) : voucher.voucher_project_id,
       })
       onClose()
     } catch (e) {
@@ -1514,17 +1661,69 @@ function VoucherPreviewModal({
                   placeholder="0,00"
                 />
               </label>
+              {showVat ? (
+                <label className="block text-xs font-medium text-slate-600">
+                  Moms (kr)
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={vatKr}
+                    onChange={(e) => setVatKr(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+                    placeholder="0,00"
+                  />
+                </label>
+              ) : null}
               <label className="block text-xs font-medium text-slate-600">
-                Moms (kr)
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={vatKr}
-                  onChange={(e) => setVatKr(e.target.value)}
+                Kategori
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
                   className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
-                  placeholder="0,00"
-                />
+                >
+                  <option value="">Uden kategori</option>
+                  {VOUCHER_CATEGORY_OPTIONS.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
               </label>
+              {canUseVoucherProjects ? (
+                <label className="block text-xs font-medium text-slate-600">
+                  Event/projekt
+                  <select
+                    value={projectId}
+                    onChange={(e) => setProjectId(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+                  >
+                    <option value="">Uden event/projekt</option>
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              {reimbursement ? (
+                <label className="block text-xs font-medium text-slate-600">
+                  Udlæg-status
+                  <select
+                    value={reimbursement.status}
+                    onChange={(e) =>
+                      void onUpdateReimbursementStatus(reimbursement, e.target.value as ReimbursementStatus)
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+                  >
+                    {Object.entries(reimbursementStatusLabels).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
             </div>
             <div className="mt-3 flex flex-wrap items-center justify-end gap-3">
               {formError ? (

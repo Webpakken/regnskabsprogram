@@ -70,6 +70,37 @@ export function daysBetweenYmd(from: string, to: string): number {
   return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86_400_000)
 }
 
+/** Alle YYYY-MM fra from til to (inkl.) i rækkefølge. */
+export function eachYearMonthInRange(from: string, to: string): string[] {
+  const fy = parseInt(from.slice(0, 4), 10)
+  const fm = parseInt(from.slice(5, 7), 10)
+  const ty = parseInt(to.slice(0, 4), 10)
+  const tm = parseInt(to.slice(5, 7), 10)
+  const out: string[] = []
+  let y = fy
+  let m = fm
+  while (y < ty || (y === ty && m <= tm)) {
+    out.push(`${y}-${m < 10 ? '0' + m : m}`)
+    m += 1
+    if (m > 12) {
+      m = 1
+      y += 1
+    }
+  }
+  return out
+}
+
+const yearMonthFormatter = new Intl.DateTimeFormat('da-DK', {
+  timeZone: APP_TIMEZONE,
+  month: 'short',
+  year: 'numeric',
+})
+/** "2026-04" → "apr. 2026". */
+export function formatYearMonth(ym: string): string {
+  const [y, m] = ym.split('-').map(Number)
+  return yearMonthFormatter.format(new Date(Date.UTC(y, m - 1, 15, 12, 0, 0)))
+}
+
 function parseForDisplay(iso: string): Date {
   const d = iso.slice(0, 10)
   if (/^\d{4}-\d{2}-\d{2}$/.test(d) && iso.length <= 10) {

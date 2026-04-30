@@ -19,13 +19,16 @@ import {
   APP_TIMEZONE,
   copenhagenLastNDaysInclusive,
   copenhagenYearMonth,
+  copenhagenYear,
   copenhagenYmd,
   daysBetweenYmd,
   eachCopenhagenYmdInRange,
+  eachYearMonthInRange,
   formatDate,
   formatDateOnly,
   formatDkk,
   formatDateTime,
+  formatYearMonth,
 } from '@/lib/format'
 import {
   ButtonSpinner,
@@ -63,7 +66,21 @@ const INCOME_KIND_COLOR: Record<IncomeKind, string> = {
   andet: '#64748b', // slate-500
 }
 
-type PeriodMode = 'month' | 'ytd' | 'all'
+type PeriodMode = 'month' | 'ytd' | 'all' | 'custom'
+
+const MONTHLY_AGG_THRESHOLD_DAYS = 60
+const YMD_RE = /^\d{4}-\d{2}-\d{2}$/
+
+function quarterRange(year: number, q: 1 | 2 | 3 | 4): { from: string; to: string } {
+  const startMonth = (q - 1) * 3 + 1
+  const endMonth = startMonth + 2
+  const lastDay = new Date(Date.UTC(year, endMonth, 0)).getUTCDate()
+  const mm = (n: number) => (n < 10 ? '0' + n : String(n))
+  return {
+    from: `${year}-${mm(startMonth)}-01`,
+    to: `${year}-${mm(endMonth)}-${mm(lastDay)}`,
+  }
+}
 
 function monthRangeYm(ym: string): { from: string; to: string } {
   const from = `${ym}-01`
@@ -147,7 +164,7 @@ function MiniBars({ values, color }: { values: number[]; color: string }) {
 export function DashboardPage() {
   const { currentCompany, subscription, refresh } = useApp()
   const checkout = useStripeCheckoutLauncher()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const checkoutResult = searchParams.get('checkout')
   const hasAccess = accessOk(currentCompany, subscription)
   const isForening = currentCompany?.entity_type === 'forening'
@@ -158,7 +175,19 @@ export function DashboardPage() {
   const [vouchers, setVouchers] = useState<VoucherLite[]>([])
   const [incomeEntries, setIncomeEntries] = useState<IncomeLite[]>([])
   const [loading, setLoading] = useState(true)
-  const [periodMode, setPeriodMode] = useState<PeriodMode>('month')
+  const [periodMode, setPeriodMode] = useState<PeriodMode>(() => {
+    const m = searchParams.get('period')
+    if (m === 'ytd' || m === 'all' || m === 'custom') return m
+    return 'month'
+  })
+  const [customRange, setCustomRange] = useState<{ from: string; to: string }>(() => {
+    const f = searchParams.get('from') ?? ''
+    const t = searchParams.get('to') ?? ''
+    return {
+      from: YMD_RE.test(f) ? f : '',
+      to: YMD_RE.test(t) ? t : '',
+    }
+  })
 
   useEffect(() => {
     if (checkoutResult === 'success') {
@@ -227,10 +256,19 @@ export function DashboardPage() {
 
   const ym = copenhagenYearMonth()
   const today = useMemo(() => copenhagenLastNDaysInclusive(1).to, [])
+  const currentYear = useMemo(() => copenhagenYear(), [])
   const companyCreatedYmd = useMemo(
     () => (currentCompany ? copenhagenYmd(new Date(currentCompany.created_at)) : today),
     [currentCompany, today],
   )
+
+  const customValid =
+    customRange.from !== '' &&
+    customRange.to !== '' &&
+    YMD_RE.test(customRange.from) &&
+    YMD_RE.test(customRange.to) &&
+    customRange.from <= customRange.to
+
   const periodRange = useMemo(() => {
     if (periodMode === 'ytd') {
       const year = ym.slice(0, 4)
@@ -239,8 +277,35 @@ export function DashboardPage() {
     if (periodMode === 'all') {
       return { from: companyCreatedYmd, to: today }
     }
+    if (periodMode === 'custom' && customValid) {
+      return { from: customRange.from, to: customRange.to }
+    }
     return monthRangeYm(ym)
-  }, [periodMode, ym, today, companyCreatedYmd])
+  }, [periodMode, ym, today, companyCreatedYmd, customRange, customValid])
+
+  // Synker periodevalg til URL så reload/deep-link husker det.
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams)
+    if (periodMode === 'month') {
+      next.delete('period')
+      next.delete('from')
+      next.delete('to')
+    } else if (periodMode === 'custom') {
+      next.set('period', 'custom')
+      if (customRange.from) next.set('from', customRange.from)
+      else next.delete('from')
+      if (customRange.to) next.set('to', customRange.to)
+      else next.delete('to')
+    } else {
+      next.set('period', periodMode)
+      next.delete('from')
+      next.delete('to')
+    }
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodMode, customRange.from, customRange.to])
 
   const periodLabel = useMemo(() => {
     if (periodMode === 'ytd') {
@@ -248,6 +313,9 @@ export function DashboardPage() {
     }
     if (periodMode === 'all') {
       return 'Hele tiden'
+    }
+    if (periodMode === 'custom') {
+      return 'Tilpasset periode'
     }
     const monthLong = new Intl.DateTimeFormat('da-DK', {
       timeZone: APP_TIMEZONE,
@@ -262,8 +330,11 @@ export function DashboardPage() {
     if (periodMode === 'all') {
       return `Til og med ${formatDateOnly(to)}`
     }
+    if (periodMode === 'custom' && !customValid) {
+      return 'Vælg en gyldig periode'
+    }
     return `${formatDateOnly(from)} – ${formatDateOnly(to)}`
-  }, [periodMode, periodRange])
+  }, [periodMode, periodRange, customValid])
 
   const periodInvoices = useMemo(() => {
     const { from, to } = periodRange
@@ -341,11 +412,32 @@ export function DashboardPage() {
     return { inc, exp, res: res.map((v) => Math.abs(v)) }
   }, [periodIncome, periodVouchers, periodRange])
 
-  /** Linje-data til "Indtægter vs udgifter pr. dag" for foreninger. */
+  /** Linje-data til "Indtægter vs udgifter" for foreninger. Aggregerer pr. måned ved lange perioder. */
   const foreningChartData = useMemo(() => {
     const { from, to } = periodRange
+    const aggMonthly = daysBetweenYmd(from, to) > MONTHLY_AGG_THRESHOLD_DAYS
     const incomeMap = new Map<string, number>()
     const expenseMap = new Map<string, number>()
+    if (aggMonthly) {
+      for (const key of eachYearMonthInRange(from, to)) {
+        incomeMap.set(key, 0)
+        expenseMap.set(key, 0)
+      }
+      for (const e of periodIncome) {
+        const k = e.entry_date.slice(0, 7)
+        if (incomeMap.has(k)) incomeMap.set(k, (incomeMap.get(k) ?? 0) + e.amount_cents)
+      }
+      for (const v of periodVouchers) {
+        const k = v.expense_date.slice(0, 7)
+        if (expenseMap.has(k)) expenseMap.set(k, (expenseMap.get(k) ?? 0) + v.gross_cents)
+      }
+      return [...incomeMap.keys()].map((key) => ({
+        date: key,
+        label: formatYearMonth(key),
+        indtaegter: (incomeMap.get(key) ?? 0) / 100,
+        udgifter: (expenseMap.get(key) ?? 0) / 100,
+      }))
+    }
     for (const key of eachCopenhagenYmdInRange(from, to)) {
       incomeMap.set(key, 0)
       expenseMap.set(key, 0)
@@ -376,10 +468,23 @@ export function DashboardPage() {
 
   const chartData = useMemo(() => {
     const { from, to } = periodRange
+    const aggMonthly = daysBetweenYmd(from, to) > MONTHLY_AGG_THRESHOLD_DAYS
     const map = new Map<string, number>()
-    for (const key of eachCopenhagenYmdInRange(from, to)) {
-      map.set(key, 0)
+    if (aggMonthly) {
+      for (const key of eachYearMonthInRange(from, to)) map.set(key, 0)
+      for (const inv of periodInvoices) {
+        if (inv.status === 'cancelled') continue
+        const k = inv.issue_date.slice(0, 7)
+        if (!map.has(k)) continue
+        map.set(k, (map.get(k) ?? 0) + inv.gross_cents)
+      }
+      return [...map.entries()].map(([key, gross_cents]) => ({
+        date: key,
+        label: formatYearMonth(key),
+        brutto: gross_cents / 100,
+      }))
     }
+    for (const key of eachCopenhagenYmdInRange(from, to)) map.set(key, 0)
     for (const inv of periodInvoices) {
       if (inv.status === 'cancelled') continue
       const key = inv.issue_date
@@ -489,8 +594,86 @@ export function DashboardPage() {
             >
               Hele tiden
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!customRange.from || !customRange.to) {
+                  setCustomRange(monthRangeYm(ym))
+                }
+                setPeriodMode('custom')
+              }}
+              className={clsx(
+                'min-h-[40px] flex-1 rounded-md px-3 py-2 text-center text-xs font-semibold transition sm:flex-none sm:px-4',
+                periodMode === 'custom'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-white/90 hover:text-slate-900',
+              )}
+            >
+              Tilpas
+            </button>
           </div>
         </div>
+
+        {periodMode === 'custom' ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+            <div className="flex flex-wrap gap-2">
+              {([1, 2, 3, 4] as const).map((q) => (
+                <button
+                  key={`q${q}`}
+                  type="button"
+                  onClick={() => setCustomRange(quarterRange(currentYear, q))}
+                  className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                >
+                  {`Q${q} ${currentYear}`}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() =>
+                  setCustomRange({
+                    from: `${currentYear - 1}-01-01`,
+                    to: `${currentYear - 1}-12-31`,
+                  })
+                }
+                className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+              >
+                {`Hele ${currentYear - 1}`}
+              </button>
+            </div>
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
+              <label className="flex flex-1 flex-col text-xs font-medium text-slate-600">
+                Fra
+                <input
+                  type="date"
+                  value={customRange.from}
+                  max={customRange.to || today}
+                  onChange={(e) =>
+                    setCustomRange((r) => ({ ...r, from: e.target.value }))
+                  }
+                  className="mt-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+                />
+              </label>
+              <label className="flex flex-1 flex-col text-xs font-medium text-slate-600">
+                Til
+                <input
+                  type="date"
+                  value={customRange.to}
+                  min={customRange.from || undefined}
+                  max={today}
+                  onChange={(e) =>
+                    setCustomRange((r) => ({ ...r, to: e.target.value }))
+                  }
+                  className="mt-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+                />
+              </label>
+            </div>
+            {!customValid ? (
+              <p className="mt-2 text-xs text-rose-600">
+                Vælg en gyldig periode (Fra skal være før eller lig med Til).
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div
@@ -714,9 +897,15 @@ export function DashboardPage() {
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8 lg:col-span-2">
           <h2 className="text-sm font-semibold text-slate-900">
-            {isForening
-              ? `Indtægter vs udgifter pr. dag (${periodLabel})`
-              : `Brutto pr. dag (${periodLabel})`}
+            {(() => {
+              const granularity =
+                daysBetweenYmd(periodRange.from, periodRange.to) > MONTHLY_AGG_THRESHOLD_DAYS
+                  ? 'pr. måned'
+                  : 'pr. dag'
+              return isForening
+                ? `Indtægter vs udgifter ${granularity} (${periodLabel})`
+                : `Brutto ${granularity} (${periodLabel})`
+            })()}
           </h2>
           <p className="mt-1 text-xs text-slate-500">
             {isForening
@@ -985,7 +1174,7 @@ function DashTile({
         <span className="text-sm font-semibold text-slate-900">{title}</span>
         <span className="text-slate-300 group-hover:text-indigo-600">›</span>
       </div>
-      <div className="mt-1.5 flex items-center gap-2">
+      <div className="mt-1.5 flex flex-col items-start gap-1.5">
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${scopeStyle}`}>
           {scopeLabel}
         </span>
