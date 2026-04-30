@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { AppPageLayout } from '@/components/AppPageLayout'
-import { InvoicePdfCanvasViewer } from '@/components/InvoicePdfCanvasViewer'
 import { SortableTh } from '@/components/SortableTh'
 import { nextColumnSortState, type ColumnSortDir } from '@/lib/tableSort'
 import { DesktopListCardsToggle } from '@/components/DesktopListCardsToggle'
@@ -13,7 +12,7 @@ import { formatDateOnly, formatDkk } from '@/lib/format'
 import { formatParsedNotes } from '@/lib/receiptParse'
 import { canAttemptVoucherOcr } from '@/lib/voucherOcr'
 import { extractVoucherFromFile } from '@/lib/voucherExtractClient'
-import { VOUCHER_CATEGORY_OPTIONS, inferVoucherCategory } from '@/lib/voucherCategories'
+import { inferVoucherCategory } from '@/lib/voucherCategories'
 import { expenseLinkUrl, randomExpenseLinkToken, sha256Hex } from '@/lib/expenseLinks'
 import {
   ButtonSpinner,
