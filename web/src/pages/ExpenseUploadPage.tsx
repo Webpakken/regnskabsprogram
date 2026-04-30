@@ -99,10 +99,22 @@ export function ExpenseUploadPage() {
       setError('Skriv dit navn.')
       return
     }
+    if (!reg.trim()) {
+      setError('Skriv dit reg.nr.')
+      return
+    }
+    if (!account.trim()) {
+      setError('Skriv dit kontonr.')
+      return
+    }
+    const grossCents = centsFromKr(grossKr)
+    if (!grossCents || grossCents <= 0) {
+      setError('Skriv beløbet (fx 125,00).')
+      return
+    }
     setSubmitting(true)
     setError(null)
     try {
-      const grossCents = centsFromKr(grossKr)
       const rate = parseFloat(vatRate.replace(',', '.')) || 0
       const netCents = rate > 0 ? Math.round(grossCents / (1 + rate / 100)) : grossCents
       const vatCents = grossCents - netCents
@@ -161,6 +173,9 @@ export function ExpenseUploadPage() {
               <p className="text-sm text-slate-600">
                 Link til <span className="font-semibold text-slate-900">{info?.company_name}</span>.
                 Udløber {expiresLabel}.
+              </p>
+              <p className="text-xs text-slate-500">
+                Felter markeret med <span className="text-rose-600">*</span> er påkrævet.
               </p>
               <label className="block">
                 <span className="text-sm font-medium">
