@@ -589,18 +589,6 @@ export function DashboardPage() {
             </button>
             <button
               type="button"
-              onClick={() => setPeriodMode('all')}
-              className={clsx(
-                'min-h-[40px] flex-1 rounded-md px-3 py-2 text-center text-xs font-semibold transition sm:flex-none sm:px-4',
-                periodMode === 'all'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-600 hover:bg-white/90 hover:text-slate-900',
-              )}
-            >
-              Hele tiden
-            </button>
-            <button
-              type="button"
               onClick={() => {
                 if (!customRange.from || !customRange.to) {
                   setCustomRange(monthRangeYm(ym))

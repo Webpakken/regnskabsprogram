@@ -248,13 +248,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return
     }
     void load()
+    // Ref tracker så vi ved hvilken bruger der allerede er indlæst — undgår reload på
+    // tab-focus events (INITIAL_SESSION, USER_UPDATED) når user-id'et er uændret.
+    let lastUserId: string | null = null
     const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      // Token-refresh: bare opdater session/user, ingen full reload.
       if (event === 'TOKEN_REFRESHED') {
         setSession(nextSession)
         setUser(nextSession?.user ?? null)
         return
       }
-      void load()
+      const nextUid = nextSession?.user?.id ?? null
+      // Login/logout → reload alt.
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'MFA_CHALLENGE_VERIFIED') {
+        lastUserId = nextUid
+        void load()
+        return
+      }
+      // INITIAL_SESSION og USER_UPDATED: kun reload hvis brugeren faktisk er en anden.
+      if (nextUid !== lastUserId) {
+        lastUserId = nextUid
+        void load()
+        return
+      }
+      // Samme bruger som før — opdater bare session/user-objektet uden at refetche data.
+      setSession(nextSession)
+      setUser(nextSession?.user ?? null)
     })
     return () => sub.subscription.unsubscribe()
   }, [load])

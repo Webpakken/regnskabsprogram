@@ -160,13 +160,13 @@ type MoreItem = {
 // medtager ikke samme primærfane to steder. Foreninger får dog Fakturaer her, da
 // den er flyttet ud af bottom-nav'en for dem.
 const items: MoreItem[] = [
-  { to: '/app/support', label: 'Support', icon: ChatIcon },
-  { to: '/app/hjaelp', label: 'Hjælp & svar', icon: HelpIcon },
-  { to: '/app/activity', label: 'Aktivitetslog', icon: ListIcon },
-  { to: '/app/bank', label: 'Bank', icon: BankIcon },
   { to: '/app/invoices', label: 'Fakturaer', icon: InvoiceIcon, onlyFor: 'forening' },
   { to: '/app/vat', label: 'Moms', icon: PercentIcon, onlyFor: 'virksomhed' },
+  { to: '/app/bank', label: 'Bank', icon: BankIcon },
   { to: '/app/members', label: 'Medlemmer', icon: UsersIcon },
+  { to: '/app/hjaelp', label: 'Hjælp & svar', icon: HelpIcon },
+  { to: '/app/support', label: 'Support', icon: ChatIcon },
+  { to: '/app/activity', label: 'Aktivitetslog', icon: ListIcon },
   { to: '/app/settings', label: 'Indstillinger', icon: CogIcon },
 ]
 
