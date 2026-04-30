@@ -389,7 +389,70 @@ export function MembersPage() {
         ) : members.length === 0 ? (
           <p className="mt-3 text-sm text-slate-500">Ingen medlemmer endnu.</p>
         ) : (
-          <div className="mt-4 overflow-x-auto rounded-lg border border-slate-100">
+          <>
+          <div className="mt-4 space-y-3 md:hidden">
+            {sortedMembers.map((m) => {
+              const isSelf = m.user_id === user?.id
+              const status = activityStatus(m.last_active_at)
+              return (
+                <div
+                  key={m.id}
+                  className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-slate-900">
+                        {m.full_name?.trim() || 'Uden navn'}
+                        {isSelf ? <span className="ml-2 text-xs text-slate-400">(dig)</span> : null}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        Tilføjet {formatDateTime(m.created_at)}
+                      </p>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${status.className}`}
+                    >
+                      {status.label}
+                    </span>
+                  </div>
+                  {m.last_active_at ? (
+                    <p className="text-xs text-slate-500">
+                      Sidste aktivitet: {formatDateTime(m.last_active_at)}
+                    </p>
+                  ) : null}
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                    {canManage && !isSelf ? (
+                      <select
+                        className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+                        value={m.role}
+                        onChange={(e) => void updateRole(m.id, e.target.value as CompanyRole)}
+                      >
+                        {ROLES.map((r) => (
+                          <option key={r} value={r}>
+                            {ROLE_LABELS[r]}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="inline-block rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                        {ROLE_LABELS[m.role]}
+                      </span>
+                    )}
+                    {canManage && !isSelf ? (
+                      <button
+                        type="button"
+                        onClick={() => void removeMember(m.id, m.user_id)}
+                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+                      >
+                        Fjern
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          <div className="mt-4 hidden overflow-x-auto rounded-lg border border-slate-100 md:block">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                 <tr>
@@ -487,6 +550,7 @@ export function MembersPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
 
@@ -535,7 +599,33 @@ export function MembersPage() {
             {invites.length === 0 ? (
               <p className="mt-3 text-sm text-slate-500">Ingen afventende invitationer.</p>
             ) : (
-              <div className="mt-4 overflow-x-auto rounded-lg border border-slate-100">
+              <>
+              <div className="mt-4 space-y-3 md:hidden">
+                {sortedInvites.map((i) => (
+                  <div
+                    key={i.id}
+                    className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4"
+                  >
+                    <p className="break-all font-medium text-slate-900">{i.email}</p>
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700">
+                        {ROLE_LABELS[i.role]}
+                      </span>
+                      <span className="text-slate-500">Sendt {formatDateTime(i.created_at)}</span>
+                    </div>
+                    <div className="flex justify-end border-t border-slate-100 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => void deleteInvite(i.id, i.email)}
+                        className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50"
+                      >
+                        Slet
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 hidden overflow-x-auto rounded-lg border border-slate-100 md:block">
                 <table className="min-w-full text-left text-sm">
                   <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                     <tr>
@@ -586,6 +676,7 @@ export function MembersPage() {
                   </tbody>
                 </table>
               </div>
+              </>
             )}
           </section>
         </>

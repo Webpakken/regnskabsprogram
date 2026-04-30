@@ -163,7 +163,9 @@ export function ExpenseUploadPage() {
                 Udløber {expiresLabel}.
               </p>
               <label className="block">
-                <span className="text-sm font-medium">Bilag</span>
+                <span className="text-sm font-medium">
+                  Bilag <span className="text-rose-600">*</span>
+                </span>
                 <input
                   type="file"
                   accept="image/*,application/pdf"
@@ -174,19 +176,25 @@ export function ExpenseUploadPage() {
               </label>
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="block sm:col-span-2">
-                  <span className="text-sm font-medium">Dit navn</span>
+                  <span className="text-sm font-medium">
+                    Dit navn <span className="text-rose-600">*</span>
+                  </span>
                   <input value={name} onChange={(e) => setName(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" />
                 </label>
-                <label className="block">
+                <label className="block sm:col-span-2">
                   <span className="text-sm font-medium">Telefon</span>
                   <input value={phone} onChange={(e) => setPhone(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" />
                 </label>
                 <label className="block">
-                  <span className="text-sm font-medium">Reg.nr.</span>
+                  <span className="text-sm font-medium">
+                    Reg.nr. <span className="text-rose-600">*</span>
+                  </span>
                   <input value={reg} onChange={(e) => setReg(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" />
                 </label>
-                <label className="block sm:col-span-2">
-                  <span className="text-sm font-medium">Kontonr.</span>
+                <label className="block">
+                  <span className="text-sm font-medium">
+                    Kontonr. <span className="text-rose-600">*</span>
+                  </span>
                   <input value={account} onChange={(e) => setAccount(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" />
                 </label>
                 <label className="block sm:col-span-2">
@@ -198,7 +206,9 @@ export function ExpenseUploadPage() {
                   <input type="date" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" />
                 </label>
                 <label className="block">
-                  <span className="text-sm font-medium">Beløb</span>
+                  <span className="text-sm font-medium">
+                    Beløb <span className="text-rose-600">*</span>
+                  </span>
                   <input value={grossKr} onChange={(e) => setGrossKr(e.target.value)} placeholder="125,00" className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" />
                 </label>
               </div>

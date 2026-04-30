@@ -150,7 +150,21 @@ export function PlatformCompaniesPage() {
                       : 'hover:bg-slate-50/80'
                   }
                 >
-                  <td className="px-4 py-3 font-medium text-slate-900">{c.name}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium text-slate-900">{c.name}</span>
+                      <span
+                        className={
+                          'rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ' +
+                          (c.entity_type === 'forening'
+                            ? 'bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-100'
+                            : 'bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200')
+                        }
+                      >
+                        {c.entity_type === 'forening' ? 'Forening' : 'Virksomhed'}
+                      </span>
+                    </div>
+                  </td>
                   <td className="hidden px-4 py-3 text-slate-600 sm:table-cell">
                     {c.cvr ?? '—'}
                   </td>
