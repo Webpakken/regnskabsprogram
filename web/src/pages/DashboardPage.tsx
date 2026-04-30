@@ -20,7 +20,6 @@ import {
   copenhagenLastNDaysInclusive,
   copenhagenYearMonth,
   copenhagenYear,
-  copenhagenYmd,
   daysBetweenYmd,
   eachCopenhagenYmdInRange,
   eachYearMonthInRange,
@@ -257,10 +256,16 @@ export function DashboardPage() {
   const ym = copenhagenYearMonth()
   const today = useMemo(() => copenhagenLastNDaysInclusive(1).to, [])
   const currentYear = useMemo(() => copenhagenYear(), [])
-  const companyCreatedYmd = useMemo(
-    () => (currentCompany ? copenhagenYmd(new Date(currentCompany.created_at)) : today),
-    [currentCompany, today],
-  )
+  // "Hele tiden" skal dække alt loaded data — tager min af bog-datoer (kan være ældre end created_at,
+  // fx for foreninger der bogfører gamle bilag), og falder tilbage til fetch-vinduet.
+  const allDataFromYmd = useMemo(() => {
+    const fetchFrom = copenhagenLastNDaysInclusive(INVOICE_FETCH_DAYS).from
+    let earliest = fetchFrom
+    for (const i of invoices) if (i.issue_date && i.issue_date < earliest) earliest = i.issue_date
+    for (const v of vouchers) if (v.expense_date && v.expense_date < earliest) earliest = v.expense_date
+    for (const e of incomeEntries) if (e.entry_date && e.entry_date < earliest) earliest = e.entry_date
+    return earliest
+  }, [invoices, vouchers, incomeEntries])
 
   const customValid =
     customRange.from !== '' &&
@@ -275,13 +280,13 @@ export function DashboardPage() {
       return { from: `${year}-01-01`, to: today }
     }
     if (periodMode === 'all') {
-      return { from: companyCreatedYmd, to: today }
+      return { from: allDataFromYmd, to: today }
     }
     if (periodMode === 'custom' && customValid) {
       return { from: customRange.from, to: customRange.to }
     }
     return monthRangeYm(ym)
-  }, [periodMode, ym, today, companyCreatedYmd, customRange, customValid])
+  }, [periodMode, ym, today, allDataFromYmd, customRange, customValid])
 
   // Synker periodevalg til URL så reload/deep-link husker det.
   useEffect(() => {

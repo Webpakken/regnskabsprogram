@@ -758,105 +758,103 @@ export function VouchersPage() {
 
       {error ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</p> : null}
 
-      <div className="flex items-center gap-2">
-        <label className="min-w-0 flex-1">
-          <span className="sr-only">Filtrer på event/projekt</span>
-          <select
-            value={projectFilter}
-            disabled={projectFeatureUnavailable || !canUseVoucherProjects}
-            onChange={(e) => {
-              const value = e.target.value
-              if (value === '__create__') {
-                setProjectCreateOpen(true)
-                return
-              }
-              setProjectFilter(value)
-            }}
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm disabled:bg-slate-50 disabled:text-slate-400"
-          >
-            <option value="all">Alle bilag</option>
-            <option value="none">Uden event/projekt</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-            {canUseVoucherProjects && !projectFeatureUnavailable ? (
-              <option value="__create__">+ Opret nyt event…</option>
-            ) : null}
-          </select>
-        </label>
-        <DesktopListCardsToggle mode={desktopView} onChange={setDesktopView} />
-      </div>
-
-      {projectCreateOpen ? (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Navn på nyt event/projekt
-            </span>
-            <button
-              type="button"
-              aria-label="Annullér"
-              onClick={() => {
-                setProjectCreateOpen(false)
-                setNewProjectName('')
+      <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="flex items-center gap-2">
+          <label className="min-w-0 flex-1">
+            <span className="sr-only">Filtrer på event/projekt</span>
+            <select
+              value={projectFilter}
+              disabled={projectFeatureUnavailable || !canUseVoucherProjects}
+              onChange={(e) => {
+                const value = e.target.value
+                if (value === '__create__') {
+                  setProjectCreateOpen(true)
+                  return
+                }
+                setProjectFilter(value)
               }}
-              className="rounded-full p-1 text-slate-500 hover:bg-slate-200"
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 disabled:bg-slate-50 disabled:text-slate-400"
             >
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M18 6 6 18" />
-                <path d="m6 6 12 12" />
-              </svg>
-            </button>
-          </div>
-          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-            <input
-              value={newProjectName}
-              onChange={(e) => setNewProjectName(e.target.value)}
-              placeholder="Sommerlejr 2026"
-              className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
-            />
-            <button
-              type="button"
-              disabled={creatingProject || !newProjectName.trim()}
-              onClick={() => void createProject()}
-              className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-            >
-              {creatingProject ? 'Opretter…' : 'Opret'}
-            </button>
-          </div>
+              <option value="all">Alle bilag</option>
+              <option value="none">Uden event/projekt</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+              {canUseVoucherProjects && !projectFeatureUnavailable ? (
+                <option value="__create__">+ Opret nyt event…</option>
+              ) : null}
+            </select>
+          </label>
+          <DesktopListCardsToggle mode={desktopView} onChange={setDesktopView} />
         </div>
-      ) : null}
 
-      <label className="block">
-        <span className="sr-only">Søg i bilag</span>
+        {projectCreateOpen ? (
+          <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Navn på nyt event/projekt
+              </span>
+              <button
+                type="button"
+                aria-label="Annullér"
+                onClick={() => {
+                  setProjectCreateOpen(false)
+                  setNewProjectName('')
+                }}
+                className="rounded-full p-1 text-slate-500 hover:bg-slate-200"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M18 6 6 18" />
+                  <path d="m6 6 12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+              <input
+                value={newProjectName}
+                onChange={(e) => setNewProjectName(e.target.value)}
+                placeholder="Sommerlejr 2026"
+                className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
+              />
+              <button
+                type="button"
+                disabled={creatingProject || !newProjectName.trim()}
+                onClick={() => void createProject()}
+                className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {creatingProject ? 'Opretter…' : 'Opret'}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         <input
           type="search"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Søg efter titel, fil, kategori, event, beløb, dato …"
-          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+          className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
           autoComplete="off"
         />
-      </label>
 
-      <div className="flex flex-wrap gap-1.5 text-xs">
-        <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700">
-          {hasMore ? `${rows.length} af ${totalCount} bilag` : `${totalCount} bilag`}
-        </span>
-        <span
-          className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700"
-          title={hasMore ? 'Sum opdateres efterhånden som du scroller' : undefined}
-        >
-          {formatDkk(voucherTotals.gross)}
-          {hasMore ? '+' : ''}
-        </span>
-        {!isForening ? (
+        <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
           <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700">
-            Moms {formatDkk(voucherTotals.vat)}{hasMore ? '+' : ''}
+            {hasMore ? `${rows.length} af ${totalCount} bilag` : `${totalCount} bilag`}
           </span>
-        ) : null}
+          <span
+            className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700"
+            title={hasMore ? 'Sum opdateres efterhånden som du scroller' : undefined}
+          >
+            {formatDkk(voucherTotals.gross)}
+            {hasMore ? '+' : ''}
+          </span>
+          {!isForening ? (
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700">
+              Moms {formatDkk(voucherTotals.vat)}{hasMore ? '+' : ''}
+            </span>
+          ) : null}
         {projectTotals.length > 0 ? (
           <button
             type="button"
