@@ -214,7 +214,7 @@ export function SettingsSubscriptionPage() {
                 <article
                   key={plan.id}
                   className={
-                    'flex flex-col rounded-2xl border p-4 ' +
+                    'flex flex-col rounded-2xl border p-5 ' +
                     (isCurrent
                       ? 'border-indigo-300 bg-indigo-50/40 ring-1 ring-indigo-200'
                       : 'border-slate-200 bg-white')
@@ -244,10 +244,10 @@ export function SettingsSubscriptionPage() {
                   </div>
 
                   {bullets.length > 0 ? (
-                    <ul className="mt-4 space-y-2 text-sm text-slate-700">
+                    <ul className="mb-6 mt-5 space-y-3 text-sm text-slate-700">
                       {bullets.map((bullet) => (
                         <li key={bullet.id} className="flex gap-2">
-                          <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
                           <span>{bullet.title}</span>
                         </li>
                       ))}
