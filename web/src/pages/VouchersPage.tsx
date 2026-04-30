@@ -759,8 +759,16 @@ export function VouchersPage() {
       {error ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</p> : null}
 
       <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-        <div className="flex items-center gap-2">
-          <label className="min-w-0 flex-1">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Søg efter titel, fil, kategori, event, beløb, dato …"
+            className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 md:flex-1"
+            autoComplete="off"
+          />
+          <label className="min-w-0 md:w-64 md:shrink-0">
             <span className="sr-only">Filtrer på event/projekt</span>
             <select
               value={projectFilter}
@@ -829,15 +837,6 @@ export function VouchersPage() {
             </div>
           </div>
         ) : null}
-
-        <input
-          type="search"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Søg efter titel, fil, kategori, event, beløb, dato …"
-          className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-          autoComplete="off"
-        />
 
         <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
           <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700">
