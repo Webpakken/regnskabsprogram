@@ -53,6 +53,43 @@ const settingsNav = [
   { to: '/app/settings/subscription', label: 'Abonnement' },
 ]
 
+function UserIcon({ className }: NavIconProps) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21a8 8 0 0 1 16 0" />
+    </svg>
+  )
+}
+
+function LogoutIcon({ className }: NavIconProps) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="m16 17 5-5-5-5" />
+      <path d="M21 12H9" />
+    </svg>
+  )
+}
+
 function HelpIcon({ className }: NavIconProps) {
   return (
     <svg
@@ -332,8 +369,30 @@ export function AppShell({ children }: { children?: ReactNode }) {
             )
           })}
         </nav>
-        <div className="border-t border-slate-100 p-3 text-xs text-slate-500">
-          {user?.email}
+        <div className="border-t border-slate-100 p-3">
+          <p className="mb-2 truncate px-3 text-xs text-slate-500" title={user?.email ?? ''}>
+            {user?.email}
+          </p>
+          <NavLink
+            to="/app/profile"
+            className={({ isActive }) =>
+              clsx(
+                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition',
+                isActive ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50',
+              )
+            }
+          >
+            <UserIcon className="h-4 w-4 shrink-0" />
+            Min profil
+          </NavLink>
+          <button
+            type="button"
+            onClick={() => void logout()}
+            className="mt-0.5 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+          >
+            <LogoutIcon className="h-4 w-4 shrink-0" />
+            Log ud
+          </button>
         </div>
       </aside>
 
@@ -377,13 +436,6 @@ export function AppShell({ children }: { children?: ReactNode }) {
                     : 'Abonnér'}
               </button>
             )}
-            <button
-              type="button"
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-              onClick={() => void logout()}
-            >
-              Log ud
-            </button>
           </div>
         </header>
 

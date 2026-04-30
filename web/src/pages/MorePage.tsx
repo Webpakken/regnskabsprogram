@@ -72,6 +72,15 @@ function BuildingIcon({ className }: IconProps) {
   )
 }
 
+function ProfileIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21a8 8 0 0 1 16 0" />
+    </svg>
+  )
+}
+
 function LogoutIcon({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -316,15 +325,22 @@ export function MorePage() {
       </AppCard>
 
       <AppCard>
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-3">
           <div className="min-w-0">
             <div className="text-xs uppercase tracking-wide text-slate-400">Logget ind som</div>
             <div className="mt-1 truncate text-sm font-medium text-slate-900">{user?.email}</div>
           </div>
+          <Link
+            to="/app/profile"
+            className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            <ProfileIcon className="h-4 w-4" />
+            Min profil
+          </Link>
           <button
             type="button"
             onClick={() => void logout()}
-            className="flex shrink-0 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
             <LogoutIcon className="h-4 w-4" />
             Log ud

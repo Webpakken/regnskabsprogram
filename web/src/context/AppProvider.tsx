@@ -41,6 +41,8 @@ type AppContextValue = {
   /** Antal virksomheder brugeren er medlem af (ikke impersonation). */
   tenantCompanyCount: number
   loading: boolean
+  /** True hvis brugeren har TOTP-faktor men sessionen kun er aal1 og skal udfordres. */
+  aalNeedsUpgrade: boolean
   refresh: () => Promise<void>
   setCurrentCompanyId: (id: string) => Promise<void>
   canUse: (featureKey: BillingFeatureKey) => boolean
@@ -61,6 +63,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [impersonation, setImpersonation] = useState<ImpersonationInfo | null>(null)
   const [tenantCompanyCount, setTenantCompanyCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [aalNeedsUpgrade, setAalNeedsUpgrade] = useState(false)
 
   /**
    * Kun første indlæsning (eller efter logout) må sætte `loading` og fylde skærmen med «Indlæser…».
@@ -100,7 +103,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setPlatformRole(null)
       setImpersonation(null)
       setTenantCompanyCount(0)
+      setAalNeedsUpgrade(false)
       shouldBlockUiForAuthLoad.current = true
+      setLoading(false)
+      return
+    }
+
+    // Tjek om sessionen kun er aal1 men brugeren har en aal2-faktor (TOTP).
+    const aalRes = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+    const needsUpgrade =
+      !!aalRes.data && aalRes.data.currentLevel !== aalRes.data.nextLevel
+    setAalNeedsUpgrade(needsUpgrade)
+    if (needsUpgrade) {
+      // Stop her — ProtectedRoute viderestiller til /login/2fa.
+      shouldBlockUiForAuthLoad.current = false
       setLoading(false)
       return
     }
@@ -271,6 +287,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       impersonation,
       tenantCompanyCount,
       loading,
+      aalNeedsUpgrade,
       refresh: load,
       setCurrentCompanyId,
       canUse: (featureKey: BillingFeatureKey) =>
@@ -292,6 +309,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       impersonation,
       tenantCompanyCount,
       loading,
+      aalNeedsUpgrade,
       load,
       setCurrentCompanyId,
     ],

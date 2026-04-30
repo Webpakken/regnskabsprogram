@@ -43,6 +43,8 @@ import { SettingsNotificationsPage } from '@/pages/settings/SettingsNotification
 import { MembersPage } from '@/pages/MembersPage'
 import { VatPage } from '@/pages/VatPage'
 import { MorePage } from '@/pages/MorePage'
+import { MinProfilePage } from '@/pages/MinProfilePage'
+import { TwoFactorChallengePage } from '@/pages/TwoFactorChallengePage'
 import { AppHelpPage } from '@/pages/AppHelpPage'
 import { SupportPage } from '@/pages/SupportPage'
 import { PlatformDashboardPage } from '@/pages/platform/PlatformDashboardPage'
@@ -166,6 +168,7 @@ export default function App() {
             </Route>
             <Route path="/home" element={<HomeRedirect />} />
             <Route path="/onboarding" element={<OnboardingPage />} />
+            <Route path="/login/2fa" element={<TwoFactorChallengePage />} />
             <Route
               element={
                 <SupportUnreadProvider>
@@ -183,6 +186,7 @@ export default function App() {
                 <Route path="subscription" element={<SettingsSubscriptionPage />} />
               </Route>
               <Route path="/app/more" element={<MorePage />} />
+              <Route path="/app/profile" element={<MinProfilePage />} />
               <Route path="/app/hjaelp" element={<AppHelpPage />} />
               <Route path="/app/members" element={<MembersPage />} />
               <Route element={<RequireSubscription />}>
