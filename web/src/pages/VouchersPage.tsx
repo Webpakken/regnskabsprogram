@@ -13,7 +13,7 @@ import { formatParsedNotes } from '@/lib/receiptParse'
 import { canAttemptVoucherOcr } from '@/lib/voucherOcr'
 import { extractVoucherFromFile } from '@/lib/voucherExtractClient'
 import { inferVoucherCategory } from '@/lib/voucherCategories'
-import { expenseLinkUrl, randomExpenseLinkToken, sha256Hex } from '@/lib/expenseLinks'
+import { expenseLinkUrl, randomExpenseLinkToken, sha256Hex, sha256HexFromFile } from '@/lib/expenseLinks'
 import {
   ButtonSpinner,
   useStripeCheckoutLauncher,
@@ -28,6 +28,16 @@ type ReimbursementStatus = Reimbursement['status']
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10)
+}
+
+function shiftYmd(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split('-').map(Number)
+  const base = Date.UTC(y, m - 1, d) + days * 86_400_000
+  const next = new Date(base)
+  const yy = next.getUTCFullYear()
+  const mm = next.getUTCMonth() + 1
+  const dd = next.getUTCDate()
+  return `${yy}-${mm < 10 ? '0' + mm : mm}-${dd < 10 ? '0' + dd : dd}`
 }
 
 const VOUCHERS_VIEW_KEY = 'bilago:vouchersDesktopView'
@@ -335,6 +345,29 @@ export function VouchersPage() {
     setOcrWarning(null)
     setOcrProgress(null)
 
+    // Hård dublering-tjek: identisk fil-hash i samme firma blokerer uploaden.
+    let fileHash: string | null = null
+    try {
+      fileHash = await sha256HexFromFile(file)
+      const { data: dupe } = await supabase
+        .from('vouchers')
+        .select('id, title, expense_date')
+        .eq('company_id', currentCompany.id)
+        .eq('file_hash', fileHash)
+        .limit(1)
+        .maybeSingle()
+      if (dupe) {
+        setError(
+          `Bilaget er allerede uploadet (samme fil) som «${dupe.title ?? 'Bilag'}» fra ${dupe.expense_date}.`,
+        )
+        setUploading(false)
+        if (fileInputRef.current) fileInputRef.current.value = ''
+        return
+      }
+    } catch (e) {
+      console.warn('[bilag hash]', e)
+    }
+
     const canOcr = canAttemptVoucherOcr(file)
 
     let titleForDb = file.name.replace(/\.[^.]+$/, '')
@@ -399,6 +432,23 @@ export function VouchersPage() {
       if (fileInputRef.current) fileInputRef.current.value = ''
       return
     }
+    // Blød dublering-tjek: samme firma, samme beløb, ±2 dage → flag som mulig dublering.
+    let possibleDuplicateOf: string | null = null
+    if (grossCents > 0) {
+      const fromDate = shiftYmd(expenseDateForDb, -2)
+      const toDate = shiftYmd(expenseDateForDb, 2)
+      const { data: softDupe } = await supabase
+        .from('vouchers')
+        .select('id')
+        .eq('company_id', currentCompany.id)
+        .eq('gross_cents', grossCents)
+        .gte('expense_date', fromDate)
+        .lte('expense_date', toDate)
+        .limit(1)
+        .maybeSingle()
+      if (softDupe) possibleDuplicateOf = softDupe.id
+    }
+
     const voucherInsert: Database['public']['Tables']['vouchers']['Insert'] = {
       company_id: currentCompany.id,
       storage_path: path,
@@ -413,6 +463,8 @@ export function VouchersPage() {
       net_cents: netCents,
       vat_cents: vatCents,
       vat_rate: rate,
+      file_hash: fileHash,
+      possible_duplicate_of: possibleDuplicateOf,
     }
     if (!projectFeatureUnavailable) {
       voucherInsert.voucher_project_id = null
@@ -431,6 +483,11 @@ export function VouchersPage() {
     await logActivity(currentCompany.id, 'voucher_upload', `Bilag uploadet: ${file.name}`, {
       voucher_id: inserted.id,
     })
+    if (possibleDuplicateOf) {
+      setOcrWarning(
+        'Bilaget er uploadet, men ligner et eksisterende bilag (samme dato/beløb). Åbn det og bekræft at det ikke er en dublering.',
+      )
+    }
     if (fileInputRef.current) fileInputRef.current.value = ''
     setUploading(false)
     refresh()
@@ -930,6 +987,11 @@ export function VouchersPage() {
                         {dateStr}
                       </span>
                       <div className="flex flex-wrap items-center justify-end gap-2">
+                        {v.possible_duplicate_of ? (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                            Mulig dublering
+                          </span>
+                        ) : null}
                         <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
                           {v.category ?? 'Uden kategori'}
                         </span>
@@ -1060,6 +1122,11 @@ export function VouchersPage() {
                       </div>
                     ) : null}
                     <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2 text-xs text-slate-600">
+                      {v.possible_duplicate_of ? (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                          Mulig dublering
+                        </span>
+                      ) : null}
                       <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
                         {v.category ?? 'Uden kategori'}
                       </span>
@@ -1176,7 +1243,16 @@ export function VouchersPage() {
                       ? formatDateOnly(v.expense_date)
                       : formatDateOnly(v.uploaded_at)}
                   </td>
-                  <td className="px-4 py-3 text-slate-800">{v.title ?? '—'}</td>
+                  <td className="px-4 py-3 text-slate-800">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span>{v.title ?? '—'}</span>
+                      {v.possible_duplicate_of ? (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                          Mulig dublering
+                        </span>
+                      ) : null}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-slate-600">
                     {v.category ? (
                       <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">

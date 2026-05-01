@@ -66,6 +66,8 @@ export function VoucherDetailPage() {
   const [url, setUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [duplicateOriginal, setDuplicateOriginal] = useState<{ id: string; title: string | null; expense_date: string; gross_cents: number } | null>(null)
+  const [dismissingDuplicate, setDismissingDuplicate] = useState(false)
 
   const [title, setTitle] = useState('')
   const [date, setDate] = useState('')
@@ -117,6 +119,17 @@ export function VoucherDetailPage() {
     setVatKr(centsToKrInput(v.vat_cents))
     setCategory(v.category ?? '')
     setProjectId(v.voucher_project_id ?? '')
+    if (v.possible_duplicate_of) {
+      const { data: orig } = await supabase
+        .from('vouchers')
+        .select('id, title, expense_date, gross_cents')
+        .eq('id', v.possible_duplicate_of)
+        .eq('company_id', currentCompany.id)
+        .maybeSingle()
+      setDuplicateOriginal(orig ?? null)
+    } else {
+      setDuplicateOriginal(null)
+    }
     const signed = await supabase.storage
       .from('vouchers')
       .createSignedUrl(v.storage_path, 3600)
@@ -127,6 +140,23 @@ export function VoucherDetailPage() {
     }
     setLoading(false)
   }, [id, currentCompany])
+
+  async function dismissDuplicate() {
+    if (!voucher || !currentCompany) return
+    setDismissingDuplicate(true)
+    const { error } = await supabase
+      .from('vouchers')
+      .update({ possible_duplicate_of: null })
+      .eq('id', voucher.id)
+      .eq('company_id', currentCompany.id)
+    setDismissingDuplicate(false)
+    if (error) {
+      setFormError(error.message)
+      return
+    }
+    setVoucher({ ...voucher, possible_duplicate_of: null })
+    setDuplicateOriginal(null)
+  }
 
   useEffect(() => {
     void load()
@@ -263,6 +293,36 @@ export function VoucherDetailPage() {
       >
         ← Tilbage til bilag
       </Link>
+
+      {voucher.possible_duplicate_of ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <p className="font-semibold">Mulig dublering</p>
+          <p className="mt-1 text-amber-900/90">
+            {duplicateOriginal
+              ? `Bilaget ligner et eksisterende bilag «${duplicateOriginal.title ?? 'Bilag'}» fra ${duplicateOriginal.expense_date} (${formatDkk(duplicateOriginal.gross_cents)}).`
+              : 'Bilaget ligner et andet bilag (samme dato/beløb).'}{' '}
+            Bekræft at det ikke er en dublering hvis det er to forskellige køb.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {duplicateOriginal ? (
+              <Link
+                to={`/app/vouchers/${duplicateOriginal.id}`}
+                className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100"
+              >
+                Sammenlign
+              </Link>
+            ) : null}
+            <button
+              type="button"
+              disabled={dismissingDuplicate}
+              onClick={() => void dismissDuplicate()}
+              className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
+            >
+              {dismissingDuplicate ? 'Bekræfter…' : 'Det er ikke en dublering'}
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {canEdit ? (
         <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

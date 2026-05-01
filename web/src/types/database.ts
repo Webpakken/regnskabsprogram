@@ -445,6 +445,8 @@ export interface Database {
           net_cents: number
           vat_rate: number
           voucher_project_id: string | null
+          file_hash: string | null
+          possible_duplicate_of: string | null
         }
         Insert: {
           id?: string
@@ -462,6 +464,8 @@ export interface Database {
           net_cents?: number
           vat_rate?: number
           voucher_project_id?: string | null
+          file_hash?: string | null
+          possible_duplicate_of?: string | null
         }
         Update: {
           title?: string | null
@@ -473,6 +477,7 @@ export interface Database {
           net_cents?: number
           vat_rate?: number
           voucher_project_id?: string | null
+          possible_duplicate_of?: string | null
         }
       }
       expense_upload_links: {
