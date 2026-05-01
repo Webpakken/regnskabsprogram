@@ -184,6 +184,12 @@ export function InvoicesPage() {
         <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           <DesktopListCardsToggle mode={desktopView} onChange={setDesktopView} />
           <Link
+            to="/app/invoices/import"
+            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Importér
+          </Link>
+          <Link
             to="/app/invoices/new"
             className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
           >

@@ -175,6 +175,7 @@ serve(async (req) => {
       )
       .eq('company_id', co.id)
       .eq('status', 'sent')
+      .eq('is_historical', false)
 
     if (iErr) {
       errors.push(`${co.id}: ${iErr.message}`)

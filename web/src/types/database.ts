@@ -339,6 +339,8 @@ export interface Database {
           credited_invoice_id: string | null
           last_automation_reminder_at: string | null
           automation_reminder_send_count: number
+          is_historical: boolean
+          attachment_path: string | null
           created_at: string
           updated_at: string
         }
@@ -359,6 +361,8 @@ export interface Database {
           sent_at?: string | null
           credited_invoice_id?: string | null
           last_automation_reminder_at?: string | null
+          is_historical?: boolean
+          attachment_path?: string | null
           automation_reminder_send_count?: number
         }
         Update: {
@@ -376,6 +380,8 @@ export interface Database {
           credited_invoice_id?: string | null
           last_automation_reminder_at?: string | null
           automation_reminder_send_count?: number
+          is_historical?: boolean
+          attachment_path?: string | null
         }
       }
       invoice_line_items: {

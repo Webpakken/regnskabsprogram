@@ -26,6 +26,7 @@ import { OnboardingPage } from '@/pages/OnboardingPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { ActivityLogPage } from '@/pages/ActivityLogPage'
 import { InvoicesPage } from '@/pages/InvoicesPage'
+import { ImportInvoicesPage } from '@/pages/ImportInvoicesPage'
 import { InvoiceEditorPage } from '@/pages/InvoiceEditorPage'
 import { InvoiceWizardPage } from '@/pages/InvoiceWizardPage'
 import { InvoiceDetailPage } from '@/pages/InvoiceDetailPage'
@@ -193,6 +194,7 @@ export default function App() {
               <Route element={<RequireSubscription />}>
                 <Route path="/app/support" element={<SupportPage />} />
                 <Route path="/app/invoices" element={<InvoicesPage />} />
+                <Route path="/app/invoices/import" element={<ImportInvoicesPage />} />
                 <Route path="/app/invoices/new" element={<InvoiceWizardPage />} />
                 <Route path="/app/invoices/:id/pdf" element={<InvoicePdfPage />} />
                 <Route path="/app/invoices/:id/edit" element={<InvoiceWizardPage />} />
