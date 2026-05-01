@@ -870,7 +870,7 @@ export function InvoiceWizardPage() {
 
   return (
     <>
-      <div className="-mx-4 -mt-6 md:mx-auto md:mt-0 md:max-w-xl">
+      <div className="-mx-4 -mt-6 md:mx-auto md:mt-0 md:max-w-3xl">
         <div className="overflow-hidden bg-white md:mt-4 md:rounded-3xl md:shadow-xl md:ring-1 md:ring-slate-200">
         {view.kind === 'wizard' && (
           <WizardView

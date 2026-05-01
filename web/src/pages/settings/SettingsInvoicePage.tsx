@@ -229,6 +229,27 @@ export function SettingsInvoicePage() {
           Kun ejeren af virksomheden kan ændre faktura-indstillinger. Du kan se de nuværende værdier herunder.
         </p>
       ) : null}
+
+      {canEdit ? (
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-medium text-slate-900">Importér fra gammel platform</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Skifter du fra Dinero, Billy, e-conomic eller et andet system? Træk PDF-fakturaer
+                ind, så læser vi dem automatisk og gemmer både data og PDF i Bilago. Vi sætter
+                næste fakturanummer korrekt så der ikke opstår konflikter.
+              </p>
+            </div>
+            <Link
+              to="/app/invoices/import"
+              className="shrink-0 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+            >
+              Importér fakturaer
+            </Link>
+          </div>
+        </section>
+      ) : null}
       <form
         onSubmit={(e) => void save(e)}
         className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
