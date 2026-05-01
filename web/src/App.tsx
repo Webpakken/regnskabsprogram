@@ -40,6 +40,7 @@ import { SettingsLayout } from '@/pages/settings/SettingsLayout'
 import { SettingsMenuPage } from '@/pages/settings/SettingsMenuPage'
 import { SettingsGeneralPage } from '@/pages/settings/SettingsGeneralPage'
 import { SettingsInvoicePage } from '@/pages/settings/SettingsInvoicePage'
+import { SettingsVatPage } from '@/pages/settings/SettingsVatPage'
 import { SettingsSubscriptionPage } from '@/pages/settings/SettingsSubscriptionPage'
 import { SettingsNotificationsPage } from '@/pages/settings/SettingsNotificationsPage'
 import { MembersPage } from '@/pages/MembersPage'
@@ -184,6 +185,7 @@ export default function App() {
                 <Route index element={<SettingsMenuPage />} />
                 <Route path="general" element={<SettingsGeneralPage />} />
                 <Route path="invoice" element={<SettingsInvoicePage />} />
+                <Route path="vat" element={<SettingsVatPage />} />
                 <Route path="notifications" element={<SettingsNotificationsPage />} />
                 <Route path="subscription" element={<SettingsSubscriptionPage />} />
               </Route>

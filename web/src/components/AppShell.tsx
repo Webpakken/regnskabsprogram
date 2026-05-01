@@ -46,9 +46,12 @@ const nav: NavItem[] = [
   { to: '/app/support', label: 'Support', icon: ChatIcon },
 ]
 
-const settingsNav = [
+type SettingsNavItem = { to: string; label: string; onlyFor?: 'virksomhed' | 'forening' }
+
+const settingsNav: SettingsNavItem[] = [
   { to: '/app/settings/general', label: 'Generelt' },
   { to: '/app/settings/invoice', label: 'Faktura' },
+  { to: '/app/settings/vat', label: 'Moms', onlyFor: 'virksomhed' },
   { to: '/app/settings/notifications', label: 'Notifikationer' },
   { to: '/app/settings/subscription', label: 'Abonnement' },
 ]
@@ -325,22 +328,28 @@ export function AppShell({ children }: { children?: ReactNode }) {
                   </button>
                   {settingsOpen ? (
                     <div className="space-y-0.5 pl-7">
-                      {settingsNav.map((sub) => (
-                        <NavLink
-                          key={sub.to}
-                          to={sub.to}
-                          className={({ isActive }) =>
-                            clsx(
-                              'block rounded-md px-3 py-1.5 text-sm font-medium transition',
-                              isActive
-                                ? 'bg-indigo-50 text-indigo-700'
-                                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800',
-                            )
-                          }
-                        >
-                          {sub.label}
-                        </NavLink>
-                      ))}
+                      {settingsNav
+                        .filter(
+                          (sub) =>
+                            !sub.onlyFor ||
+                            sub.onlyFor === (currentCompany?.entity_type ?? 'virksomhed'),
+                        )
+                        .map((sub) => (
+                          <NavLink
+                            key={sub.to}
+                            to={sub.to}
+                            className={({ isActive }) =>
+                              clsx(
+                                'block rounded-md px-3 py-1.5 text-sm font-medium transition',
+                                isActive
+                                  ? 'bg-indigo-50 text-indigo-700'
+                                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800',
+                              )
+                            }
+                          >
+                            {sub.label}
+                          </NavLink>
+                        ))}
                     </div>
                   ) : null}
                 </div>

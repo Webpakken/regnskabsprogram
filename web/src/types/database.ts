@@ -81,6 +81,9 @@ export interface Database {
           automation_reminders_enabled: boolean
           automation_reminder_first_days_after_due: number
           automation_reminder_interval_days: number
+          vat_registered: boolean
+          vat_period: 'monthly' | 'quarterly' | 'half_yearly'
+          vat_period_started_at: string | null
           created_at: string
           updated_at: string
         }
@@ -107,6 +110,9 @@ export interface Database {
           automation_reminders_enabled?: boolean
           automation_reminder_first_days_after_due?: number
           automation_reminder_interval_days?: number
+          vat_registered?: boolean
+          vat_period?: 'monthly' | 'quarterly' | 'half_yearly'
+          vat_period_started_at?: string | null
         }
         Update: {
           name?: string
@@ -130,6 +136,9 @@ export interface Database {
           automation_reminders_enabled?: boolean
           automation_reminder_first_days_after_due?: number
           automation_reminder_interval_days?: number
+          vat_registered?: boolean
+          vat_period?: 'monthly' | 'quarterly' | 'half_yearly'
+          vat_period_started_at?: string | null
         }
       }
       company_members: {
