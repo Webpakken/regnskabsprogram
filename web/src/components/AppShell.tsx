@@ -399,21 +399,23 @@ export function AppShell({ children }: { children?: ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="hidden items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-3.5 md:flex md:px-10">
           <div className="flex min-w-0 flex-1 flex-col gap-2 md:flex-row md:items-center md:gap-4">
-            <select
-              className="max-w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm md:max-w-xs"
-              value={currentCompany?.id ?? ''}
-              onChange={(e) => void setCurrentCompanyId(e.target.value)}
-            >
-              {companies.length === 0 ? (
-                <option value="">Ingen virksomhed</option>
-              ) : (
-                companies.map((c) => (
+            {companies.length > 1 ? (
+              <select
+                className="max-w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm md:max-w-xs"
+                value={currentCompany?.id ?? ''}
+                onChange={(e) => void setCurrentCompanyId(e.target.value)}
+              >
+                {companies.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                   </option>
-                ))
-              )}
-            </select>
+                ))}
+              </select>
+            ) : (
+              <h1 className="truncate text-lg font-semibold text-slate-900 md:text-xl">
+                {currentCompany?.name ?? 'Ingen virksomhed'}
+              </h1>
+            )}
             {!ok && currentCompany && !trialStatusFor(currentCompany)?.active && (
               <span className="text-xs text-amber-700">
                 Abonnement påkrævet for fuld adgang
