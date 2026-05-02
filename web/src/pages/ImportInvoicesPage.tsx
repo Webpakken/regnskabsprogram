@@ -58,18 +58,43 @@ export function ImportInvoicesPage() {
   const [updatingNext, setUpdatingNext] = useState(false)
   const [dragOver, setDragOver] = useState(false)
 
-  // Forhindr browseren i at åbne PDF'en hvis brugeren rammer ved siden af drop-zonen.
+  // Hele siden fungerer som drop-zone: drop hvor som helst → importér.
   useEffect(() => {
-    function blockDefault(e: DragEvent) {
-      if (e.dataTransfer?.types?.includes('Files')) {
-        e.preventDefault()
-      }
+    let dragDepth = 0
+    function hasFiles(e: DragEvent) {
+      return e.dataTransfer?.types?.includes('Files') ?? false
     }
-    window.addEventListener('dragover', blockDefault)
-    window.addEventListener('drop', blockDefault)
+    function onDragEnter(e: DragEvent) {
+      if (!hasFiles(e)) return
+      e.preventDefault()
+      dragDepth += 1
+      setDragOver(true)
+    }
+    function onDragOver(e: DragEvent) {
+      if (!hasFiles(e)) return
+      e.preventDefault()
+    }
+    function onDragLeave(e: DragEvent) {
+      if (!hasFiles(e)) return
+      dragDepth = Math.max(0, dragDepth - 1)
+      if (dragDepth === 0) setDragOver(false)
+    }
+    function onDrop(e: DragEvent) {
+      if (!hasFiles(e)) return
+      e.preventDefault()
+      dragDepth = 0
+      setDragOver(false)
+      void onFiles(e.dataTransfer?.files ?? null)
+    }
+    window.addEventListener('dragenter', onDragEnter)
+    window.addEventListener('dragover', onDragOver)
+    window.addEventListener('dragleave', onDragLeave)
+    window.addEventListener('drop', onDrop)
     return () => {
-      window.removeEventListener('dragover', blockDefault)
-      window.removeEventListener('drop', blockDefault)
+      window.removeEventListener('dragenter', onDragEnter)
+      window.removeEventListener('dragover', onDragOver)
+      window.removeEventListener('dragleave', onDragLeave)
+      window.removeEventListener('drop', onDrop)
     }
   }, [])
 
@@ -311,6 +336,14 @@ export function ImportInvoicesPage() {
 
   return (
     <AppPageLayout maxWidth="full" className="space-y-4">
+      {dragOver ? (
+        <div className="pointer-events-none fixed inset-0 z-[80] flex items-center justify-center bg-indigo-600/10 backdrop-blur-sm">
+          <div className="rounded-2xl border-2 border-dashed border-indigo-500 bg-white px-8 py-6 text-center shadow-2xl">
+            <p className="text-base font-semibold text-indigo-700">Slip PDF’erne for at importere</p>
+            <p className="mt-1 text-xs text-slate-500">Du kan slippe hvor som helst på siden</p>
+          </div>
+        </div>
+      ) : null}
       <Link to="/app/invoices" className="text-sm font-medium text-indigo-600 hover:underline">
         ← Tilbage til fakturaer
       </Link>
