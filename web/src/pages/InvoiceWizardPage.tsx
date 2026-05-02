@@ -1027,9 +1027,15 @@ export function InvoiceWizardPage() {
             creditWizard={isCreditNotaFlow}
             tab={tab}
             setTab={setTab}
-            onClose={() =>
+            onClose={() => {
+              // Når brugeren lukker en ny faktura uden at gemme: ryd kladden
+              // så næste "Opret faktura" starter på en blank.
+              if (isNew && currentCompany) {
+                canPersistInvoiceDraft.current = false
+                clearInvoiceWizardDraft(currentCompany.id)
+              }
               navigate(invoiceId ? `/app/invoices/${invoiceId}` : '/app/invoices')
-            }
+            }}
             onOpenSettings={() => setView({ kind: 'settings' })}
             customerName={customerName}
             setCustomerName={setCustomerName}
