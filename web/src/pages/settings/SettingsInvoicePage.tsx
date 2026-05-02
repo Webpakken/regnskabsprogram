@@ -263,14 +263,8 @@ export function SettingsInvoicePage() {
           disabled={!canEdit}
           className="m-0 mt-5 min-w-0 space-y-5 border-0 p-0 disabled:opacity-70"
         >
-        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-3">
-          <input
-            type="checkbox"
-            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600"
-            checked={attachPdf}
-            onChange={(e) => setAttachPdf(e.target.checked)}
-          />
-          <span>
+        <div className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-3">
+          <div className="min-w-0">
             <span className="text-sm font-medium text-slate-900">
               Vedhæft faktura som PDF i e-mail til kunden
             </span>
@@ -278,8 +272,24 @@ export function SettingsInvoicePage() {
               Når en faktura sendes pr. e-mail, medfølger PDF som standard. Slå fra, hvis I kun vil
               sende teksten i mailen.
             </span>
-          </span>
-        </label>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={attachPdf}
+            disabled={!canEdit}
+            onClick={() => setAttachPdf(!attachPdf)}
+            className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${
+              attachPdf ? 'bg-indigo-600' : 'bg-slate-300'
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${
+                attachPdf ? 'translate-x-5' : 'translate-x-0.5'
+              }`}
+            />
+          </button>
+        </div>
 
         <div className="border-t border-slate-100 pt-5">
           <h3 className="text-sm font-semibold text-slate-900">Fakturanummer</h3>
@@ -474,15 +484,25 @@ export function SettingsInvoicePage() {
             pr. faktura. I er ansvarlige for gældende inkasso- og markedsføringsregler — få juridisk rådgivning ved
             tvivl.
           </p>
-          <label className="mt-4 flex cursor-pointer items-center gap-3">
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-slate-300 text-indigo-600"
-              checked={automationEnabled}
-              onChange={(e) => setAutomationEnabled(e.target.checked)}
-            />
+          <div className="mt-4 flex items-center gap-3">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={automationEnabled}
+              disabled={!canEdit}
+              onClick={() => setAutomationEnabled(!automationEnabled)}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${
+                automationEnabled ? 'bg-indigo-600' : 'bg-slate-300'
+              }`}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${
+                  automationEnabled ? 'translate-x-5' : 'translate-x-0.5'
+                }`}
+              />
+            </button>
             <span className="text-sm font-medium text-slate-800">Slå automatiske påmindelser til</span>
-          </label>
+          </div>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div>
               <label className="text-sm font-medium text-slate-700" htmlFor="autoFirst">

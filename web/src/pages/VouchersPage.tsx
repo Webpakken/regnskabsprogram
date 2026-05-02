@@ -97,6 +97,7 @@ export function VouchersPage() {
   const [projectFeatureUnavailable, setProjectFeatureUnavailable] = useState(false)
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null)
   const [creatingProject, setCreatingProject] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ocrWarning, setOcrWarning] = useState<string | null>(null)
@@ -579,10 +580,29 @@ export function VouchersPage() {
     }
   }
 
+  async function uploadVoucherFiles(files: File[]) {
+    if (files.length === 0) return
+    if (files.length === 1) {
+      await uploadVoucherFile(files[0])
+      return
+    }
+    setBulkProgress({ done: 0, total: files.length })
+    for (let i = 0; i < files.length; i++) {
+      // Sekventielt — extract bruger AI-edge-function og storage-upload deler bucket;
+      // parallel ville gøre dublet-tjek + læse-rate uforudsigelig.
+      await uploadVoucherFile(files[i])
+      setBulkProgress({ done: i + 1, total: files.length })
+    }
+    setBulkProgress(null)
+  }
+
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    await uploadVoucherFile(file)
+    const fileList = e.target.files
+    if (!fileList || fileList.length === 0) return
+    const files = Array.from(fileList)
+    // Reset input så samme filnavn kan vælges igen efter upload.
+    e.target.value = ''
+    await uploadVoucherFiles(files)
   }
 
   function onPageDragEnter(e: React.DragEvent) {
@@ -622,8 +642,8 @@ export function VouchersPage() {
     overlayDragDepthRef.current = 0
     setDragActive(false)
     if (uploading) return
-    const file = e.dataTransfer.files?.[0]
-    if (file) void uploadVoucherFile(file)
+    const files = Array.from(e.dataTransfer.files ?? [])
+    if (files.length > 0) void uploadVoucherFiles(files)
   }
 
   /**
@@ -686,9 +706,9 @@ export function VouchersPage() {
           role="presentation"
         >
           <div className="pointer-events-none mx-4 max-w-lg rounded-2xl border-4 border-dashed border-indigo-500 bg-white/95 px-8 py-10 text-center shadow-2xl">
-            <p className="text-lg font-semibold text-indigo-900">Slip filen her</p>
+            <p className="text-lg font-semibold text-indigo-900">Slip filerne her</p>
             <p className="mt-2 text-sm text-slate-600">
-              Filen uploades; beløb og dato gættes automatisk når det er muligt.
+              Du kan slippe flere på én gang — beløb og dato gættes automatisk når det er muligt.
             </p>
           </div>
         </div>
@@ -768,12 +788,19 @@ export function VouchersPage() {
           <input
             ref={fileInputRef}
             type="file"
+            multiple
             className="hidden"
             disabled={uploading}
             onChange={(e) => void onFile(e)}
           />
         </div>
       </div>
+
+      {bulkProgress ? (
+        <p className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-900">
+          Uploader bilag {bulkProgress.done} af {bulkProgress.total}…
+        </p>
+      ) : null}
 
       {ocrWarning ? (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
