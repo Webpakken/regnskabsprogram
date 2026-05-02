@@ -7,6 +7,9 @@ import { useApp } from '@/context/AppProvider'
 import { logActivity } from '@/lib/activity'
 import { functionsHttpErrorMessage } from '@/lib/edge'
 import { sendInvoiceToCustomerEmail } from '@/lib/invoiceCustomerEmail'
+import { generateInvoicePdfBlob } from '@/lib/invoicePdf'
+import { fetchCompanyLogoDataUrl } from '@/lib/invoiceBranding'
+import { openBlankTabForPdfNavigation } from '@/lib/loadInvoicePdfPreview'
 import { formatDkk } from '@/lib/format'
 import {
   clearInvoiceWizardDraft,
@@ -304,12 +307,107 @@ export function InvoiceWizardPage() {
 
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [previewing, setPreviewing] = useState(false)
   const [invoiceNumberSeriesStarted, setInvoiceNumberSeriesStarted] = useState<
     boolean | null
   >(null)
   const [pendingNumberStatus, setPendingNumberStatus] = useState<
     Invoice['status'] | null
   >(null)
+
+  // Bygger PDF-preview ud fra wizardens nuværende state — uden at gemme noget i DB.
+  // Åbner blob-URL'en i en ny fane (tom fane åbnes synkront under klikket for at undgå
+  // popup-blokering, ligesom åbn-i-ny-fane fra fakturadetalje).
+  async function handlePreview() {
+    if (!currentCompany) return
+    const blank = openBlankTabForPdfNavigation()
+    setPreviewing(true)
+    setError(null)
+    try {
+      const draftLines = lines
+        .filter((l) => l.description.trim() || l.unit_price_cents > 0)
+        .map((l, idx) => {
+          const eff = effectiveDraft(l)
+          const a = lineAmounts(eff)
+          return {
+            id: `preview-${idx}`,
+            invoice_id: 'preview',
+            description: eff.description,
+            quantity: eff.quantity,
+            unit_price_cents: eff.unit_price_cents,
+            vat_rate: eff.vat_rate,
+            line_net_cents: a.line_net_cents,
+            line_vat_cents: a.line_vat_cents,
+            line_gross_cents: a.line_gross_cents,
+            sort_order: idx,
+          } satisfies LineRow
+        })
+      const previewNumber =
+        invoiceNumber.trim() ||
+        previewInvoiceNumber(
+          currentCompany.invoice_starting_number,
+          currentCompany.invoice_number_digit_width,
+        )
+      const previewInvoice: Invoice = {
+        id: 'preview',
+        company_id: currentCompany.id,
+        invoice_number: previewNumber,
+        customer_name: customerName.trim() || 'Kunde',
+        customer_email: customerEmail.trim() || null,
+        customer_cvr: customerCvr.replace(/\D/g, '') || null,
+        customer_phone: customerPhone.trim() || null,
+        customer_address: customerAddress.trim() || null,
+        customer_zip: customerZip.trim() || null,
+        customer_city: customerCity.trim() || null,
+        issue_date: issueDate,
+        due_date: dueDate,
+        currency: 'DKK',
+        status: 'draft',
+        net_cents: totals.net_cents,
+        vat_cents: totals.vat_cents,
+        gross_cents: totals.gross_cents,
+        notes: notes || null,
+        sent_at: null,
+        credited_invoice_id: creditSourceIdRef.current,
+        last_automation_reminder_at: null,
+        automation_reminder_send_count: 0,
+        is_historical: false,
+        attachment_path: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+      const logo = await fetchCompanyLogoDataUrl(currentCompany.invoice_logo_path)
+      const pdfOptions = isCreditNotaFlow
+        ? {
+            heading: 'Kreditnota',
+            creditReferenceLine: 'Kreditnota (preview)',
+          }
+        : undefined
+      const blob = generateInvoicePdfBlob(
+        currentCompany,
+        previewInvoice,
+        draftLines,
+        logo,
+        pdfOptions,
+      )
+      const url = URL.createObjectURL(blob)
+      if (blank) {
+        blank.location.href = url
+        try {
+          ;(blank as Window & { opener: Window | null }).opener = null
+        } catch {
+          /* ignore */
+        }
+      } else {
+        window.open(url, '_blank')
+      }
+    } catch (e) {
+      blank?.close()
+      setError(e instanceof Error ? e.message : 'Kunne ikke generere preview')
+    } finally {
+      setPreviewing(false)
+    }
+  }
 
   const isCreditNotaFlow = Boolean(creditForParam) || isCreditDraft
   const accent = useMemo(() => wizardAccent(isCreditNotaFlow), [isCreditNotaFlow])
@@ -980,6 +1078,8 @@ export function InvoiceWizardPage() {
             error={error}
             onSave={() => requestPersist('draft')}
             onSend={() => requestPersist('sent')}
+            onPreview={() => void handlePreview()}
+            previewing={previewing}
             isNew={isNew}
             invoiceStatus={status}
             invoiceNumber={invoiceNumber}
@@ -1163,6 +1263,8 @@ type WizardViewProps = {
   error: string | null
   onSave: () => void
   onSend: () => void
+  onPreview: () => void
+  previewing: boolean
   isNew: boolean
   invoiceStatus: Invoice['status']
   invoiceNumber: string
@@ -1299,23 +1401,33 @@ function WizardView(p: WizardViewProps) {
               Videre
             </PrimaryButton>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
               <button
                 type="button"
-                disabled={p.saving}
-                onClick={p.onSave}
-                className="rounded-full border border-slate-300 bg-white py-3.5 text-[15px] font-semibold text-slate-700 disabled:opacity-60"
+                disabled={p.saving || p.previewing}
+                onClick={p.onPreview}
+                className="w-full rounded-full border border-slate-300 bg-white py-3 text-sm font-semibold text-slate-700 disabled:opacity-60"
               >
-                Gem kladde
+                {p.previewing ? 'Bygger preview…' : 'Vis preview'}
               </button>
-              <button
-                type="button"
-                disabled={p.saving}
-                onClick={p.onSend}
-                className={accent.sendBtnClass}
-              >
-                {p.invoiceStatus === 'draft' ? 'Opret og send' : 'Marker sendt'}
-              </button>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  disabled={p.saving}
+                  onClick={p.onSave}
+                  className="rounded-full border border-slate-300 bg-white py-3.5 text-[15px] font-semibold text-slate-700 disabled:opacity-60"
+                >
+                  Gem kladde
+                </button>
+                <button
+                  type="button"
+                  disabled={p.saving}
+                  onClick={p.onSend}
+                  className={accent.sendBtnClass}
+                >
+                  {p.invoiceStatus === 'draft' ? 'Opret og send' : 'Marker sendt'}
+                </button>
+              </div>
             </div>
           )}
         </div>

@@ -127,8 +127,27 @@ export function generateInvoicePdfBlob(
   const contentW = pageW - 2 * MARGIN
   const isCreditNote = !!pdfOptions?.creditReferenceLine?.trim()
 
-  // ── Top: logo top-højre ─────────────────────────────────────────────────
-  let topY = MARGIN
+  // ── Top-venstre: sælger-blok (firmanavn + email + telefon) ─────────────
+  const topY = MARGIN
+  let sy = topY
+  doc.setFontSize(10)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(20, 20, 30)
+  doc.text(company.name.trim(), MARGIN, sy)
+  sy += 4.6
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(70, 70, 80)
+  if (company.invoice_email?.trim()) {
+    doc.text(company.invoice_email.trim(), MARGIN, sy)
+    sy += 4.2
+  }
+  if (company.invoice_phone?.trim()) {
+    doc.text(`Tlf. ${company.invoice_phone.trim()}`, MARGIN, sy)
+    sy += 4.2
+  }
+
+  // ── Top-højre: logo ─────────────────────────────────────────────────────
   let logoBottomY = topY
   if (logoDataUrl) {
     try {
@@ -142,26 +161,40 @@ export function generateInvoicePdfBlob(
     }
   }
 
-  // ── Kunde-blok venstre ──────────────────────────────────────────────────
-  let cy = topY
-  doc.setFontSize(10)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(20, 20, 30)
-  doc.text(invoice.customer_name.trim(), MARGIN, cy)
-  cy += 4.6
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  doc.setTextColor(70, 70, 80)
-  if (invoice.customer_email?.trim()) {
-    doc.text(invoice.customer_email.trim(), MARGIN, cy)
-    cy += 4.2
+  // ── Kunde-blok midt på siden (centreret horisontalt) ────────────────────
+  // Samles som linjer først så vi kan måle og centrere hver linje.
+  const customerLines: Array<{ text: string; bold: boolean; size: number }> = []
+  const cName = invoice.customer_name?.trim()
+  if (cName) customerLines.push({ text: cName, bold: true, size: 10 })
+  const cAddr = invoice.customer_address?.trim()
+  if (cAddr) customerLines.push({ text: cAddr, bold: false, size: 9 })
+  const cZipCity = [invoice.customer_zip?.trim(), invoice.customer_city?.trim()]
+    .filter(Boolean)
+    .join(' ')
+  if (cZipCity) customerLines.push({ text: cZipCity, bold: false, size: 9 })
+  const cCvr = invoice.customer_cvr?.trim()
+  if (cCvr) customerLines.push({ text: `CVR-nr. ${cCvr}`, bold: false, size: 9 })
+  const cPhone = invoice.customer_phone?.trim()
+  if (cPhone) customerLines.push({ text: `Tlf. ${cPhone}`, bold: false, size: 9 })
+  const cEmail = invoice.customer_email?.trim()
+  if (cEmail) customerLines.push({ text: cEmail, bold: false, size: 9 })
+
+  let customerBottomY = Math.max(logoBottomY, sy)
+  if (customerLines.length > 0) {
+    const customerCenterX = pageW / 2
+    let cy = Math.max(logoBottomY, sy) + 12
+    for (const line of customerLines) {
+      doc.setFontSize(line.size)
+      doc.setFont('helvetica', line.bold ? 'bold' : 'normal')
+      doc.setTextColor(line.bold ? 20 : 70, line.bold ? 20 : 70, line.bold ? 30 : 80)
+      doc.text(line.text, customerCenterX, cy, { align: 'center' })
+      cy += line.size === 10 ? 4.6 : 4.2
+    }
+    customerBottomY = cy
   }
 
-  // Bank/CVR-info for kunde er ikke i Bilago (vi har kun navn/email/notes), så
-  // vi stopper her og lader notes blive vist senere som "Del 1 af 2 gennemført"-stil.
-
   // ── Dato + fakturanr-række (over titlen) ────────────────────────────────
-  let y = Math.max(logoBottomY, cy) + 16
+  let y = customerBottomY + 12
   doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(70, 70, 80)
