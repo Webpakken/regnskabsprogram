@@ -304,6 +304,45 @@ export function VouchersPage() {
     return () => window.clearTimeout(t)
   }, [voucherHighlight, loading, setSearchParams])
 
+  // Hele vinduet er drop-zone: aktiverer overlay'et når brugeren trækker filer ind
+  // hvor som helst på siden. Faktiske drop håndteres af overlay'et nedenunder.
+  useEffect(() => {
+    let depth = 0
+    function hasFiles(e: DragEvent) {
+      return e.dataTransfer?.types?.includes('Files') ?? false
+    }
+    function onEnter(e: DragEvent) {
+      if (!hasFiles(e) || uploading) return
+      e.preventDefault()
+      depth += 1
+      setDragActive(true)
+    }
+    function onOver(e: DragEvent) {
+      if (!hasFiles(e)) return
+      e.preventDefault()
+    }
+    function onLeave(e: DragEvent) {
+      if (!hasFiles(e)) return
+      depth = Math.max(0, depth - 1)
+      if (depth === 0) setDragActive(false)
+    }
+    function onDrop(e: DragEvent) {
+      if (!hasFiles(e)) return
+      e.preventDefault()
+      depth = 0
+    }
+    window.addEventListener('dragenter', onEnter)
+    window.addEventListener('dragover', onOver)
+    window.addEventListener('dragleave', onLeave)
+    window.addEventListener('drop', onDrop)
+    return () => {
+      window.removeEventListener('dragenter', onEnter)
+      window.removeEventListener('dragover', onOver)
+      window.removeEventListener('dragleave', onLeave)
+      window.removeEventListener('drop', onDrop)
+    }
+  }, [uploading])
+
   const reimbursementByVoucherId = useMemo(() => {
     return new Map(reimbursements.map((r) => [r.voucher_id, r]))
   }, [reimbursements])
