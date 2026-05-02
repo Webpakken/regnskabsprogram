@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AppPageLayout } from '@/components/AppPageLayout'
 import { InvoicePdfCanvasViewer } from '@/components/InvoicePdfCanvasViewer'
@@ -82,6 +82,15 @@ export function VoucherDetailPage() {
   const [formError, setFormError] = useState<string | null>(null)
   const [formMessage, setFormMessage] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [dirty, setDirty] = useState(false)
+  const formStateRef = useRef({
+    title: '',
+    date: '',
+    grossKr: '',
+    vatKr: '',
+    category: '',
+    projectId: '',
+  })
 
   const load = useCallback(async () => {
     if (!id || !currentCompany) return
@@ -187,6 +196,28 @@ export function VoucherDetailPage() {
     }
   }, [currentCompany])
 
+  // Hold formStateRef synkroniseret så autosave kan tjekke om bruger har skrevet videre
+  // mens et tidligere save var i gang (uden at miste de nye ændringer).
+  useEffect(() => {
+    formStateRef.current = { title, date, grossKr, vatKr, category, projectId }
+  }, [title, date, grossKr, vatKr, category, projectId])
+
+  // Auto-recalc moms (25% dansk moms på brutto-inkl beløb: vat = gross * 0.2).
+  // Bruges fra prisens onChange — hvis bruger ønsker en anden moms (fx 0 ved momsfri),
+  // kan de bare skrive i moms-feltet bagefter.
+  function handleGrossChange(value: string) {
+    setGrossKr(value)
+    setDirty(true)
+    if (!showVat) return
+    const cents = parseKrToCents(value)
+    if (cents === null) return
+    if (cents === 0) {
+      setVatKr('')
+      return
+    }
+    setVatKr(centsToKrInput(Math.round(cents * 0.2)))
+  }
+
   const currentIndex = id ? siblingIds.indexOf(id) : -1
   const prevId = currentIndex > 0 ? siblingIds[currentIndex - 1] : null
   const nextId =
@@ -246,6 +277,7 @@ export function VoucherDetailPage() {
       category: category || null,
       voucher_project_id: canUseVoucherProjects ? (projectId || null) : voucher.voucher_project_id,
     }
+    const snapshot = { ...formStateRef.current }
     setSaving(true)
     const { error } = await supabase
       .from('vouchers')
@@ -258,8 +290,39 @@ export function VoucherDetailPage() {
       return
     }
     setVoucher({ ...voucher, ...updates } as Voucher)
+    // Ryd kun dirty hvis ingen felter er ændret mens save var i gang —
+    // ellers ville vi miste tegn brugeren skrev i mellemtiden.
+    const current = formStateRef.current
+    if (
+      current.title === snapshot.title &&
+      current.date === snapshot.date &&
+      current.grossKr === snapshot.grossKr &&
+      current.vatKr === snapshot.vatKr &&
+      current.category === snapshot.category &&
+      current.projectId === snapshot.projectId
+    ) {
+      setDirty(false)
+    }
     setFormMessage('Gemt.')
   }
+
+  // Autosave: når et felt er ændret, gem efter 800ms uden ny tastetryk.
+  useEffect(() => {
+    if (!dirty || saving) return
+    const t = window.setTimeout(() => {
+      void handleSave()
+    }, 800)
+    return () => window.clearTimeout(t)
+    // handleSave er ikke memoiseret men setTimeout fanger den nyeste closure pr. render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dirty, saving, title, date, grossKr, vatKr, category, projectId])
+
+  // Skjul "Gemt." efter et par sekunder så badgen ikke bliver hængende.
+  useEffect(() => {
+    if (!formMessage) return
+    const t = window.setTimeout(() => setFormMessage(null), 2500)
+    return () => window.clearTimeout(t)
+  }, [formMessage])
 
   async function updateReimbursementStatus(status: ReimbursementStatus) {
     if (!reimbursement || !currentCompany) return
@@ -421,7 +484,10 @@ export function VoucherDetailPage() {
               <input
                 type="text"
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                onChange={(e) => {
+                  setTitle(e.target.value)
+                  setDirty(true)
+                }}
                 className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
                 placeholder="Fx Cafébesøg"
               />
@@ -431,7 +497,10 @@ export function VoucherDetailPage() {
               <input
                 type="date"
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
+                onChange={(e) => {
+                  setDate(e.target.value)
+                  setDirty(true)
+                }}
                 className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
               />
             </label>
@@ -441,7 +510,7 @@ export function VoucherDetailPage() {
                 type="text"
                 inputMode="decimal"
                 value={grossKr}
-                onChange={(e) => setGrossKr(e.target.value)}
+                onChange={(e) => handleGrossChange(e.target.value)}
                 className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
                 placeholder="0,00"
               />
@@ -453,7 +522,10 @@ export function VoucherDetailPage() {
                   type="text"
                   inputMode="decimal"
                   value={vatKr}
-                  onChange={(e) => setVatKr(e.target.value)}
+                  onChange={(e) => {
+                    setVatKr(e.target.value)
+                    setDirty(true)
+                  }}
                   className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
                   placeholder="0,00"
                 />
@@ -463,7 +535,10 @@ export function VoucherDetailPage() {
               Kategori
               <select
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
+                onChange={(e) => {
+                  setCategory(e.target.value)
+                  setDirty(true)
+                }}
                 className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
               >
                 <option value="">Uden kategori</option>
@@ -479,7 +554,10 @@ export function VoucherDetailPage() {
                 Event/projekt
                 <select
                   value={projectId}
-                  onChange={(e) => setProjectId(e.target.value)}
+                  onChange={(e) => {
+                    setProjectId(e.target.value)
+                    setDirty(true)
+                  }}
                   className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
                 >
                   <option value="">Uden event/projekt</option>
@@ -545,18 +623,11 @@ export function VoucherDetailPage() {
             <div className="flex flex-wrap items-center justify-end gap-3">
               {formError ? (
                 <span className="text-xs font-medium text-rose-700">{formError}</span>
-              ) : null}
-              {formMessage ? (
+              ) : saving ? (
+                <span className="text-xs font-medium text-slate-500">Gemmer…</span>
+              ) : formMessage ? (
                 <span className="text-xs font-medium text-emerald-700">{formMessage}</span>
               ) : null}
-              <button
-                type="button"
-                onClick={() => void handleSave()}
-                disabled={saving}
-                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
-              >
-                {saving ? 'Gemmer…' : 'Gem ændringer'}
-              </button>
             </div>
           </div>
         </section>
