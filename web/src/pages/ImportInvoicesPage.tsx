@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AppPageLayout } from '@/components/AppPageLayout'
 import { useApp } from '@/context/AppProvider'
@@ -56,6 +56,22 @@ export function ImportInvoicesPage() {
     null,
   )
   const [updatingNext, setUpdatingNext] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+
+  // Forhindr browseren i at åbne PDF'en hvis brugeren rammer ved siden af drop-zonen.
+  useEffect(() => {
+    function blockDefault(e: DragEvent) {
+      if (e.dataTransfer?.types?.includes('Files')) {
+        e.preventDefault()
+      }
+    }
+    window.addEventListener('dragover', blockDefault)
+    window.addEventListener('drop', blockDefault)
+    return () => {
+      window.removeEventListener('dragover', blockDefault)
+      window.removeEventListener('drop', blockDefault)
+    }
+  }, [])
 
   async function onFiles(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return
