@@ -253,6 +253,39 @@ export function InvoiceDetailPage() {
     }
   }
 
+  async function markUnpaid() {
+    if (!invoice || !currentCompany || !id) return
+    if (
+      !window.confirm(
+        'Markér denne faktura som ikke betalt? Status sættes til "sendt" så betalingspåmindelser kan udsendes.',
+      )
+    )
+      return
+    setMarkBusy(true)
+    setNotice(null)
+    try {
+      const { error: uErr } = await supabase
+        .from('invoices')
+        .update({ status: 'sent', updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('company_id', currentCompany.id)
+      if (uErr) throw new Error(uErr.message)
+      await logActivity(
+        currentCompany.id,
+        'invoice_unmarked_paid',
+        `Faktura ${invoice.invoice_number} markeret som ikke betalt`,
+        { invoice_id: id },
+      )
+      setNotice('Faktura markeret som ikke betalt.')
+      await reloadInvoice()
+      await refresh()
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : 'Kunne ikke opdatere')
+    } finally {
+      setMarkBusy(false)
+    }
+  }
+
   async function resendInvoice() {
     if (!invoice || !currentCompany) return
     if (creditChild) {
@@ -357,6 +390,7 @@ export function InvoiceDetailPage() {
   const paidCents = invoice.status === 'paid' ? invoice.gross_cents : 0
   const restCents = invoice.gross_cents - paidCents
   const canMarkPaid = invoice.status === 'sent' && !credit && !creditChild
+  const canMarkUnpaid = invoice.status === 'paid' && !credit && !creditChild
   const num = String(invoice.invoice_number ?? '').trim() || '—'
 
   const statusLine = (() => {
@@ -516,6 +550,18 @@ export function InvoiceDetailPage() {
                     className="w-full rounded-xl bg-indigo-600 py-3.5 text-[15px] font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-60"
                   >
                     {markBusy ? 'Gemmer…' : 'Registrér betaling'}
+                  </button>
+                </div>
+              ) : null}
+              {canMarkUnpaid ? (
+                <div className="border-t border-slate-100 p-4">
+                  <button
+                    type="button"
+                    disabled={markBusy}
+                    onClick={() => void markUnpaid()}
+                    className="w-full rounded-xl border border-slate-200 bg-white py-3.5 text-[15px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    {markBusy ? 'Gemmer…' : 'Markér som ikke betalt'}
                   </button>
                 </div>
               ) : null}
@@ -734,6 +780,18 @@ export function InvoiceDetailPage() {
                     className="w-full rounded-xl bg-indigo-600 py-3.5 text-[15px] font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-60"
                   >
                     {markBusy ? 'Gemmer…' : 'Registrér betaling'}
+                  </button>
+                </div>
+              ) : null}
+              {canMarkUnpaid ? (
+                <div className="border-t border-slate-100 p-4">
+                  <button
+                    type="button"
+                    disabled={markBusy}
+                    onClick={() => void markUnpaid()}
+                    className="w-full rounded-xl border border-slate-200 bg-white py-3.5 text-[15px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    {markBusy ? 'Gemmer…' : 'Markér som ikke betalt'}
                   </button>
                 </div>
               ) : null}

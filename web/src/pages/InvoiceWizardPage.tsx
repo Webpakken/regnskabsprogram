@@ -937,6 +937,11 @@ export function InvoiceWizardPage() {
             setCustomerName={setCustomerName}
             customerEmail={customerEmail}
             setCustomerEmail={setCustomerEmail}
+            customerCvr={customerCvr}
+            customerPhone={customerPhone}
+            customerAddress={customerAddress}
+            customerZip={customerZip}
+            customerCity={customerCity}
             applyCvrCompany={(row) => {
               setCustomerName(row.name)
               setCustomerEmail(row.email ?? '')
@@ -1127,6 +1132,11 @@ type WizardViewProps = {
   setCustomerName: (v: string) => void
   customerEmail: string
   setCustomerEmail: (v: string) => void
+  customerCvr: string
+  customerPhone: string
+  customerAddress: string
+  customerZip: string
+  customerCity: string
   applyCvrCompany: (row: CvrCompany) => void
   clearCustomer: () => void
   customerQuery: string
@@ -1223,6 +1233,11 @@ function WizardView(p: WizardViewProps) {
             setCustomerName={p.setCustomerName}
             customerEmail={p.customerEmail}
             setCustomerEmail={p.setCustomerEmail}
+            customerCvr={p.customerCvr}
+            customerPhone={p.customerPhone}
+            customerAddress={p.customerAddress}
+            customerZip={p.customerZip}
+            customerCity={p.customerCity}
             applyCvrCompany={p.applyCvrCompany}
             clearCustomer={p.clearCustomer}
             query={p.customerQuery}
@@ -1315,6 +1330,11 @@ function CustomerTab({
   setCustomerName,
   customerEmail,
   setCustomerEmail,
+  customerCvr,
+  customerPhone,
+  customerAddress,
+  customerZip,
+  customerCity,
   applyCvrCompany,
   clearCustomer,
   query,
@@ -1326,6 +1346,11 @@ function CustomerTab({
   setCustomerName: (v: string) => void
   customerEmail: string
   setCustomerEmail: (v: string) => void
+  customerCvr: string
+  customerPhone: string
+  customerAddress: string
+  customerZip: string
+  customerCity: string
   applyCvrCompany: (row: CvrCompany) => void
   clearCustomer: () => void
   query: string
@@ -1333,18 +1358,31 @@ function CustomerTab({
   recent: { name: string; email: string | null }[]
 }) {
   const cvr = useCvrSearch(query, !customerName)
+  const cityLine = [customerZip, customerCity].filter((v) => v.trim()).join(' ')
 
   return (
     <div className="space-y-5">
       <h2 className="text-lg font-semibold text-slate-900">Tilføj kunde</h2>
       {customerName ? (
-        <div className="flex items-center justify-between rounded-2xl bg-white px-4 py-4 shadow-sm ring-1 ring-slate-200">
-          <div className="flex items-center gap-3">
+        <div className="flex items-start justify-between gap-3 rounded-2xl bg-white px-4 py-4 shadow-sm ring-1 ring-slate-200">
+          <div className="flex min-w-0 items-start gap-3">
             <FactoryIcon />
-            <div>
+            <div className="min-w-0 space-y-0.5">
               <div className="text-[15px] font-semibold text-slate-900">
                 {customerName}
               </div>
+              {customerCvr ? (
+                <div className="text-xs text-slate-500">CVR {customerCvr}</div>
+              ) : null}
+              {customerAddress ? (
+                <div className="text-xs text-slate-500">{customerAddress}</div>
+              ) : null}
+              {cityLine ? (
+                <div className="text-xs text-slate-500">{cityLine}</div>
+              ) : null}
+              {customerPhone ? (
+                <div className="text-xs text-slate-500">Tlf. {customerPhone}</div>
+              ) : null}
               {customerEmail ? (
                 <div className="text-xs text-slate-500">{customerEmail}</div>
               ) : null}
@@ -1354,7 +1392,7 @@ function CustomerTab({
             type="button"
             onClick={clearCustomer}
             aria-label="Fjern kunde"
-            className="text-slate-400 hover:text-slate-700"
+            className="shrink-0 text-slate-400 hover:text-slate-700"
           >
             <CloseIcon />
           </button>
