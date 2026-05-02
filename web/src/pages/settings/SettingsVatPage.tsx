@@ -126,7 +126,7 @@ export function SettingsVatPage() {
               <p className="mt-0.5 text-sm text-slate-600">
                 Der skal ikke beregnes moms på mine salg og køb.{' '}
                 <a
-                  href="https://skat.dk/erhverv/moms/momsfritaget-virksomhed"
+                  href="https://skat.dk/erhverv/moms/moms-ved-handel-med-udlandet/moms-ved-salg-til-private/salg-til-private-i-eu/momsfritagelse-i-eu-for-smaa-virksomheder/tilmeld-din-virksomhed-ordningen-om-momsfritagelse-i-eu"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="font-medium text-indigo-600 hover:underline"

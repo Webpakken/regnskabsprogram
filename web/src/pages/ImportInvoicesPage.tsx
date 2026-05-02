@@ -9,7 +9,10 @@ import type { Database } from '@/types/database'
 type Row = {
   id: string
   file: File
+  documentType: 'invoice' | 'credit_note'
   invoiceNumber: string
+  /** Kun for kreditnotaer: nummeret på fakturaen der krediteres. */
+  creditedInvoiceNumber: string
   issueDate: string
   dueDate: string
   customerName: string
@@ -75,7 +78,9 @@ export function ImportInvoicesPage() {
         newRows.push({
           id: crypto.randomUUID(),
           file: f,
+          documentType: ex.documentType,
           invoiceNumber: ex.invoiceNumber ?? '',
+          creditedInvoiceNumber: ex.creditedInvoiceNumber ?? '',
           issueDate,
           dueDate,
           customerName: ex.customerName ?? '',
@@ -91,7 +96,9 @@ export function ImportInvoicesPage() {
         newRows.push({
           id: crypto.randomUUID(),
           file: f,
+          documentType: 'invoice',
           invoiceNumber: '',
+          creditedInvoiceNumber: '',
           issueDate: todayIso(),
           dueDate: todayIso(),
           customerName: '',
@@ -127,22 +134,58 @@ export function ImportInvoicesPage() {
     setPageError(null)
     setImporting(true)
     const toImport = rows.filter((r) => !r.imported)
+    // To-pass: fakturaer først (så krediterede fakturaer er tilstede når kreditnotaer
+    // efterfølgende skal slå credited_invoice_id op).
+    const sorted = [...toImport].sort((a, b) => {
+      if (a.documentType === b.documentType) return 0
+      return a.documentType === 'invoice' ? -1 : 1
+    })
     let inserted = 0
-    let highest: number | null = null
+    let highestInvoice: number | null = null
 
-    // Pre-validering: nummer + beløb skal være sat.
-    for (const r of toImport) {
+    for (const r of sorted) {
       if (!r.invoiceNumber.trim()) {
-        updateRow(r.id, { error: 'Fakturanummer mangler' })
+        updateRow(r.id, { error: r.documentType === 'credit_note' ? 'Kreditnotanr. mangler' : 'Fakturanummer mangler' })
         continue
       }
-      const grossCents = parseKrToCents(r.grossKr)
-      if (grossCents === null || grossCents <= 0) {
+      const grossPositiveCents = parseKrToCents(r.grossKr)
+      if (grossPositiveCents === null || grossPositiveCents <= 0) {
         updateRow(r.id, { error: 'Beløb mangler eller er ugyldigt' })
         continue
       }
-      const vatCents = parseKrToCents(r.vatKr) ?? 0
-      const netCents = Math.max(0, grossCents - vatCents)
+      const vatPositiveCents = parseKrToCents(r.vatKr) ?? 0
+      const netPositiveCents = Math.max(0, grossPositiveCents - vatPositiveCents)
+      // Kreditnotaer registreres med negative beløb i Bilago (samme som "kreditAbs"-logik
+      // andre steder i appen). Det giver korrekt total i dashboard og moms-rapport.
+      const sign = r.documentType === 'credit_note' ? -1 : 1
+      const grossCents = sign * grossPositiveCents
+      const vatCents = sign * vatPositiveCents
+      const netCents = sign * netPositiveCents
+
+      // Slå krediteret faktura op hvis det er en kreditnota
+      let creditedInvoiceId: string | null = null
+      if (r.documentType === 'credit_note') {
+        if (!r.creditedInvoiceNumber.trim()) {
+          updateRow(r.id, {
+            error: 'Krediteret fakturanummer mangler — udfyld feltet "Krediterer faktura"',
+          })
+          continue
+        }
+        const { data: refInv } = await supabase
+          .from('invoices')
+          .select('id')
+          .eq('company_id', currentCompany.id)
+          .eq('invoice_number', r.creditedInvoiceNumber.trim())
+          .limit(1)
+          .maybeSingle()
+        if (!refInv) {
+          updateRow(r.id, {
+            error: `Faktura ${r.creditedInvoiceNumber} findes ikke endnu — importér den først`,
+          })
+          continue
+        }
+        creditedInvoiceId = refInv.id
+      }
 
       // Tjek nummer-kollision
       const { data: existing } = await supabase
@@ -153,7 +196,9 @@ export function ImportInvoicesPage() {
         .limit(1)
         .maybeSingle()
       if (existing) {
-        updateRow(r.id, { error: `Fakturanummer ${r.invoiceNumber} findes allerede` })
+        updateRow(r.id, {
+          error: `${r.documentType === 'credit_note' ? 'Kreditnotanr.' : 'Fakturanummer'} ${r.invoiceNumber} findes allerede`,
+        })
         continue
       }
 
@@ -168,7 +213,7 @@ export function ImportInvoicesPage() {
         continue
       }
 
-      // Insert faktura
+      // Insert faktura/kreditnota
       const insert: Database['public']['Tables']['invoices']['Insert'] = {
         company_id: currentCompany.id,
         invoice_number: r.invoiceNumber.trim(),
@@ -181,6 +226,7 @@ export function ImportInvoicesPage() {
         gross_cents: grossCents,
         is_historical: true,
         attachment_path: path,
+        credited_invoice_id: creditedInvoiceId,
       }
       const { error: dbErr } = await supabase.from('invoices').insert(insert)
       if (dbErr) {
@@ -192,15 +238,20 @@ export function ImportInvoicesPage() {
 
       updateRow(r.id, { imported: true, error: null })
       inserted += 1
-      const numericPart = parseInt(r.invoiceNumber.trim().replace(/\D/g, ''), 10)
-      if (!Number.isNaN(numericPart) && (highest === null || numericPart > highest)) {
-        highest = numericPart
+      // Kun "almindelige" fakturaer tæller med i højeste-nummer-beregningen — ikke
+      // kreditnotaer (de bruger typisk en separat sekvens eller flettes ind i samme
+      // sekvens på det gamle system, men næste nye Bilago-faktura skal ikke kollidere).
+      if (r.documentType === 'invoice') {
+        const numericPart = parseInt(r.invoiceNumber.trim().replace(/\D/g, ''), 10)
+        if (!Number.isNaN(numericPart) && (highestInvoice === null || numericPart > highestInvoice)) {
+          highestInvoice = numericPart
+        }
       }
     }
 
     setImporting(false)
     if (inserted > 0) {
-      setPostImport({ inserted, highest })
+      setPostImport({ inserted, highest: highestInvoice })
     } else {
       setPageError('Ingen fakturaer kunne importeres — tjek fejl i tabellen.')
     }
@@ -295,7 +346,9 @@ export function ImportInvoicesPage() {
               <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                 <tr>
                   <th className="px-3 py-2">Fil</th>
+                  <th className="px-3 py-2">Type</th>
                   <th className="px-3 py-2">Nummer</th>
+                  <th className="px-3 py-2">Krediterer</th>
                   <th className="px-3 py-2">Dato</th>
                   <th className="px-3 py-2">Forfald</th>
                   <th className="px-3 py-2">Kunde</th>
@@ -336,6 +389,21 @@ export function ImportInvoicesPage() {
                         ) : null}
                       </td>
                       <td className="px-3 py-2">
+                        <select
+                          value={r.documentType}
+                          disabled={r.imported}
+                          onChange={(e) =>
+                            updateRow(r.id, {
+                              documentType: e.target.value as Row['documentType'],
+                            })
+                          }
+                          className="rounded border border-slate-200 px-2 py-1 text-sm"
+                        >
+                          <option value="invoice">Faktura</option>
+                          <option value="credit_note">Kreditnota</option>
+                        </select>
+                      </td>
+                      <td className="px-3 py-2">
                         <input
                           type="text"
                           value={r.invoiceNumber}
@@ -343,6 +411,22 @@ export function ImportInvoicesPage() {
                           onChange={(e) => updateRow(r.id, { invoiceNumber: e.target.value })}
                           className="w-24 rounded border border-slate-200 px-2 py-1 text-sm"
                         />
+                      </td>
+                      <td className="px-3 py-2">
+                        {r.documentType === 'credit_note' ? (
+                          <input
+                            type="text"
+                            value={r.creditedInvoiceNumber}
+                            disabled={r.imported}
+                            onChange={(e) =>
+                              updateRow(r.id, { creditedInvoiceNumber: e.target.value })
+                            }
+                            placeholder="Faktura-nr."
+                            className="w-24 rounded border border-slate-200 px-2 py-1 text-sm"
+                          />
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
+                        )}
                       </td>
                       <td className="px-3 py-2">
                         <input

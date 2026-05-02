@@ -7,28 +7,26 @@ type Invoice = Database['public']['Tables']['invoices']['Row']
 type LineRow = Database['public']['Tables']['invoice_line_items']['Row']
 type CompanyRow = Database['public']['Tables']['companies']['Row']
 
-const MARGIN = 14
-const LOGO_MAX_W_MM = 52
-const LOGO_MAX_H_MM = 18
+const MARGIN = 18
+const LOGO_MAX_W_MM = 60
+const LOGO_MAX_H_MM = 22
 
 /** Standardtekst som på almindelige danske fakturaer (kan uddybes via bundtekst i indstillinger). */
 const DEFAULT_LATE_PAYMENT_TEXT =
   'Ved betaling efter forfald tilskrives der renter på 0,0 % pr. påbegyndt måned, samt et gebyr på 100,00 DKK.'
 
-function money(cents: number, currency: string) {
-  try {
-    return new Intl.NumberFormat('da-DK', {
-      style: 'currency',
-      currency: currency || 'DKK',
-    }).format(cents / 100)
-  } catch {
-    return `${(cents / 100).toFixed(2)} ${currency}`
-  }
+function money(cents: number) {
+  // Webpakken-stil: ren tal med tusind-separator, uden valutasymbol; valuta vises kun
+  // i "Total DKK"-rækken som suffix på label'et.
+  return new Intl.NumberFormat('da-DK', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(cents / 100)
 }
 
 function formatQty(q: number) {
   return new Intl.NumberFormat('da-DK', {
-    minimumFractionDigits: 0,
+    minimumFractionDigits: 2,
     maximumFractionDigits: 4,
   }).format(q)
 }
@@ -45,12 +43,6 @@ function addressBlock(c: CompanyRow): string[] {
   const pc = [c.postal_code?.trim(), c.city?.trim()].filter(Boolean).join(' ')
   if (pc) lines.push(pc)
   return lines
-}
-
-function formatCvrLine(cvr: string | null): string | null {
-  const t = cvr?.trim()
-  if (!t) return null
-  return `Cvr-nr. ${t}`
 }
 
 function guessImageFormat(dataUrl: string): 'PNG' | 'JPEG' {
@@ -81,63 +73,43 @@ function dominantVatLabel(lines: LineRow[]): string {
   const rates = new Set(lines.map((l) => l.vat_rate))
   if (rates.size === 1) {
     const r = [...rates][0]
-    return `Moms (${r % 1 === 0 ? String(Math.round(r)) : String(r)} %)`
+    const formatted =
+      r % 1 === 0
+        ? `${Math.round(r)},00`
+        : new Intl.NumberFormat('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(r)
+    return `Moms (${formatted}%)`
   }
   return 'Moms'
 }
 
-function companyFooterOneLiner(company: CompanyRow): string {
-  const parts: string[] = [company.name.trim()]
-  for (const line of addressBlock(company)) parts.push(line)
-  if (company.cvr?.trim()) parts.push(`CVR-nr. ${company.cvr.trim()}`)
-  if (company.invoice_phone?.trim()) parts.push(`Tlf. ${company.invoice_phone.trim()}`)
+function companyFooterLines(company: CompanyRow): { line1: string; line2: string } {
+  const line1Parts: string[] = [company.name.trim()]
+  for (const line of addressBlock(company)) line1Parts.push(line)
+  const line2Parts: string[] = []
+  if (company.cvr?.trim()) line2Parts.push(`CVR-nr. ${company.cvr.trim()}`)
+  if (company.invoice_phone?.trim()) line2Parts.push(`Tlf. ${company.invoice_phone.trim()}`)
   if (company.invoice_website?.trim()) {
     const w = company.invoice_website.trim().replace(/^https?:\/\//i, '')
-    parts.push(`Web: ${w}`)
+    line2Parts.push(`Web: ${w}`)
   }
-  if (company.invoice_email?.trim()) parts.push(`Mail: ${company.invoice_email.trim()}`)
-  return parts.join(' / ')
-}
-
-function estimateBottomBlockHeightMm(doc: jsPDF, company: CompanyRow, contentW: number): number {
-  doc.setFont('helvetica', 'normal')
-  let h = 0
-  h += 5.5
-  h += 5
-  const bankParts: string[] = []
-  if (company.bank_reg_number?.trim() && company.bank_account_number?.trim()) {
-    bankParts.push(`Reg.nr. ${company.bank_reg_number.trim()}`)
-    bankParts.push(`Kontonr. ${company.bank_account_number.trim()}`)
-  }
-  if (company.iban?.trim()) bankParts.push(`IBAN ${company.iban.trim()}`)
-  if (bankParts.length > 0) h += 5.5
-  h += 6
-  doc.setFontSize(8.5)
-  h += 4 + doc.splitTextToSize(DEFAULT_LATE_PAYMENT_TEXT, contentW).length * 4
-  if (company.invoice_footer_note?.trim()) {
-    h += 2
-    h += 4 + doc.splitTextToSize(company.invoice_footer_note.trim(), contentW).length * 4
-  }
-  h += 3
-  doc.setFontSize(8)
-  h += footerSplitLineHeightMm(doc, companyFooterOneLiner(company), contentW)
-  doc.setFontSize(9)
-  return h
-}
-
-function footerSplitLineHeightMm(doc: jsPDF, text: string, contentW: number): number {
-  const lines = doc.splitTextToSize(text, contentW).length
-  return lines * 4.2
+  if (company.invoice_email?.trim()) line2Parts.push(`Mail: ${company.invoice_email.trim()}`)
+  return { line1: line1Parts.join(' / '), line2: line2Parts.join(' / ') }
 }
 
 /**
- * Faktura-PDF: kunde øverst til venstre, udsteder med logo øverst til højre,
- * linjetabel fuld bredde, betalingsblok i bunden af siden.
+ * Faktura-PDF — Webpakken-inspireret stil:
+ * • Logo top-højre, kunde top-venstre
+ * • Dato + fakturanr. som rækkens før titlen
+ * • Stor "Faktura"-overskrift (eller "Krediterring af faktura X" for kreditnota)
+ * • Ren linje-tabel uden mørk header — kun tynde streger
+ * • Totaler højre-justeret
+ * • Bank-betalingsblok kun for fakturaer (ikke kreditnotaer)
+ * • Centreret to-linje footer i bunden af siden med virksomhed + kontakt
  */
 export type InvoicePdfOptions = {
   /** Standard: «Faktura»; kreditnota: «Kreditnota». */
   heading?: string
-  /** Vises under overskriften, fx «Krediterer faktura 00042». */
+  /** Vises som overskrift når sat (fx «Krediterring af faktura 1033»). */
   creditReferenceLine?: string | null
 }
 
@@ -153,107 +125,92 @@ export function generateInvoicePdfBlob(
   const pageH = doc.internal.pageSize.getHeight()
   const rightX = pageW - MARGIN
   const contentW = pageW - 2 * MARGIN
-  let y = 12
+  const isCreditNote = !!pdfOptions?.creditReferenceLine?.trim()
 
-  const leftColW = pageW * 0.48
-  const issuerStartY = y
-
-  doc.setFontSize(11)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(30, 30, 40)
-  doc.text(invoice.customer_name.trim(), MARGIN, y)
-  y += 5.5
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  doc.setTextColor(55, 55, 65)
-  if (invoice.customer_email?.trim()) {
-    doc.text(invoice.customer_email.trim(), MARGIN, y)
-    y += 4.5
-  }
-
-  const leftBlockEndY = y + 4
-
-  let logoBottomY = issuerStartY
+  // ── Top: logo top-højre ─────────────────────────────────────────────────
+  let topY = MARGIN
+  let logoBottomY = topY
   if (logoDataUrl) {
     try {
       const fmt = guessImageFormat(logoDataUrl)
       const { w, h } = logoDimensionsMm(doc, logoDataUrl)
       const lx = rightX - w
-      doc.addImage(logoDataUrl, fmt, lx, issuerStartY, w, h)
-      logoBottomY = issuerStartY + h + 3
+      doc.addImage(logoDataUrl, fmt, lx, topY, w, h)
+      logoBottomY = topY + h
     } catch {
-      logoBottomY = issuerStartY
+      logoBottomY = topY
     }
-  } else {
-    logoBottomY = issuerStartY
   }
 
-  let ry = Math.max(logoBottomY, issuerStartY + 2)
-  doc.setFontSize(9)
+  // ── Kunde-blok venstre ──────────────────────────────────────────────────
+  let cy = topY
+  doc.setFontSize(10)
   doc.setFont('helvetica', 'bold')
-  doc.setTextColor(30, 30, 40)
-  doc.text(company.name.trim(), rightX, ry, { align: 'right' })
-  ry += 4.5
+  doc.setTextColor(20, 20, 30)
+  doc.text(invoice.customer_name.trim(), MARGIN, cy)
+  cy += 4.6
   doc.setFont('helvetica', 'normal')
-  doc.setTextColor(55, 55, 65)
-  for (const line of addressBlock(company)) {
-    doc.text(line, rightX, ry, { align: 'right' })
-    ry += 4.2
-  }
-  const cvrLine = formatCvrLine(company.cvr)
-  if (cvrLine) {
-    doc.text(cvrLine, rightX, ry, { align: 'right' })
-    ry += 4.2
-  }
-  if (company.invoice_phone?.trim()) {
-    doc.text(`Tlf. ${company.invoice_phone.trim()}`, rightX, ry, { align: 'right' })
-    ry += 4.2
-  }
-  if (company.invoice_email?.trim()) {
-    doc.text(`Mail: ${company.invoice_email.trim()}`, rightX, ry, { align: 'right' })
-    ry += 4.2
-  }
-  if (company.invoice_website?.trim()) {
-    const w = company.invoice_website.trim().replace(/^https?:\/\//i, '')
-    doc.text(`Web: ${w}`, rightX, ry, { align: 'right' })
-    ry += 4.2
-  }
-
-  y = Math.max(leftBlockEndY, ry) + 10
-
-  const titleY = y
-  const mainHeading = (pdfOptions?.heading ?? 'Faktura').trim() || 'Faktura'
-  doc.setFontSize(20)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(30, 30, 40)
-  doc.text(mainHeading, MARGIN, titleY)
-  let dateRowY = titleY
-  if (pdfOptions?.creditReferenceLine?.trim()) {
-    doc.setFontSize(9)
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(90, 90, 100)
-    doc.text(pdfOptions.creditReferenceLine.trim(), MARGIN, titleY + 5.2)
-    dateRowY = titleY + 5.2
-  }
-
   doc.setFontSize(9)
+  doc.setTextColor(70, 70, 80)
+  if (invoice.customer_email?.trim()) {
+    doc.text(invoice.customer_email.trim(), MARGIN, cy)
+    cy += 4.2
+  }
+
+  // Bank/CVR-info for kunde er ikke i Bilago (vi har kun navn/email/notes), så
+  // vi stopper her og lader notes blive vist senere som "Del 1 af 2 gennemført"-stil.
+
+  // ── Dato + fakturanr-række (over titlen) ────────────────────────────────
+  let y = Math.max(logoBottomY, cy) + 16
+  doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
-  doc.setTextColor(55, 55, 65)
-  doc.text(`Dato ${formatDateLongNoTime(invoice.issue_date)}`, rightX, titleY, { align: 'right' })
+  doc.setTextColor(70, 70, 80)
+  doc.text('Dato: ', MARGIN, y)
+  const dateLabelW = doc.getTextWidth('Dato: ')
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(20, 20, 30)
+  doc.text(formatDateLongNoTime(invoice.issue_date), MARGIN + dateLabelW, y)
+
   const invNo = String(invoice.invoice_number ?? '—')
-  doc.text(`Fakturanr. ${invNo}`, rightX, dateRowY + 4.5, { align: 'right' })
+  const numberLabel = isCreditNote ? 'Kreditnotanr. ' : 'Fakturanr. '
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(70, 70, 80)
+  const numberLabelW = doc.getTextWidth(numberLabel)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(20, 20, 30)
+  const numberValueW = doc.getTextWidth(invNo)
+  // Skriv label + nummer højre-justeret
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(70, 70, 80)
+  doc.text(numberLabel, rightX - numberValueW - numberLabelW, y)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(20, 20, 30)
+  doc.text(invNo, rightX, y, { align: 'right' })
 
-  y = dateRowY + Math.max(12, 4.5 + 5)
+  y += 6
 
-  if (invoice.notes?.trim()) {
-    doc.setFontSize(9)
+  // ── Notes (fx "Del 1 af 2 gennemført") — kun for fakturaer ─────────────
+  if (!isCreditNote && invoice.notes?.trim()) {
+    doc.setFontSize(10)
     doc.setFont('helvetica', 'normal')
-    doc.setTextColor(80, 80, 90)
-    const split = doc.splitTextToSize(invoice.notes.trim(), leftColW)
+    doc.setTextColor(70, 70, 80)
+    const split = doc.splitTextToSize(invoice.notes.trim(), contentW)
     doc.text(split, MARGIN, y)
-    y += 4 + split.length * 4.2
+    y += 4.5 + (split.length - 1) * 4.5
   }
 
+  // ── Stor titel ──────────────────────────────────────────────────────────
+  y += 8
+  const heading = isCreditNote
+    ? (pdfOptions?.creditReferenceLine?.trim() ?? 'Kreditnota')
+    : (pdfOptions?.heading?.trim() || 'Faktura')
+  doc.setFontSize(22)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(20, 20, 30)
+  doc.text(heading, MARGIN, y)
+  y += 8
+
+  // ── Linje-tabel (ren stil, lyse rammer) ─────────────────────────────────
   const sorted = [...lines].sort((a, b) => a.sort_order - b.sort_order)
   const body =
     sorted.length > 0
@@ -261,29 +218,46 @@ export function generateInvoicePdfBlob(
           l.description,
           formatQty(Number(l.quantity)),
           'stk.',
-          money(l.unit_price_cents, invoice.currency),
-          money(l.line_net_cents, invoice.currency),
+          money(l.unit_price_cents),
+          money(l.line_net_cents),
         ])
       : [['Ingen linjer', '—', '—', '—', '—']]
 
   const tw = contentW
-  const c0 = Math.floor(tw * 0.4)
-  const c1 = Math.floor(tw * 0.11)
-  const c2 = Math.floor(tw * 0.09)
-  const c3 = Math.floor(tw * 0.2)
+  const c0 = Math.floor(tw * 0.46)
+  const c1 = Math.floor(tw * 0.1)
+  const c2 = Math.floor(tw * 0.1)
+  const c3 = Math.floor(tw * 0.17)
   const c4 = tw - c0 - c1 - c2 - c3
 
   autoTable(doc, {
     startY: y,
     head: [['Beskrivelse', 'Antal', 'Enhed', 'Enhedspris', 'Pris']],
     body,
-    styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak' },
-    headStyles: { fillColor: [45, 45, 55], textColor: 255 },
+    theme: 'plain',
+    styles: {
+      fontSize: 9.5,
+      cellPadding: { top: 2.2, right: 2, bottom: 2.2, left: 2 },
+      overflow: 'linebreak',
+      lineColor: [220, 220, 225],
+      textColor: [40, 40, 50],
+    },
+    headStyles: {
+      fontStyle: 'normal',
+      textColor: [110, 110, 120],
+      fillColor: false as unknown as undefined,
+      lineWidth: { top: 0, right: 0, bottom: 0.2, left: 0 },
+      lineColor: [200, 200, 210],
+    },
+    bodyStyles: {
+      lineWidth: { top: 0, right: 0, bottom: 0.1, left: 0 },
+      lineColor: [235, 235, 240],
+    },
     tableWidth: tw,
     columnStyles: {
       0: { cellWidth: c0 },
       1: { cellWidth: c1, halign: 'right' },
-      2: { cellWidth: c2, halign: 'center' },
+      2: { cellWidth: c2, halign: 'left' },
       3: { cellWidth: c3, halign: 'right' },
       4: { cellWidth: c4, halign: 'right' },
     },
@@ -292,86 +266,124 @@ export function generateInvoicePdfBlob(
 
   const docExt = doc as unknown as { lastAutoTable?: { finalY: number } }
   const finalY = docExt.lastAutoTable?.finalY ?? y + 50
-  let ty = Math.max(finalY + 8, pageH * 0.44)
+  let ty = finalY + 6
 
-  doc.setFontSize(8.5)
+  // ── Totaler højre-justeret ──────────────────────────────────────────────
+  const totalsLabelX = pageW - MARGIN - 60
+  doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
-  doc.setTextColor(45, 45, 55)
-  const vatTitle = dominantVatLabel(sorted)
-  const labelX = rightX - 46
-  doc.text('Subtotal', labelX, ty)
-  doc.text(money(invoice.net_cents, invoice.currency), rightX, ty, { align: 'right' })
+  doc.setTextColor(50, 50, 60)
+  doc.text('Subtotal', totalsLabelX, ty)
+  doc.text(money(invoice.net_cents), rightX, ty, { align: 'right' })
   ty += 5
-  doc.text(vatTitle, labelX, ty)
-  doc.text(money(invoice.vat_cents, invoice.currency), rightX, ty, { align: 'right' })
-  ty += 5
+  doc.text(dominantVatLabel(sorted), totalsLabelX, ty)
+  doc.text(money(invoice.vat_cents), rightX, ty, { align: 'right' })
+  ty += 5.5
   doc.setFont('helvetica', 'bold')
-  doc.text(`Total ${invoice.currency}`, labelX, ty)
-  doc.text(money(invoice.gross_cents, invoice.currency), rightX, ty, { align: 'right' })
+  doc.setTextColor(20, 20, 30)
+  doc.text(`Total ${invoice.currency}`, totalsLabelX, ty)
+  doc.text(money(invoice.gross_cents), rightX, ty, { align: 'right' })
   doc.setFont('helvetica', 'normal')
-  ty += 10
+  ty += 12
 
-  const bottomH = estimateBottomBlockHeightMm(doc, company, contentW)
-  const minGapAfterTotals = 8
-  let yPay = pageH - MARGIN - bottomH
-  if (yPay < ty + minGapAfterTotals) {
-    yPay = ty + minGapAfterTotals
+  // ── Footer (centreret nederst på siden) ─────────────────────────────────
+  const footer = companyFooterLines(company)
+  const footerLineH = 4.2
+  const footerBlockH = footer.line2 ? footerLineH * 2 + 2 : footerLineH
+  const footerY = pageH - MARGIN - footerBlockH
+
+  // ── Betalings-blok (kun for fakturaer, ikke kreditnotaer) ───────────────
+  if (!isCreditNote) {
+    const netDays = netCalendarDays(invoice.issue_date, invoice.due_date)
+    const lateLines = doc.splitTextToSize(DEFAULT_LATE_PAYMENT_TEXT, contentW)
+    const extraLines = company.invoice_footer_note?.trim()
+      ? doc.splitTextToSize(company.invoice_footer_note.trim(), contentW)
+      : null
+
+    // Beregn hvor højt betalings-blokken er, og forsøg at placere den lige
+    // over den centrerede footer.
+    doc.setFontSize(9.5)
+    let bankLines = 0
+    if (
+      (company.bank_reg_number?.trim() && company.bank_account_number?.trim()) ||
+      company.iban?.trim()
+    ) {
+      bankLines = 1
+    }
+    const blockH =
+      4.5 + // Betalingsbetingelser
+      4.5 + // Beløbet indbetales på bankkonto
+      bankLines * 4.5 +
+      4.5 + // Fakturanr-bedes-angivet
+      3 +
+      lateLines.length * 4 +
+      (extraLines ? 2 + extraLines.length * 4 : 0)
+
+    let py = Math.max(ty, footerY - blockH - 8)
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9.5)
+    doc.setTextColor(40, 40, 50)
+    // "Betalingsbetingelser: Netto X dage - Forfaldsdato: <dato>"
+    doc.text('Betalingsbetingelser: ', MARGIN, py)
+    const lblW1 = doc.getTextWidth('Betalingsbetingelser: ')
+    doc.text(`Netto ${netDays} dage - Forfaldsdato: `, MARGIN + lblW1, py)
+    const lblW2 = doc.getTextWidth(`Netto ${netDays} dage - Forfaldsdato: `)
+    doc.setFont('helvetica', 'bold')
+    doc.text(formatDateLongNoTime(invoice.due_date), MARGIN + lblW1 + lblW2, py)
+    doc.setFont('helvetica', 'normal')
+    py += 6.5
+
+    doc.text('Beløbet indbetales på bankkonto:', MARGIN, py)
+    py += 5
+
+    const bankLineParts: string[] = []
+    if (company.bank_reg_number?.trim() && company.bank_account_number?.trim()) {
+      bankLineParts.push(`Reg.nr. ${company.bank_reg_number.trim()}`)
+      bankLineParts.push(`Kontonr. ${company.bank_account_number.trim()}`)
+    }
+    if (company.iban?.trim()) bankLineParts.push(`IBAN ${company.iban.trim()}`)
+    if (bankLineParts.length > 0) {
+      doc.text(bankLineParts.join(' / '), MARGIN, py)
+      py += 5
+    }
+
+    doc.text(`Fakturanr. ${invNo} bedes angivet ved bankoverførsel`, MARGIN, py)
+    py += 6
+
+    doc.setFontSize(8.5)
+    doc.setTextColor(80, 80, 90)
+    doc.text(lateLines, MARGIN, py)
+    py += 4 + lateLines.length * 4
+
+    if (extraLines) {
+      py += 2
+      doc.text(extraLines, MARGIN, py)
+    }
   }
 
-  const netDays = netCalendarDays(invoice.issue_date, invoice.due_date)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  doc.setTextColor(45, 45, 55)
-  let py = yPay
-  doc.text(
-    `Betalingsbetingelser: Netto ${netDays} dage — Forfaldsdato: ${formatDateLongNoTime(invoice.due_date)}`,
-    MARGIN,
-    py,
-  )
-  py += 5.5
-
-  doc.text('Beløbet indbetales på bankkonto:', MARGIN, py)
-  py += 5
-
-  const bankLineParts: string[] = []
-  if (company.bank_reg_number?.trim() && company.bank_account_number?.trim()) {
-    bankLineParts.push(`Reg.nr. ${company.bank_reg_number.trim()}`)
-    bankLineParts.push(`Kontonr. ${company.bank_account_number.trim()}`)
-  }
-  if (company.iban?.trim()) {
-    bankLineParts.push(`IBAN ${company.iban.trim()}`)
-  }
-  if (bankLineParts.length > 0) {
-    doc.text(bankLineParts.join(' / '), MARGIN, py)
-    py += 5.5
-  }
-
-  doc.text(
-    `Fakturanr. ${invNo} bedes angivet ved bankoverførsel.`,
-    MARGIN,
-    py,
-  )
-  py += 6
-
+  // ── Centreret footer ────────────────────────────────────────────────────
   doc.setFontSize(8.5)
-  doc.setTextColor(55, 55, 65)
-  const lateLines = doc.splitTextToSize(DEFAULT_LATE_PAYMENT_TEXT, contentW)
-  doc.text(lateLines, MARGIN, py)
-  py += 4 + lateLines.length * 4
-
-  if (company.invoice_footer_note?.trim()) {
-    py += 2
-    const extra = doc.splitTextToSize(company.invoice_footer_note.trim(), contentW)
-    doc.text(extra, MARGIN, py)
-    py += 4 + extra.length * 4
-  }
-
-  py += 3
-  doc.setFontSize(8)
   doc.setTextColor(70, 70, 80)
-  const oneLiner = companyFooterOneLiner(company)
-  const footerSplit = doc.splitTextToSize(oneLiner, contentW)
-  doc.text(footerSplit, MARGIN, py)
+  doc.setFont('helvetica', 'bold')
+  // Første linje: virksomhedsnavn er fed, resten normal — vi simulerer ved at vise hele
+  // linjen som normal, men starte med fed virksomhedsnavn.
+  const nameStr = company.name.trim()
+  const restAfterName = footer.line1.slice(nameStr.length) // " / Edwin Rahrs Vej 82 / 8220 Brabrand"
+  const footerCenterX = pageW / 2
+  // Mål for centrering
+  const nameW = doc.getTextWidth(nameStr)
+  doc.setFont('helvetica', 'normal')
+  const restW = doc.getTextWidth(restAfterName)
+  const totalW = nameW + restW
+  const startX = footerCenterX - totalW / 2
+  doc.setFont('helvetica', 'bold')
+  doc.text(nameStr, startX, footerY)
+  doc.setFont('helvetica', 'normal')
+  doc.text(restAfterName, startX + nameW, footerY)
+  if (footer.line2) {
+    doc.text(footer.line2, footerCenterX, footerY + footerLineH + 2, { align: 'center' })
+  }
 
   const raw = doc.output('blob')
   /** Safari m.m. viser ofte hvid side uden eksplicit application/pdf. */

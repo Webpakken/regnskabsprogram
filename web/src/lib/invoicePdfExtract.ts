@@ -1,6 +1,8 @@
 import { ensurePdfjsWorker, pdfjsLib } from '@/lib/ensurePdfjsWorker'
 
 export type InvoiceExtract = {
+  /** Faktura eller kreditnota — bestemmer hvordan rækken skal behandles ved import. */
+  documentType: 'invoice' | 'credit_note'
   invoiceNumber: string | null
   issueDate: string | null
   dueDate: string | null
@@ -8,6 +10,8 @@ export type InvoiceExtract = {
   grossCents: number | null
   vatCents: number | null
   netCents: number | null
+  /** For kreditnotaer: nummeret på den faktura der krediteres (fx fra "Krediterring af faktura 1033"). */
+  creditedInvoiceNumber: string | null
   rawText: string
   confidence: 'high' | 'medium' | 'low'
 }
@@ -110,19 +114,51 @@ function findDate(text: string, ...labels: string[]): string | null {
   return null
 }
 
-function findInvoiceNumber(text: string): string | null {
-  // Mest typiske danske faktura-tekster
-  const labels = [
-    /faktura\s*(?:nr\.?|nummer|#)\s*[:.]?\s*([A-Z0-9-]{1,30})/i,
-    /fakturanummer\s*[:.]?\s*([A-Z0-9-]{1,30})/i,
-    /faktura[\s.]+(\d{1,10})\b/i,
-    /invoice\s*(?:no\.?|number|#)\s*[:.]?\s*([A-Z0-9-]{1,30})/i,
-  ]
+function findInvoiceNumber(text: string, isCreditNote: boolean): string | null {
+  // Kreditnota har sit eget nummer-label.
+  const labels = isCreditNote
+    ? [
+        /kreditnota\s*(?:nr\.?|nummer|#)\s*[:.]?\s*([A-Z0-9-]{1,30})/i,
+        /kreditnotanummer\s*[:.]?\s*([A-Z0-9-]{1,30})/i,
+        /kreditnotanr\.?\s*[:.]?\s*([A-Z0-9-]{1,30})/i,
+        /credit\s*note\s*(?:no\.?|number|#)\s*[:.]?\s*([A-Z0-9-]{1,30})/i,
+      ]
+    : [
+        /faktura\s*(?:nr\.?|nummer|#)\s*[:.]?\s*([A-Z0-9-]{1,30})/i,
+        /fakturanummer\s*[:.]?\s*([A-Z0-9-]{1,30})/i,
+        /faktura[\s.]+(\d{1,10})\b/i,
+        /invoice\s*(?:no\.?|number|#)\s*[:.]?\s*([A-Z0-9-]{1,30})/i,
+      ]
   for (const re of labels) {
     const m = text.match(re)
     if (m && m[1]) return m[1].trim()
   }
   return null
+}
+
+/**
+ * Genkender om dokumentet er en kreditnota baseret på nøgleord:
+ * "Kreditnota", "Kreditnotanr.", "Krediterring af faktura X", "Credit note".
+ */
+function detectDocumentType(text: string): {
+  type: 'invoice' | 'credit_note'
+  creditedInvoiceNumber: string | null
+} {
+  const lower = text.toLowerCase()
+  const isCredit =
+    /kreditnota/i.test(lower) ||
+    /kreditnotanr/i.test(lower) ||
+    /krediter(?:ing|er)\s+af\s+faktura/i.test(lower) ||
+    /credit\s*note/i.test(lower)
+  if (!isCredit) {
+    return { type: 'invoice', creditedInvoiceNumber: null }
+  }
+  // Find referencen: "Krediterring af faktura 1033" / "Krediterer faktura 1033"
+  const refMatch = text.match(/krediter(?:ing|er)\s+af\s+faktura\s+([A-Z0-9-]{1,30})/i)
+  return {
+    type: 'credit_note',
+    creditedInvoiceNumber: refMatch ? refMatch[1].trim() : null,
+  }
 }
 
 function parseDanishAmount(raw: string): number | null {
@@ -166,8 +202,10 @@ function findCustomerName(text: string): string | null {
 
 export async function extractInvoiceFromPdf(file: File): Promise<InvoiceExtract> {
   const text = await extractPdfText(file)
-  const invoiceNumber = findInvoiceNumber(text)
-  const issueDate = findDate(text, 'fakturadato', 'faktura\\s*dato', 'invoice\\s*date', 'dato')
+  const { type: documentType, creditedInvoiceNumber } = detectDocumentType(text)
+  const isCredit = documentType === 'credit_note'
+  const invoiceNumber = findInvoiceNumber(text, isCredit)
+  const issueDate = findDate(text, 'fakturadato', 'faktura\\s*dato', 'kreditnotadato', 'invoice\\s*date', 'dato')
   const dueDate = findDate(text, 'forfald', 'forfaldsdato', 'betalingsfrist', 'due\\s*date')
   const grossCents = findAmountNear(text, 'i\\s*alt', 'total', 'beløb\\s*i\\s*alt', 'amount\\s*due', 'samlet')
   const vatCents = findAmountNear(text, 'moms', 'vat\\b')
@@ -178,10 +216,13 @@ export async function extractInvoiceFromPdf(file: File): Promise<InvoiceExtract>
   const customerName = findCustomerName(text)
 
   // Konfidens: 'high' hvis nummer + dato + brutto er fundet; 'medium' hvis kun 2 ud af 3; 'low' ellers.
-  const found = [invoiceNumber, issueDate, grossCents].filter((v) => v !== null && v !== '').length
+  // Kreditnotaer kræver desuden at vi kender den krediterede faktura — uden den falder vi til 'medium'.
+  let found = [invoiceNumber, issueDate, grossCents].filter((v) => v !== null && v !== '').length
+  if (isCredit && !creditedInvoiceNumber) found = Math.min(found, 2)
   const confidence: InvoiceExtract['confidence'] = found === 3 ? 'high' : found === 2 ? 'medium' : 'low'
 
   return {
+    documentType,
     invoiceNumber,
     issueDate,
     dueDate,
@@ -189,6 +230,7 @@ export async function extractInvoiceFromPdf(file: File): Promise<InvoiceExtract>
     grossCents,
     vatCents,
     netCents,
+    creditedInvoiceNumber,
     rawText: text,
     confidence,
   }
