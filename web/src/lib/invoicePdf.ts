@@ -187,34 +187,7 @@ export function generateInvoicePdfBlob(
     }
   }
 
-  // ── Dato + fakturanr højre-stablet (under logo) ────────────────────────
   let y = Math.max(customerBottomY, logoBottomY) + 14
-  const invNo = String(invoice.invoice_number ?? '—')
-  const numberLabel = isCreditNote ? 'Kreditnotanr. ' : 'Fakturanr. '
-
-  // Linje 1: dato (højrejusteret)
-  doc.setFontSize(10)
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(70, 70, 80)
-  const dateLabel = 'Dato: '
-  const dateValue = formatDateLongNoTime(invoice.issue_date)
-  const dateValueW = doc.getTextWidth(dateValue)
-  doc.text(dateLabel, rightX - dateValueW - doc.getTextWidth(dateLabel), y)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(20, 20, 30)
-  doc.text(dateValue, rightX, y, { align: 'right' })
-
-  // Linje 2: fakturanr (højrejusteret, lige under)
-  y += 5.5
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(70, 70, 80)
-  const invNoW = doc.getTextWidth(invNo)
-  doc.text(numberLabel, rightX - invNoW - doc.getTextWidth(numberLabel), y)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(20, 20, 30)
-  doc.text(invNo, rightX, y, { align: 'right' })
-
-  y += 6
 
   // ── Notes (fx "Del 1 af 2 gennemført") — kun for fakturaer ─────────────
   if (!isCreditNote && invoice.notes?.trim()) {
@@ -226,7 +199,7 @@ export function generateInvoicePdfBlob(
     y += 4.5 + (split.length - 1) * 4.5
   }
 
-  // ── Stor titel ──────────────────────────────────────────────────────────
+  // ── Stor titel + dato/fakturanr på samme linje ─────────────────────────
   // Skub titel + tabel ned mod midten af siden så produktlinjerne ligger
   // visuelt centreret. pageH * 0.38 ≈ 113mm på A4 → titel midt-øverst.
   y = Math.max(y + 8, pageH * 0.38)
@@ -237,6 +210,34 @@ export function generateInvoicePdfBlob(
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(20, 20, 30)
   doc.text(heading, MARGIN, y)
+
+  // Dato + fakturanr højre-stablet, vertikalt centreret med headingen.
+  // Header-baseline ligger ca. 2mm under top af 22pt-glyf; vi placerer
+  // første linje lige over baselinen, anden lige under.
+  const invNo = String(invoice.invoice_number ?? '—')
+  const numberLabel = isCreditNote ? 'Kreditnotanr. ' : 'Fakturanr. '
+  const dateLabel = 'Dato: '
+  const dateValue = formatDateLongNoTime(invoice.issue_date)
+
+  doc.setFontSize(10)
+  let metaY = y - 3
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(70, 70, 80)
+  const dateValueW = doc.getTextWidth(dateValue)
+  doc.text(dateLabel, rightX - dateValueW - doc.getTextWidth(dateLabel), metaY)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(20, 20, 30)
+  doc.text(dateValue, rightX, metaY, { align: 'right' })
+
+  metaY += 5.5
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(70, 70, 80)
+  const invNoW = doc.getTextWidth(invNo)
+  doc.text(numberLabel, rightX - invNoW - doc.getTextWidth(numberLabel), metaY)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(20, 20, 30)
+  doc.text(invNo, rightX, metaY, { align: 'right' })
+
   y += 8
 
   // ── Linje-tabel (ren stil, lyse rammer) ─────────────────────────────────
