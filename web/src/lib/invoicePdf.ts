@@ -171,59 +171,45 @@ export function generateInvoicePdfBlob(
   }
   const customerBottomY = cy
 
-  // ── Top-højre: logo + sælger-blok (firmanavn, email, telefon) ──────────
-  let sy = topY
+  // ── Top-højre: kun logo (sælger-info står i den centrerede footer) ─────
+  let logoBottomY = topY
   if (logoDataUrl) {
     try {
       const fmt = guessImageFormat(logoDataUrl)
       const { w, h } = logoDimensionsMm(doc, logoDataUrl)
-      const lx = rightX - w
+      // Skub logoet en smule mod højre for at kompensere for typisk whitespace
+      // i logo-filer (det visuelle indhold ender ofte før billed-rammen).
+      const lx = rightX - w + 4
       doc.addImage(logoDataUrl, fmt, lx, topY, w, h)
-      sy = topY + h + 3
+      logoBottomY = topY + h
     } catch {
       /* ignore */
     }
   }
-  doc.setFontSize(10)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(20, 20, 30)
-  doc.text(company.name.trim(), rightX, sy, { align: 'right' })
-  sy += 4.6
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  doc.setTextColor(70, 70, 80)
-  if (company.invoice_email?.trim()) {
-    doc.text(company.invoice_email.trim(), rightX, sy, { align: 'right' })
-    sy += 4.2
-  }
-  if (company.invoice_phone?.trim()) {
-    doc.text(`Tlf. ${company.invoice_phone.trim()}`, rightX, sy, { align: 'right' })
-    sy += 4.2
-  }
 
-  // ── Dato + fakturanr-række (over titlen) ────────────────────────────────
-  let y = Math.max(customerBottomY, sy) + 14
-  doc.setFontSize(10)
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(70, 70, 80)
-  doc.text('Dato: ', MARGIN, y)
-  const dateLabelW = doc.getTextWidth('Dato: ')
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(20, 20, 30)
-  doc.text(formatDateLongNoTime(invoice.issue_date), MARGIN + dateLabelW, y)
-
+  // ── Dato + fakturanr højre-stablet (under logo) ────────────────────────
+  let y = Math.max(customerBottomY, logoBottomY) + 14
   const invNo = String(invoice.invoice_number ?? '—')
   const numberLabel = isCreditNote ? 'Kreditnotanr. ' : 'Fakturanr. '
+
+  // Linje 1: dato (højrejusteret)
+  doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(70, 70, 80)
-  const numberLabelW = doc.getTextWidth(numberLabel)
+  const dateLabel = 'Dato: '
+  const dateValue = formatDateLongNoTime(invoice.issue_date)
+  const dateValueW = doc.getTextWidth(dateValue)
+  doc.text(dateLabel, rightX - dateValueW - doc.getTextWidth(dateLabel), y)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(20, 20, 30)
-  const numberValueW = doc.getTextWidth(invNo)
-  // Skriv label + nummer højre-justeret
+  doc.text(dateValue, rightX, y, { align: 'right' })
+
+  // Linje 2: fakturanr (højrejusteret, lige under)
+  y += 5.5
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(70, 70, 80)
-  doc.text(numberLabel, rightX - numberValueW - numberLabelW, y)
+  const invNoW = doc.getTextWidth(invNo)
+  doc.text(numberLabel, rightX - invNoW - doc.getTextWidth(numberLabel), y)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(20, 20, 30)
   doc.text(invNo, rightX, y, { align: 'right' })
@@ -275,7 +261,15 @@ export function generateInvoicePdfBlob(
 
   autoTable(doc, {
     startY: y,
-    head: [['Beskrivelse', 'Antal', 'Enhed', 'Enhedspris', 'Pris']],
+    head: [
+      [
+        { content: 'Beskrivelse', styles: { halign: 'left' } },
+        { content: 'Antal', styles: { halign: 'right' } },
+        { content: 'Enhed', styles: { halign: 'left' } },
+        { content: 'Enhedspris', styles: { halign: 'right' } },
+        { content: 'Pris', styles: { halign: 'right' } },
+      ],
+    ],
     body,
     theme: 'plain',
     styles: {
