@@ -238,7 +238,8 @@ export function generateInvoicePdfBlob(
   doc.setTextColor(20, 20, 30)
   doc.text(invNo, rightX, metaY, { align: 'right' })
 
-  y += 8
+  // Mere luft mellem overskrift-rækken og produkttabellen.
+  y += 18
 
   // ── Linje-tabel (ren stil, lyse rammer) ─────────────────────────────────
   const sorted = [...lines].sort((a, b) => a.sort_order - b.sort_order)
