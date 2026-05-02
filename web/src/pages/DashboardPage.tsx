@@ -92,10 +92,12 @@ function monthRangeYm(ym: string): { from: string; to: string } {
 
 function monthNameShort(ym: string): string {
   const [y, mo] = ym.split('-').map(Number)
-  return new Intl.DateTimeFormat('da-DK', {
+  const raw = new Intl.DateTimeFormat('da-DK', {
     timeZone: APP_TIMEZONE,
     month: 'short',
   }).format(new Date(Date.UTC(y, mo - 1, 15, 12, 0, 0)))
+  // Dansk Intl returnerer fx "maj" / "apr." — start altid med stort bogstav.
+  return raw.charAt(0).toUpperCase() + raw.slice(1)
 }
 
 function signedAmountClass(cents: number): string {
