@@ -184,7 +184,9 @@ export function InvoiceDetailPage() {
     return () => {
       c = true
     }
-  }, [id, currentCompany])
+    // Kun company-id (ikke hele currentCompany-objektet) så vi ikke re-fetcher
+    // hvis referencen ændres uden grund.
+  }, [id, currentCompany?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function reloadInvoice() {
     if (!id || !currentCompany) return

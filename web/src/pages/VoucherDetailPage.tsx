@@ -142,7 +142,9 @@ export function VoucherDetailPage() {
       setUrl(signed.data.signedUrl)
     }
     setLoading(false)
-  }, [id, currentCompany])
+    // Bevidst kun deps på id + company-id (ikke currentCompany-objektet) så vi ikke
+    // re-fetcher PDF og signed URL hvis currentCompany-referencen ændres uden grund.
+  }, [id, currentCompany?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function dismissDuplicate() {
     if (!voucher || !currentCompany) return
