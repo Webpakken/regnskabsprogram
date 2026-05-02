@@ -1,6 +1,10 @@
 # PWA: korrekt MIME til web app manifest
 <IfModule mod_mime.c>
   AddType application/manifest+json .webmanifest
+  # ES-moduler skal serveres med JS-MIME, ellers afviser browsere dynamic import()
+  # (pdf.js worker bliver indlæst som .mjs — uden dette serverer LiteSpeed som text/plain).
+  AddType application/javascript .mjs
+  AddType application/javascript .js
 </IfModule>
 
 # Hostinger / Apache: send alle ruter til index.html (React Router SPA)
