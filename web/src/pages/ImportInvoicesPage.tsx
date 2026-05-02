@@ -4,7 +4,7 @@ import { AppPageLayout } from '@/components/AppPageLayout'
 import { useApp } from '@/context/AppProvider'
 import { supabase } from '@/lib/supabase'
 import { extractInvoiceFromPdf } from '@/lib/invoicePdfExtract'
-import { lookupCVR } from '@/lib/cvrLookup'
+import { searchCvrFromApicvr } from '@/lib/cvrSearchClient'
 import { normalizeCvrDigits } from '@/lib/cvr'
 import type { Database } from '@/types/database'
 
@@ -110,7 +110,7 @@ export function ImportInvoicesPage() {
     const newRows: Row[] = []
     for (const f of incoming) {
       try {
-        const ex = await extractInvoiceFromPdf(f)
+        const ex = await extractInvoiceFromPdf(f, { issuerCvr: currentCompany?.cvr ?? null })
         const issueDate = ex.issueDate ?? todayIso()
         // Default forfald = udsteldelsesdato + 14 dage hvis ikke fundet
         let dueDate = ex.dueDate
@@ -191,9 +191,10 @@ export function ImportInvoicesPage() {
     if (!digits || digits.length !== 8) return
     updateRow(id, { cvrLookupState: 'loading' })
     try {
-      const data = await lookupCVR(digits)
-      if (data && data.name) {
-        updateRow(id, { customerName: data.name, cvrLookupState: 'ok' })
+      const results = await searchCvrFromApicvr(digits)
+      const hit = results[0]
+      if (hit && hit.name) {
+        updateRow(id, { customerName: hit.name, cvrLookupState: 'ok' })
       } else {
         updateRow(id, { cvrLookupState: 'notfound' })
       }
