@@ -35,10 +35,13 @@ begin
     raise exception 'company not found';
   end if;
 
+  -- Brug greatest() så et højere invoice_starting_number altid honoreres
+  -- (selv hvis seq-row allerede findes med en lavere værdi). Forhindrer også
+  -- baglæns-spring hvis user sætter start lavere end nuværende seq.
   insert into public.invoice_number_seq (company_id, last_value)
   values (p_company_id, v_start)
   on conflict (company_id) do update
-    set last_value = public.invoice_number_seq.last_value + 1
+    set last_value = greatest(public.invoice_number_seq.last_value + 1, v_start)
   returning last_value into v_next;
 
   return lpad(v_next::text, greatest(v_width, length(v_next::text)), '0');
