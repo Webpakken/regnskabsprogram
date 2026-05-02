@@ -7,6 +7,8 @@ export type InvoiceExtract = {
   issueDate: string | null
   dueDate: string | null
   customerName: string | null
+  /** Kundens CVR (8 cifre, kun cifre — DK-præfiks fjernes). */
+  customerCvr: string | null
   grossCents: number | null
   vatCents: number | null
   netCents: number | null
@@ -184,6 +186,53 @@ function findAmountNear(text: string, ...labels: string[]): number | null {
   return null
 }
 
+/**
+ * Find kundens CVR i PDF-teksten. Genkender bl.a. "Cvr-nr.: DK37589934",
+ * "CVR: 37589934", "CVR-nr 37 58 99 34". Returnerer 8 cifre eller null.
+ *
+ * Vi springer udsteders eget CVR over ved at lede efter CVR'er der står
+ * tæt på en kunde-blok (efter "Faktura til"/"Kunde"/"Bill to") først.
+ */
+function findCustomerCvr(text: string): string | null {
+  // Hjælper: træk 8 cifre ud af en kandidat-streng (fjerner DK-præfiks og whitespace).
+  const extract = (raw: string): string | null => {
+    const digits = raw.replace(/\D/g, '')
+    return digits.length === 8 ? digits : null
+  }
+  // CVR-mønster: valgfri "DK", evt. mellemrum, 8 cifre (med eller uden adskillere).
+  const cvrPattern = /(?:DK[\s-]?)?\d{2}[\s-]?\d{2}[\s-]?\d{2}[\s-]?\d{2}/i
+
+  // Først: find kunde-blok og søg efter CVR der.
+  const customerBlock = text.match(
+    /(?:faktura\s*til|kunde|customer|bill\s*to)[:\s]*\n([\s\S]{0,300})/i,
+  )
+  if (customerBlock) {
+    const labeled = customerBlock[1].match(
+      new RegExp('(?:cvr(?:\\s*[-–]?\\s*nr\\.?)?|vat)[:.\\s]*' + cvrPattern.source, 'i'),
+    )
+    if (labeled) {
+      const cvr = extract(labeled[0])
+      if (cvr) return cvr
+    }
+    const bare = customerBlock[1].match(cvrPattern)
+    if (bare) {
+      const cvr = extract(bare[0])
+      if (cvr) return cvr
+    }
+  }
+
+  // Fallback: find alle CVR-labels i hele dokumentet og tag det sidste — udsteders
+  // CVR står typisk i toppen af fakturaen, kundens står i adressen længere nede.
+  const allLabeled = text.match(
+    new RegExp('(?:cvr(?:\\s*[-–]?\\s*nr\\.?)?|vat)[:.\\s]*' + cvrPattern.source, 'gi'),
+  )
+  if (allLabeled && allLabeled.length > 0) {
+    const cvr = extract(allLabeled[allLabeled.length - 1])
+    if (cvr) return cvr
+  }
+  return null
+}
+
 function findCustomerName(text: string): string | null {
   // Heuristik: kunde-blokken kommer typisk efter "Faktura til", "Kunde", "Bill to".
   // Hvis ikke fundet, brug første ikke-tomme linje efter de første 3 (springer logo/header over).
@@ -214,6 +263,7 @@ export async function extractInvoiceFromPdf(file: File): Promise<InvoiceExtract>
       ? Math.max(0, grossCents - vatCents)
       : findAmountNear(text, 'subtotal', 'før\\s*moms', 'eks\\.?\\s*moms')
   const customerName = findCustomerName(text)
+  const customerCvr = findCustomerCvr(text)
 
   // Konfidens: 'high' hvis nummer + dato + brutto er fundet; 'medium' hvis kun 2 ud af 3; 'low' ellers.
   // Kreditnotaer kræver desuden at vi kender den krediterede faktura — uden den falder vi til 'medium'.
@@ -227,6 +277,7 @@ export async function extractInvoiceFromPdf(file: File): Promise<InvoiceExtract>
     issueDate,
     dueDate,
     customerName,
+    customerCvr,
     grossCents,
     vatCents,
     netCents,

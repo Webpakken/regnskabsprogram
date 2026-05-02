@@ -4,6 +4,8 @@ import { AppPageLayout } from '@/components/AppPageLayout'
 import { useApp } from '@/context/AppProvider'
 import { supabase } from '@/lib/supabase'
 import { extractInvoiceFromPdf } from '@/lib/invoicePdfExtract'
+import { lookupCVR } from '@/lib/cvrLookup'
+import { normalizeCvrDigits } from '@/lib/cvr'
 import type { Database } from '@/types/database'
 
 type Row = {
@@ -15,7 +17,9 @@ type Row = {
   creditedInvoiceNumber: string
   issueDate: string
   dueDate: string
+  customerCvr: string
   customerName: string
+  cvrLookupState: 'idle' | 'loading' | 'ok' | 'notfound' | 'error'
   grossKr: string
   vatKr: string
   status: 'paid' | 'cancelled' | 'sent'
@@ -116,15 +120,18 @@ export function ImportInvoicesPage() {
           due.setUTCDate(due.getUTCDate() + 14)
           dueDate = due.toISOString().slice(0, 10)
         }
+        const rowId = crypto.randomUUID()
         newRows.push({
-          id: crypto.randomUUID(),
+          id: rowId,
           file: f,
           documentType: ex.documentType,
           invoiceNumber: ex.invoiceNumber ?? '',
           creditedInvoiceNumber: ex.creditedInvoiceNumber ?? '',
           issueDate,
           dueDate,
+          customerCvr: ex.customerCvr ?? '',
           customerName: ex.customerName ?? '',
+          cvrLookupState: 'idle',
           grossKr: centsToKr(ex.grossCents),
           vatKr: centsToKr(ex.vatCents),
           status: 'paid',
@@ -133,6 +140,13 @@ export function ImportInvoicesPage() {
           imported: false,
           error: null,
         })
+        // Slå CVR op automatisk hvis det blev fundet i PDF'en — kører i baggrunden
+        // efter at rækken er tilføjet til state.
+        if (ex.customerCvr) {
+          queueMicrotask(() => {
+            void lookupRowCvr(rowId, ex.customerCvr as string)
+          })
+        }
       } catch (e) {
         newRows.push({
           id: crypto.randomUUID(),
@@ -142,7 +156,9 @@ export function ImportInvoicesPage() {
           creditedInvoiceNumber: '',
           issueDate: todayIso(),
           dueDate: todayIso(),
+          customerCvr: '',
           customerName: '',
+          cvrLookupState: 'idle',
           grossKr: '',
           vatKr: '',
           status: 'paid',
@@ -168,6 +184,22 @@ export function ImportInvoicesPage() {
 
   function removeRow(id: string) {
     setRows((prev) => prev.filter((r) => r.id !== id))
+  }
+
+  async function lookupRowCvr(id: string, cvr: string) {
+    const digits = normalizeCvrDigits(cvr)
+    if (!digits || digits.length !== 8) return
+    updateRow(id, { cvrLookupState: 'loading' })
+    try {
+      const data = await lookupCVR(digits)
+      if (data && data.name) {
+        updateRow(id, { customerName: data.name, cvrLookupState: 'ok' })
+      } else {
+        updateRow(id, { cvrLookupState: 'notfound' })
+      }
+    } catch {
+      updateRow(id, { cvrLookupState: 'error' })
+    }
   }
 
   async function importAll() {
@@ -400,6 +432,7 @@ export function ImportInvoicesPage() {
                   <th className="px-3 py-2">Krediterer</th>
                   <th className="px-3 py-2">Dato</th>
                   <th className="px-3 py-2">Forfald</th>
+                  <th className="px-3 py-2">CVR</th>
                   <th className="px-3 py-2">Kunde</th>
                   <th className="px-3 py-2 text-right">Beløb (kr)</th>
                   <th className="px-3 py-2 text-right">Moms (kr)</th>
@@ -494,6 +527,39 @@ export function ImportInvoicesPage() {
                           onChange={(e) => updateRow(r.id, { dueDate: e.target.value })}
                           className="rounded border border-slate-200 px-2 py-1 text-sm"
                         />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={r.customerCvr}
+                          disabled={r.imported}
+                          onChange={(e) => {
+                            const next = e.target.value
+                            updateRow(r.id, { customerCvr: next, cvrLookupState: 'idle' })
+                            const digits = normalizeCvrDigits(next)
+                            if (digits && digits.length === 8) {
+                              void lookupRowCvr(r.id, digits)
+                            }
+                          }}
+                          onBlur={(e) => {
+                            const digits = normalizeCvrDigits(e.target.value)
+                            if (digits && digits.length === 8 && r.cvrLookupState === 'idle') {
+                              void lookupRowCvr(r.id, digits)
+                            }
+                          }}
+                          placeholder="8 cifre"
+                          className="w-24 rounded border border-slate-200 px-2 py-1 text-sm"
+                        />
+                        {r.cvrLookupState === 'loading' ? (
+                          <span className="mt-1 block text-[10px] text-slate-500">Slår op…</span>
+                        ) : r.cvrLookupState === 'ok' ? (
+                          <span className="mt-1 block text-[10px] text-emerald-700">Fundet</span>
+                        ) : r.cvrLookupState === 'notfound' ? (
+                          <span className="mt-1 block text-[10px] text-amber-700">Ikke fundet</span>
+                        ) : r.cvrLookupState === 'error' ? (
+                          <span className="mt-1 block text-[10px] text-rose-700">Fejl</span>
+                        ) : null}
                       </td>
                       <td className="px-3 py-2">
                         <input
