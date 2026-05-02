@@ -127,74 +127,82 @@ export function generateInvoicePdfBlob(
   const contentW = pageW - 2 * MARGIN
   const isCreditNote = !!pdfOptions?.creditReferenceLine?.trim()
 
-  // ── Top-venstre: sælger-blok (firmanavn + email + telefon) ─────────────
   const topY = MARGIN
-  let sy = topY
-  doc.setFontSize(10)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(20, 20, 30)
-  doc.text(company.name.trim(), MARGIN, sy)
-  sy += 4.6
+
+  // ── Top-venstre: kunde-blok (køber) ────────────────────────────────────
+  let cy = topY
+  const cName = invoice.customer_name?.trim()
+  if (cName) {
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(20, 20, 30)
+    doc.text(cName, MARGIN, cy)
+    cy += 4.6
+  }
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
   doc.setTextColor(70, 70, 80)
-  if (company.invoice_email?.trim()) {
-    doc.text(company.invoice_email.trim(), MARGIN, sy)
-    sy += 4.2
+  const cAddr = invoice.customer_address?.trim()
+  if (cAddr) {
+    doc.text(cAddr, MARGIN, cy)
+    cy += 4.2
   }
-  if (company.invoice_phone?.trim()) {
-    doc.text(`Tlf. ${company.invoice_phone.trim()}`, MARGIN, sy)
-    sy += 4.2
+  const cZipCity = [invoice.customer_zip?.trim(), invoice.customer_city?.trim()]
+    .filter(Boolean)
+    .join(' ')
+  if (cZipCity) {
+    doc.text(cZipCity, MARGIN, cy)
+    cy += 4.2
   }
+  const cCvr = invoice.customer_cvr?.trim()
+  if (cCvr) {
+    doc.text(`CVR-nr. ${cCvr}`, MARGIN, cy)
+    cy += 4.2
+  }
+  const cPhone = invoice.customer_phone?.trim()
+  if (cPhone) {
+    doc.text(`Tlf. ${cPhone}`, MARGIN, cy)
+    cy += 4.2
+  }
+  const cEmail = invoice.customer_email?.trim()
+  if (cEmail) {
+    doc.text(cEmail, MARGIN, cy)
+    cy += 4.2
+  }
+  const customerBottomY = cy
 
-  // ── Top-højre: logo ─────────────────────────────────────────────────────
-  let logoBottomY = topY
+  // ── Top-højre: logo + sælger-blok (firmanavn, email, telefon) ──────────
+  let sy = topY
   if (logoDataUrl) {
     try {
       const fmt = guessImageFormat(logoDataUrl)
       const { w, h } = logoDimensionsMm(doc, logoDataUrl)
       const lx = rightX - w
       doc.addImage(logoDataUrl, fmt, lx, topY, w, h)
-      logoBottomY = topY + h
+      sy = topY + h + 3
     } catch {
-      logoBottomY = topY
+      /* ignore */
     }
   }
-
-  // ── Kunde-blok midt på siden (centreret horisontalt) ────────────────────
-  // Samles som linjer først så vi kan måle og centrere hver linje.
-  const customerLines: Array<{ text: string; bold: boolean; size: number }> = []
-  const cName = invoice.customer_name?.trim()
-  if (cName) customerLines.push({ text: cName, bold: true, size: 10 })
-  const cAddr = invoice.customer_address?.trim()
-  if (cAddr) customerLines.push({ text: cAddr, bold: false, size: 9 })
-  const cZipCity = [invoice.customer_zip?.trim(), invoice.customer_city?.trim()]
-    .filter(Boolean)
-    .join(' ')
-  if (cZipCity) customerLines.push({ text: cZipCity, bold: false, size: 9 })
-  const cCvr = invoice.customer_cvr?.trim()
-  if (cCvr) customerLines.push({ text: `CVR-nr. ${cCvr}`, bold: false, size: 9 })
-  const cPhone = invoice.customer_phone?.trim()
-  if (cPhone) customerLines.push({ text: `Tlf. ${cPhone}`, bold: false, size: 9 })
-  const cEmail = invoice.customer_email?.trim()
-  if (cEmail) customerLines.push({ text: cEmail, bold: false, size: 9 })
-
-  let customerBottomY = Math.max(logoBottomY, sy)
-  if (customerLines.length > 0) {
-    const customerCenterX = pageW / 2
-    let cy = Math.max(logoBottomY, sy) + 12
-    for (const line of customerLines) {
-      doc.setFontSize(line.size)
-      doc.setFont('helvetica', line.bold ? 'bold' : 'normal')
-      doc.setTextColor(line.bold ? 20 : 70, line.bold ? 20 : 70, line.bold ? 30 : 80)
-      doc.text(line.text, customerCenterX, cy, { align: 'center' })
-      cy += line.size === 10 ? 4.6 : 4.2
-    }
-    customerBottomY = cy
+  doc.setFontSize(10)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(20, 20, 30)
+  doc.text(company.name.trim(), rightX, sy, { align: 'right' })
+  sy += 4.6
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(70, 70, 80)
+  if (company.invoice_email?.trim()) {
+    doc.text(company.invoice_email.trim(), rightX, sy, { align: 'right' })
+    sy += 4.2
+  }
+  if (company.invoice_phone?.trim()) {
+    doc.text(`Tlf. ${company.invoice_phone.trim()}`, rightX, sy, { align: 'right' })
+    sy += 4.2
   }
 
   // ── Dato + fakturanr-række (over titlen) ────────────────────────────────
-  let y = customerBottomY + 12
+  let y = Math.max(customerBottomY, sy) + 14
   doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(70, 70, 80)
@@ -233,7 +241,9 @@ export function generateInvoicePdfBlob(
   }
 
   // ── Stor titel ──────────────────────────────────────────────────────────
-  y += 8
+  // Skub titel + tabel ned mod midten af siden så produktlinjerne ligger
+  // visuelt centreret. pageH * 0.38 ≈ 113mm på A4 → titel midt-øverst.
+  y = Math.max(y + 8, pageH * 0.38)
   const heading = isCreditNote
     ? (pdfOptions?.creditReferenceLine?.trim() ?? 'Kreditnota')
     : (pdfOptions?.heading?.trim() || 'Faktura')
