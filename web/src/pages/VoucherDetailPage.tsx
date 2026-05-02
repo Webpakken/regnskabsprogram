@@ -61,6 +61,7 @@ export function VoucherDetailPage() {
   const canEdit = canDelete(currentRole)
 
   const [voucher, setVoucher] = useState<Voucher | null>(null)
+  const [siblingIds, setSiblingIds] = useState<string[]>([])
   const [projects, setProjects] = useState<VoucherProject[]>([])
   const [reimbursement, setReimbursement] = useState<Reimbursement | null>(null)
   const [url, setUrl] = useState<string | null>(null)
@@ -161,6 +162,47 @@ export function VoucherDetailPage() {
   useEffect(() => {
     void load()
   }, [load])
+
+  // Hent alle bilags-IDs for nuværende firma så vi kan vise prev/next-piletaster
+  // i samme rækkefølge som listesiden (uploaded_at desc).
+  useEffect(() => {
+    if (!currentCompany) return
+    let cancelled = false
+    void (async () => {
+      const { data } = await supabase
+        .from('vouchers')
+        .select('id')
+        .eq('company_id', currentCompany.id)
+        .order('uploaded_at', { ascending: false })
+        .order('id', { ascending: false })
+      if (cancelled) return
+      setSiblingIds((data ?? []).map((r) => r.id))
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [currentCompany])
+
+  const currentIndex = id ? siblingIds.indexOf(id) : -1
+  const prevId = currentIndex > 0 ? siblingIds[currentIndex - 1] : null
+  const nextId =
+    currentIndex >= 0 && currentIndex < siblingIds.length - 1
+      ? siblingIds[currentIndex + 1]
+      : null
+
+  // Tastatur-navigation: ←/→ skifter mellem bilag.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null
+      const tag = target?.tagName?.toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return
+      if (target?.isContentEditable) return
+      if (e.key === 'ArrowLeft' && prevId) navigate(`/app/vouchers/${prevId}`)
+      else if (e.key === 'ArrowRight' && nextId) navigate(`/app/vouchers/${nextId}`)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [prevId, nextId, navigate])
 
   async function handleSave() {
     if (!voucher || !currentCompany) return
@@ -287,12 +329,45 @@ export function VoucherDetailPage() {
 
   return (
     <AppPageLayout maxWidth="full" className="space-y-4">
-      <Link
-        to="/app/vouchers"
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:underline"
-      >
-        ← Tilbage til bilag
-      </Link>
+      <div className="flex items-center justify-between gap-3">
+        <Link
+          to="/app/vouchers"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:underline"
+        >
+          ← Tilbage til bilag
+        </Link>
+        <div className="flex items-center gap-2">
+          {currentIndex >= 0 && siblingIds.length > 1 ? (
+            <span className="text-xs text-slate-500">
+              {currentIndex + 1} / {siblingIds.length}
+            </span>
+          ) : null}
+          <button
+            type="button"
+            disabled={!prevId}
+            onClick={() => prevId && navigate(`/app/vouchers/${prevId}`)}
+            aria-label="Forrige bilag"
+            title="Forrige bilag (←)"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="12 4 6 10 12 16" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            disabled={!nextId}
+            onClick={() => nextId && navigate(`/app/vouchers/${nextId}`)}
+            aria-label="Næste bilag"
+            title="Næste bilag (→)"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="8 4 14 10 8 16" />
+            </svg>
+          </button>
+        </div>
+      </div>
 
       {voucher.possible_duplicate_of ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
