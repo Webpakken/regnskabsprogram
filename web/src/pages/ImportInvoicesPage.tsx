@@ -323,7 +323,7 @@ export function ImportInvoicesPage() {
       </div>
 
       <label
-        className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-white px-6 py-10 text-center hover:border-indigo-400 hover:bg-indigo-50/40"
+        className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-white px-6 py-32 text-center hover:border-indigo-400 hover:bg-indigo-50/40"
       >
         <input
           type="file"
