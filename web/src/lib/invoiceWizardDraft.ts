@@ -22,6 +22,11 @@ export type InvoiceWizardDraftV1 = {
   view: InvoiceWizardView
   customerName: string
   customerEmail: string
+  customerCvr: string
+  customerPhone: string
+  customerAddress: string
+  customerZip: string
+  customerCity: string
   customerQuery: string
   issueDate: string
   dueDate: string
@@ -163,6 +168,11 @@ export function readInvoiceWizardDraft(
       view,
       customerName: typeof data.customerName === 'string' ? data.customerName : '',
       customerEmail: typeof data.customerEmail === 'string' ? data.customerEmail : '',
+      customerCvr: typeof data.customerCvr === 'string' ? data.customerCvr : '',
+      customerPhone: typeof data.customerPhone === 'string' ? data.customerPhone : '',
+      customerAddress: typeof data.customerAddress === 'string' ? data.customerAddress : '',
+      customerZip: typeof data.customerZip === 'string' ? data.customerZip : '',
+      customerCity: typeof data.customerCity === 'string' ? data.customerCity : '',
       customerQuery: typeof data.customerQuery === 'string' ? data.customerQuery : '',
       issueDate: typeof data.issueDate === 'string' ? data.issueDate : '',
       dueDate: typeof data.dueDate === 'string' ? data.dueDate : '',

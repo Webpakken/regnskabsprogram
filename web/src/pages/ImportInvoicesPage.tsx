@@ -19,6 +19,11 @@ type Row = {
   dueDate: string
   customerCvr: string
   customerName: string
+  customerEmail: string
+  customerPhone: string
+  customerAddress: string
+  customerZip: string
+  customerCity: string
   cvrLookupState: 'idle' | 'loading' | 'ok' | 'notfound' | 'error'
   grossKr: string
   vatKr: string
@@ -131,6 +136,11 @@ export function ImportInvoicesPage() {
           dueDate,
           customerCvr: ex.customerCvr ?? '',
           customerName: ex.customerName ?? '',
+          customerEmail: '',
+          customerPhone: '',
+          customerAddress: '',
+          customerZip: '',
+          customerCity: '',
           cvrLookupState: 'idle',
           grossKr: centsToKr(ex.grossCents),
           vatKr: centsToKr(ex.vatCents),
@@ -158,6 +168,11 @@ export function ImportInvoicesPage() {
           dueDate: todayIso(),
           customerCvr: '',
           customerName: '',
+          customerEmail: '',
+          customerPhone: '',
+          customerAddress: '',
+          customerZip: '',
+          customerCity: '',
           cvrLookupState: 'idle',
           grossKr: '',
           vatKr: '',
@@ -194,7 +209,15 @@ export function ImportInvoicesPage() {
       const results = await searchCvrFromApicvr(digits)
       const hit = results[0]
       if (hit && hit.name) {
-        updateRow(id, { customerName: hit.name, cvrLookupState: 'ok' })
+        updateRow(id, {
+          customerName: hit.name,
+          customerEmail: hit.email ?? '',
+          customerPhone: hit.phone ?? '',
+          customerAddress: hit.address ?? '',
+          customerZip: hit.zipcode ?? '',
+          customerCity: hit.city ?? '',
+          cvrLookupState: 'ok',
+        })
       } else {
         updateRow(id, { cvrLookupState: 'notfound' })
       }
@@ -292,6 +315,12 @@ export function ImportInvoicesPage() {
         company_id: currentCompany.id,
         invoice_number: r.invoiceNumber.trim(),
         customer_name: r.customerName.trim() || 'Ukendt kunde',
+        customer_email: r.customerEmail.trim() || null,
+        customer_cvr: normalizeCvrDigits(r.customerCvr),
+        customer_phone: r.customerPhone.trim() || null,
+        customer_address: r.customerAddress.trim() || null,
+        customer_zip: r.customerZip.trim() || null,
+        customer_city: r.customerCity.trim() || null,
         issue_date: r.issueDate,
         due_date: r.dueDate,
         status: r.status,

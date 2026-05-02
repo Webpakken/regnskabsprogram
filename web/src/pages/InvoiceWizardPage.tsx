@@ -277,6 +277,11 @@ export function InvoiceWizardPage() {
 
   const [customerName, setCustomerName] = useState('')
   const [customerEmail, setCustomerEmail] = useState('')
+  const [customerCvr, setCustomerCvr] = useState('')
+  const [customerPhone, setCustomerPhone] = useState('')
+  const [customerAddress, setCustomerAddress] = useState('')
+  const [customerZip, setCustomerZip] = useState('')
+  const [customerCity, setCustomerCity] = useState('')
   const [customerQuery, setCustomerQuery] = useState('')
 
   const [issueDate, setIssueDate] = useState(() =>
@@ -322,6 +327,11 @@ export function InvoiceWizardPage() {
     view: { kind: 'wizard' } as View,
     customerName: '',
     customerEmail: '',
+    customerCvr: '',
+    customerPhone: '',
+    customerAddress: '',
+    customerZip: '',
+    customerCity: '',
     customerQuery: '',
     issueDate: defaultIssueDateIso(),
     dueDate: defaultDueDateIso(),
@@ -347,6 +357,11 @@ export function InvoiceWizardPage() {
       setView({ kind: 'wizard' })
       setCustomerName('')
       setCustomerEmail('')
+      setCustomerCvr('')
+      setCustomerPhone('')
+      setCustomerAddress('')
+      setCustomerZip('')
+      setCustomerCity('')
       setCustomerQuery('')
       setIssueDate(defaultIssueDateIso())
       setDueDate(defaultDueDateIso())
@@ -369,6 +384,11 @@ export function InvoiceWizardPage() {
       setView(draft.view)
       setCustomerName(draft.customerName)
       setCustomerEmail(draft.customerEmail)
+      setCustomerCvr(draft.customerCvr)
+      setCustomerPhone(draft.customerPhone)
+      setCustomerAddress(draft.customerAddress)
+      setCustomerZip(draft.customerZip)
+      setCustomerCity(draft.customerCity)
       setCustomerQuery(draft.customerQuery)
       setIssueDate(draft.issueDate || defaultIssueDateIso())
       setDueDate(draft.dueDate || defaultDueDateIso())
@@ -391,6 +411,11 @@ export function InvoiceWizardPage() {
       setView({ kind: 'wizard' })
       setCustomerName('')
       setCustomerEmail('')
+      setCustomerCvr('')
+      setCustomerPhone('')
+      setCustomerAddress('')
+      setCustomerZip('')
+      setCustomerCity('')
       setCustomerQuery('')
       setIssueDate(defaultIssueDateIso())
       setDueDate(defaultDueDateIso())
@@ -421,6 +446,11 @@ export function InvoiceWizardPage() {
     view,
     customerName,
     customerEmail,
+    customerCvr,
+    customerPhone,
+    customerAddress,
+    customerZip,
+    customerCity,
     customerQuery,
     issueDate,
     dueDate,
@@ -516,6 +546,11 @@ export function InvoiceWizardPage() {
       if (cancelled) return
       setCustomerName(src.customer_name)
       setCustomerEmail(src.customer_email ?? '')
+      setCustomerCvr(src.customer_cvr ?? '')
+      setCustomerPhone(src.customer_phone ?? '')
+      setCustomerAddress(src.customer_address ?? '')
+      setCustomerZip(src.customer_zip ?? '')
+      setCustomerCity(src.customer_city ?? '')
       setIssueDate(defaultIssueDateIso())
       setNotes(`Krediterer faktura ${src.invoice_number}.`)
       setTitle('Kreditnota')
@@ -693,6 +728,11 @@ export function InvoiceWizardPage() {
             invoice_number: num,
             customer_name: customerName,
             customer_email: customerEmail || null,
+            customer_cvr: customerCvr.replace(/\D/g, '') || null,
+            customer_phone: customerPhone || null,
+            customer_address: customerAddress || null,
+            customer_zip: customerZip || null,
+            customer_city: customerCity || null,
             issue_date: issueDate,
             due_date: dueDate,
             currency: 'DKK',
@@ -764,6 +804,11 @@ export function InvoiceWizardPage() {
           .update({
             customer_name: customerName,
             customer_email: customerEmail || null,
+            customer_cvr: customerCvr.replace(/\D/g, '') || null,
+            customer_phone: customerPhone || null,
+            customer_address: customerAddress || null,
+            customer_zip: customerZip || null,
+            customer_city: customerCity || null,
             issue_date: issueDate,
             due_date: dueDate,
             status: st,
@@ -821,6 +866,11 @@ export function InvoiceWizardPage() {
       view,
       customerName,
       customerEmail,
+      customerCvr,
+      customerPhone,
+      customerAddress,
+      customerZip,
+      customerCity,
       customerQuery,
       issueDate,
       dueDate,
@@ -870,7 +920,7 @@ export function InvoiceWizardPage() {
 
   return (
     <>
-      <div className="-mx-4 -mt-6 md:mx-auto md:mt-0 md:max-w-3xl">
+      <div className="-mx-4 -mt-6 md:mx-0 md:mt-0 md:w-full">
         <div className="overflow-hidden bg-white md:mt-4 md:rounded-3xl md:shadow-xl md:ring-1 md:ring-slate-200">
         {view.kind === 'wizard' && (
           <WizardView
@@ -887,6 +937,24 @@ export function InvoiceWizardPage() {
             setCustomerName={setCustomerName}
             customerEmail={customerEmail}
             setCustomerEmail={setCustomerEmail}
+            applyCvrCompany={(row) => {
+              setCustomerName(row.name)
+              setCustomerEmail(row.email ?? '')
+              setCustomerCvr(String(row.vat).padStart(8, '0'))
+              setCustomerPhone(row.phone ?? '')
+              setCustomerAddress(row.address ?? '')
+              setCustomerZip(row.zipcode ?? '')
+              setCustomerCity(row.city ?? '')
+            }}
+            clearCustomer={() => {
+              setCustomerName('')
+              setCustomerEmail('')
+              setCustomerCvr('')
+              setCustomerPhone('')
+              setCustomerAddress('')
+              setCustomerZip('')
+              setCustomerCity('')
+            }}
             customerQuery={customerQuery}
             setCustomerQuery={setCustomerQuery}
             recentCustomers={recentCustomers}
@@ -1059,6 +1127,8 @@ type WizardViewProps = {
   setCustomerName: (v: string) => void
   customerEmail: string
   setCustomerEmail: (v: string) => void
+  applyCvrCompany: (row: CvrCompany) => void
+  clearCustomer: () => void
   customerQuery: string
   setCustomerQuery: (v: string) => void
   recentCustomers: { name: string; email: string | null }[]
@@ -1153,6 +1223,8 @@ function WizardView(p: WizardViewProps) {
             setCustomerName={p.setCustomerName}
             customerEmail={p.customerEmail}
             setCustomerEmail={p.setCustomerEmail}
+            applyCvrCompany={p.applyCvrCompany}
+            clearCustomer={p.clearCustomer}
             query={p.customerQuery}
             setQuery={p.setCustomerQuery}
             recent={filtered}
@@ -1243,6 +1315,8 @@ function CustomerTab({
   setCustomerName,
   customerEmail,
   setCustomerEmail,
+  applyCvrCompany,
+  clearCustomer,
   query,
   setQuery,
   recent,
@@ -1252,6 +1326,8 @@ function CustomerTab({
   setCustomerName: (v: string) => void
   customerEmail: string
   setCustomerEmail: (v: string) => void
+  applyCvrCompany: (row: CvrCompany) => void
+  clearCustomer: () => void
   query: string
   setQuery: (v: string) => void
   recent: { name: string; email: string | null }[]
@@ -1276,10 +1352,7 @@ function CustomerTab({
           </div>
           <button
             type="button"
-            onClick={() => {
-              setCustomerName('')
-              setCustomerEmail('')
-            }}
+            onClick={clearCustomer}
             aria-label="Fjern kunde"
             className="text-slate-400 hover:text-slate-700"
           >
@@ -1329,8 +1402,7 @@ function CustomerTab({
                   key={`${row.vat}-${row.name}`}
                   type="button"
                   onClick={() => {
-                    setCustomerName(row.name)
-                    setCustomerEmail(row.email ?? '')
+                    applyCvrCompany(row)
                     setQuery('')
                   }}
                   className={`flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-3.5 text-left shadow-sm ring-1 ${accent.cvrCardRing} ${accent.cvrCardRingHover}`}

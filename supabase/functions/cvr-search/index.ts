@@ -11,7 +11,21 @@ import { corsHeaders, jsonResponse } from '../_shared/cors.ts'
  */
 const APICVR = 'https://apicvr.dk/api/v1'
 
-type CvrCompany = { vat: number; name: string; email: string | null }
+type CvrCompany = {
+  vat: number
+  name: string
+  email: string | null
+  phone: string | null
+  address: string | null
+  zipcode: string | null
+  city: string | null
+}
+
+function trimOrNull(v: unknown): string | null {
+  if (v == null) return null
+  const s = String(v).trim()
+  return s === '' ? null : s
+}
 
 function mapApicvr(raw: Record<string, unknown>): CvrCompany | null {
   if (raw.error) return null
@@ -21,12 +35,15 @@ function mapApicvr(raw: Record<string, unknown>): CvrCompany | null {
   const vat =
     typeof vatRaw === 'number' ? vatRaw : Number(vatRaw)
   if (!Number.isFinite(vat)) return null
-  const emailRaw = raw.email
-  const email =
-    emailRaw != null && String(emailRaw).trim() !== ''
-      ? String(emailRaw).trim()
-      : null
-  return { vat, name, email }
+  return {
+    vat,
+    name,
+    email: trimOrNull(raw.email),
+    phone: trimOrNull(raw.phone),
+    address: trimOrNull(raw.address),
+    zipcode: trimOrNull(raw.zipcode),
+    city: trimOrNull(raw.city),
+  }
 }
 
 serve(async (req) => {

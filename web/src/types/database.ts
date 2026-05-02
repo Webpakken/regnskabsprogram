@@ -335,6 +335,11 @@ export interface Database {
           invoice_number: string
           customer_name: string
           customer_email: string | null
+          customer_cvr: string | null
+          customer_phone: string | null
+          customer_address: string | null
+          customer_zip: string | null
+          customer_city: string | null
           issue_date: string
           due_date: string
           currency: string
@@ -359,6 +364,11 @@ export interface Database {
           invoice_number: string
           customer_name: string
           customer_email?: string | null
+          customer_cvr?: string | null
+          customer_phone?: string | null
+          customer_address?: string | null
+          customer_zip?: string | null
+          customer_city?: string | null
           issue_date?: string
           due_date: string
           currency?: string
@@ -377,6 +387,11 @@ export interface Database {
         Update: {
           customer_name?: string
           customer_email?: string | null
+          customer_cvr?: string | null
+          customer_phone?: string | null
+          customer_address?: string | null
+          customer_zip?: string | null
+          customer_city?: string | null
           issue_date?: string
           due_date?: string
           currency?: string

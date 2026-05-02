@@ -609,6 +609,20 @@ export function InvoiceDetailPage() {
             <section className="rounded-2xl border border-dashed border-slate-300 bg-white/80 px-4 py-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Fakturaadresse</p>
               <p className="mt-1 text-sm font-medium text-slate-900">{invoice.customer_name}</p>
+              {invoice.customer_cvr ? (
+                <p className="mt-0.5 text-sm text-slate-600">CVR {invoice.customer_cvr}</p>
+              ) : null}
+              {invoice.customer_address ? (
+                <p className="mt-0.5 text-sm text-slate-600">{invoice.customer_address}</p>
+              ) : null}
+              {invoice.customer_zip || invoice.customer_city ? (
+                <p className="mt-0.5 text-sm text-slate-600">
+                  {[invoice.customer_zip, invoice.customer_city].filter(Boolean).join(' ')}
+                </p>
+              ) : null}
+              {invoice.customer_phone ? (
+                <p className="mt-0.5 text-sm text-slate-600">Tlf. {invoice.customer_phone}</p>
+              ) : null}
               {invoice.customer_email ? (
                 <p className="mt-0.5 text-sm text-slate-600">{invoice.customer_email}</p>
               ) : (
