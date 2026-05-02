@@ -41,8 +41,36 @@ function shiftYmd(ymd: string, days: number): string {
 }
 
 const VOUCHERS_VIEW_KEY = 'bilago:vouchersDesktopView'
+const VOUCHERS_SORT_KEY = 'bilago:vouchersSort'
 
 type VoucherSortKey = 'date' | 'title' | 'category' | 'project' | 'gross' | 'vat'
+
+const VOUCHER_SORT_KEYS: ReadonlyArray<VoucherSortKey> = [
+  'date',
+  'title',
+  'category',
+  'project',
+  'gross',
+  'vat',
+]
+
+/** Læs gemt sortering fra localStorage. Returnerer fallback hvis intet/ugyldigt. */
+function readStoredVoucherSort(): { key: VoucherSortKey | null; dir: ColumnSortDir } {
+  if (typeof window === 'undefined') return { key: null, dir: 'desc' }
+  try {
+    const raw = window.localStorage.getItem(VOUCHERS_SORT_KEY)
+    if (!raw) return { key: null, dir: 'desc' }
+    const parsed = JSON.parse(raw) as { key?: unknown; dir?: unknown }
+    const key =
+      parsed.key === null || (typeof parsed.key === 'string' && (VOUCHER_SORT_KEYS as readonly string[]).includes(parsed.key))
+        ? (parsed.key as VoucherSortKey | null)
+        : null
+    const dir: ColumnSortDir = parsed.dir === 'asc' ? 'asc' : 'desc'
+    return { key, dir }
+  } catch {
+    return { key: null, dir: 'desc' }
+  }
+}
 
 function canWriterDeleteVouchers(role: CompanyRole | null) {
   return role === 'owner' || role === 'manager' || role === 'bookkeeper'
@@ -108,8 +136,8 @@ export function VouchersPage() {
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
   const addMenuRef = useRef<HTMLDivElement>(null)
   const [addOpen, setAddOpen] = useState(false)
-  const [sortKey, setSortKey] = useState<VoucherSortKey | null>(null)
-  const [sortDir, setSortDir] = useState<ColumnSortDir>('desc')
+  const [sortKey, setSortKey] = useState<VoucherSortKey | null>(() => readStoredVoucherSort().key)
+  const [sortDir, setSortDir] = useState<ColumnSortDir>(() => readStoredVoucherSort().dir)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [expenseLinkMode, setExpenseLinkMode] = useState<ExpenseLinkMode>('single_use')
   const [creatingExpenseLink, setCreatingExpenseLink] = useState(false)
@@ -128,6 +156,19 @@ export function VouchersPage() {
     const t = window.setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300)
     return () => window.clearTimeout(t)
   }, [searchQuery])
+
+  // Husk sortering på tværs af besøg (localStorage). Standard er sortKey=null, dir=desc
+  // (svarer til server-side fallback uploaded_at desc).
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        VOUCHERS_SORT_KEY,
+        JSON.stringify({ key: sortKey, dir: sortDir }),
+      )
+    } catch {
+      /* ignore */
+    }
+  }, [sortKey, sortDir])
 
   const buildVoucherQuery = useCallback(
     (offset: number, limit: number) => {
