@@ -44,22 +44,36 @@ export async function sendInvoiceToCustomerEmail(opts: {
         .eq('id', invoiceId)
         .eq('company_id', company.id)
         .single()
-      const { data: li } = await supabase
-        .from('invoice_line_items')
-        .select('*')
-        .eq('invoice_id', invoiceId)
-        .order('sort_order', { ascending: true })
-      if (!e1 && inv && li) {
-        const logo = await fetchCompanyLogoDataUrl(company.invoice_logo_path)
-        const optsPdf = await pdfOptionsForInvoice(inv as Invoice)
-        const blob = generateInvoicePdfBlob(
-          company,
-          inv as Invoice,
-          li as LineRow[],
-          logo,
-          optsPdf,
-        )
-        payload.invoice_pdf_base64 = await blobToBase64(blob)
+      if (!e1 && inv) {
+        // Importerede fakturaer har ingen line items i Bilago — den oprindelige
+        // PDF ligger i invoice-archive-bucketten. Brug den i stedet for at
+        // generere en tom PDF.
+        if ((inv as Invoice).is_historical && (inv as Invoice).attachment_path) {
+          const { data: blob } = await supabase.storage
+            .from('invoice-archive')
+            .download((inv as Invoice).attachment_path as string)
+          if (blob) {
+            payload.invoice_pdf_base64 = await blobToBase64(blob)
+          }
+        } else {
+          const { data: li } = await supabase
+            .from('invoice_line_items')
+            .select('*')
+            .eq('invoice_id', invoiceId)
+            .order('sort_order', { ascending: true })
+          if (li) {
+            const logo = await fetchCompanyLogoDataUrl(company.invoice_logo_path)
+            const optsPdf = await pdfOptionsForInvoice(inv as Invoice)
+            const blob = generateInvoicePdfBlob(
+              company,
+              inv as Invoice,
+              li as LineRow[],
+              logo,
+              optsPdf,
+            )
+            payload.invoice_pdf_base64 = await blobToBase64(blob)
+          }
+        }
       }
     } catch {
       /* e-mail uden PDF */

@@ -575,20 +575,20 @@ export function InvoiceDetailPage() {
                 <ActionRow
                   icon={
                     <IconSend
-                      className={parentIsCredited || invoice.is_historical ? 'text-slate-400' : 'text-indigo-600'}
+                      className={parentIsCredited ? 'text-slate-400' : 'text-indigo-600'}
                     />
                   }
                   title="Send til kunde"
                   subtitle={
-                    invoice.is_historical
-                      ? 'Ikke muligt — fakturaen er importeret fra et andet system'
-                      : invoice.status === 'draft'
-                        ? 'Fortsæt i redigering'
-                        : parentIsCredited
-                          ? 'Ikke muligt — fakturaen er kreditnoteret'
+                    invoice.status === 'draft'
+                      ? 'Fortsæt i redigering'
+                      : parentIsCredited
+                        ? 'Ikke muligt — fakturaen er kreditnoteret'
+                        : invoice.is_historical
+                          ? 'Send arkiveret PDF til kunden'
                           : 'Gensend faktura på e-mail'
                   }
-                  disabled={sendBusy || parentIsCredited || invoice.is_historical}
+                  disabled={sendBusy || parentIsCredited}
                   onClick={() => void resendInvoice()}
                 />
                 {invoice.customer_email?.trim() ? (
