@@ -389,8 +389,10 @@ export function InvoiceDetailPage() {
   const dispatchTimeline = dispatchTimelineItems(activity, invoice, id)
   const paidCents = invoice.status === 'paid' ? invoice.gross_cents : 0
   const restCents = invoice.gross_cents - paidCents
-  const canMarkPaid = invoice.status === 'sent' && !credit && !creditChild
-  const canMarkUnpaid = invoice.status === 'paid' && !credit && !creditChild
+  const lockedUntil = currentCompany?.accounting_locked_until ?? null
+  const isLocked = Boolean(lockedUntil && invoice.issue_date <= lockedUntil)
+  const canMarkPaid = invoice.status === 'sent' && !credit && !creditChild && !isLocked
+  const canMarkUnpaid = invoice.status === 'paid' && !credit && !creditChild && !isLocked
   const num = String(invoice.invoice_number ?? '').trim() || '—'
 
   const statusLine = (() => {
@@ -490,6 +492,15 @@ export function InvoiceDetailPage() {
 
         {tab === 'faktura' ? (
           <div className="space-y-5">
+            {isLocked && lockedUntil ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <p className="font-semibold">Låst regnskabsperiode</p>
+                <p className="mt-1 text-amber-900/90">
+                  Fakturaens dato ligger i en låst periode (til og med {lockedUntil}). Den kan ikke
+                  ændres, slettes eller markeres betalt før perioden låses op i Resultat-siden.
+                </p>
+              </div>
+            ) : null}
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="flex gap-4 px-4 py-5">
                 <div

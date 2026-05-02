@@ -40,6 +40,7 @@ const nav: NavItem[] = [
   { to: '/app/vouchers', label: 'Bilag', icon: ReceiptIcon },
   { to: '/app/bank', label: 'Bank', icon: BankIcon },
   { to: '/app/vat', label: 'Moms', icon: PercentIcon, onlyFor: 'virksomhed' },
+  { to: '/app/resultat', label: 'Resultat', icon: ChartIcon, onlyFor: 'virksomhed' },
   { to: '/app/members', label: 'Medlemmer', icon: UsersIcon },
   { to: '/app/settings', label: 'Indstillinger', icon: CogIcon },
   { to: '/app/hjaelp', label: 'Hjælp & svar', icon: HelpIcon },
@@ -176,6 +177,18 @@ function PercentIcon({ className }: NavIconProps) {
       <path d="m5 19 14-14" />
       <circle cx="7" cy="7" r="2.2" />
       <circle cx="17" cy="17" r="2.2" />
+    </svg>
+  )
+}
+
+function ChartIcon({ className }: NavIconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 20V6" />
+      <path d="M4 20h16" />
+      <path d="M8 16V12" />
+      <path d="M12 16V8" />
+      <path d="M16 16v-6" />
     </svg>
   )
 }
@@ -509,6 +522,21 @@ export function AppShell({ children }: { children?: ReactNode }) {
         })()}
         {currentCompany && !ok && trialStatusFor(currentCompany)?.expired ? (
           <TrialExpiredModal company={currentCompany} />
+        ) : null}
+
+        {currentRole === 'accountant' ? (
+          <div className="border-b border-violet-200 bg-violet-50 px-5 py-2.5 text-sm text-violet-900 md:px-10">
+            <div className="mx-auto flex max-w-6xl items-start gap-2">
+              <span aria-hidden className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-violet-200 text-xs font-semibold text-violet-800">
+                R
+              </span>
+              <p className="min-w-0 flex-1">
+                <strong className="font-semibold">Revisor-tilstand:</strong> du har læseadgang til
+                fakturaer, bilag og rapporter, og kan låse regnskabsperioder. Du kan ikke oprette,
+                ændre eller slette poster.
+              </p>
+            </div>
+          </div>
         ) : null}
 
         <main className="flex min-h-0 flex-1 flex-col px-5 pb-28 pt-5 md:px-10 md:pb-8 md:pt-9">

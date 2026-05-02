@@ -84,6 +84,7 @@ export interface Database {
           vat_registered: boolean
           vat_period: 'monthly' | 'quarterly' | 'half_yearly'
           vat_period_started_at: string | null
+          accounting_locked_until: string | null
           created_at: string
           updated_at: string
         }
@@ -113,6 +114,7 @@ export interface Database {
           vat_registered?: boolean
           vat_period?: 'monthly' | 'quarterly' | 'half_yearly'
           vat_period_started_at?: string | null
+          accounting_locked_until?: string | null
         }
         Update: {
           name?: string
@@ -139,6 +141,7 @@ export interface Database {
           vat_registered?: boolean
           vat_period?: 'monthly' | 'quarterly' | 'half_yearly'
           vat_period_started_at?: string | null
+          accounting_locked_until?: string | null
         }
       }
       company_members: {

@@ -62,6 +62,8 @@ export function VoucherDetailPage() {
 
   const [voucher, setVoucher] = useState<Voucher | null>(null)
   const [siblingIds, setSiblingIds] = useState<string[]>([])
+  const lockedUntil = currentCompany?.accounting_locked_until ?? null
+  const isLocked = Boolean(voucher && lockedUntil && voucher.expense_date <= lockedUntil)
   const [projects, setProjects] = useState<VoucherProject[]>([])
   const [reimbursement, setReimbursement] = useState<Reimbursement | null>(null)
   const [url, setUrl] = useState<string | null>(null)
@@ -399,7 +401,17 @@ export function VoucherDetailPage() {
         </div>
       ) : null}
 
-      {canEdit ? (
+      {isLocked && lockedUntil ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="font-semibold">Låst regnskabsperiode</p>
+          <p className="mt-1 text-amber-900/90">
+            Bilagets dato ligger i en låst periode (til og med {lockedUntil}). Det kan ikke ændres
+            eller slettes før perioden låses op i Resultat-siden.
+          </p>
+        </div>
+      ) : null}
+
+      {canEdit && !isLocked ? (
         <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
             <label className="block text-xs font-medium text-slate-600 sm:col-span-2">

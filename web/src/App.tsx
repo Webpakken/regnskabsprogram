@@ -45,6 +45,7 @@ import { SettingsSubscriptionPage } from '@/pages/settings/SettingsSubscriptionP
 import { SettingsNotificationsPage } from '@/pages/settings/SettingsNotificationsPage'
 import { MembersPage } from '@/pages/MembersPage'
 import { VatPage } from '@/pages/VatPage'
+import { ResultatPage } from '@/pages/ResultatPage'
 import { MorePage } from '@/pages/MorePage'
 import { MinProfilePage } from '@/pages/MinProfilePage'
 import { TwoFactorChallengePage } from '@/pages/TwoFactorChallengePage'
@@ -207,6 +208,7 @@ export default function App() {
                 <Route path="/app/vouchers/:id" element={<VoucherDetailPage />} />
                 <Route path="/app/bank" element={<BankPage />} />
                 <Route path="/app/vat" element={<VatPage />} />
+                <Route path="/app/resultat" element={<ResultatPage />} />
                 <Route path="/app/income" element={<IncomePage />} />
               </Route>
             </Route>
