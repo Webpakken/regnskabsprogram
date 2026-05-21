@@ -52,6 +52,9 @@ function invoiceWizardDraftLegacyKey(companyId: string) {
   return `${LEGACY_PREFIX}${companyId}`
 }
 
+/** Bruges ved «Ny faktura» — starter blank i stedet for at genindlæse session-kladde. */
+export const invoiceWizardFreshNavigationState = { fresh: true as const }
+
 export function clearInvoiceWizardDraft(companyId: string) {
   try {
     sessionStorage.removeItem(invoiceWizardDraftKey(companyId))

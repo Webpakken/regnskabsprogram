@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
-import { Link, useMatch, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useMatch, useNavigate, useSearchParams } from 'react-router-dom'
 import { LoadingCentered, LoadingSpinner } from '@/components/LoadingIndicator'
 import { useApp } from '@/context/AppProvider'
 import { logActivity } from '@/lib/activity'
@@ -262,6 +262,7 @@ function effectiveDraft(line: WizardLine): DraftLine {
 export function InvoiceWizardPage() {
   const { currentCompany, user } = useApp()
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const creditForParam = searchParams.get('creditFor')
   const isNew = useMatch({ path: '/app/invoices/new', end: true }) !== null
@@ -476,7 +477,41 @@ export function InvoiceWizardPage() {
     }
     canPersistInvoiceDraft.current = false
     skipNextInvoiceDraftPersist.current = true
-    const draft = readInvoiceWizardDraft(currentCompany.id)
+
+    const wantFresh =
+      (location.state as { fresh?: boolean } | null)?.fresh === true
+    if (wantFresh) {
+      clearInvoiceWizardDraft(currentCompany.id)
+      navigate('.', { replace: true, state: null })
+      setTab('kunde')
+      setView({ kind: 'wizard' })
+      setCustomerName('')
+      setCustomerEmail('')
+      setCustomerCvr('')
+      setCustomerPhone('')
+      setCustomerAddress('')
+      setCustomerZip('')
+      setCustomerCity('')
+      setCustomerQuery('')
+      setIssueDate(defaultIssueDateIso())
+      setDueDate(defaultDueDateIso())
+      setTitle('Faktura')
+      setNotes('')
+      setPriceMode('excl')
+      setStatus('draft')
+      setLines([])
+      setIsCreditDraft(false)
+      creditSourceIdRef.current = null
+      creditSourceMaxGrossCentsRef.current = null
+      canPersistInvoiceDraft.current = true
+      return
+    }
+
+    let draft = readInvoiceWizardDraft(currentCompany.id)
+    if (draft?.status === 'sent') {
+      clearInvoiceWizardDraft(currentCompany.id)
+      draft = null
+    }
     if (draft) {
       setTab(draft.tab)
       setView(draft.view)
@@ -524,7 +559,7 @@ export function InvoiceWizardPage() {
       setLines([])
     }
     canPersistInvoiceDraft.current = true
-  }, [isNew, currentCompany?.id, creditForParam])
+  }, [isNew, currentCompany?.id, creditForParam, location.state, navigate])
 
   useEffect(() => {
     if (!isNew || !currentCompany?.id || !canPersistInvoiceDraft.current) return
@@ -534,6 +569,7 @@ export function InvoiceWizardPage() {
     }
     const cid = currentCompany.id
     const t = window.setTimeout(() => {
+      if (!canPersistInvoiceDraft.current) return
       writeInvoiceWizardDraft(cid, latestInvoiceDraftRef.current)
     }, 0)
     return () => window.clearTimeout(t)
@@ -889,6 +925,8 @@ export function InvoiceWizardPage() {
         setInvoiceNumber(numStr)
         setStatus(st)
         setInvoiceNumberSeriesStarted(true)
+        canPersistInvoiceDraft.current = false
+        skipNextInvoiceDraftPersist.current = true
         clearInvoiceWizardDraft(currentCompany.id)
         if (st === 'sent') {
           navigate('/app/invoices', { replace: true })

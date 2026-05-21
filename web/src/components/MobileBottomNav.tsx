@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { useApp } from '@/context/AppProvider'
 import { useSupportUnread } from '@/context/SupportUnreadContext'
+import { invoiceWizardFreshNavigationState } from '@/lib/invoiceWizardDraft'
 
 type IconProps = { className?: string }
 
@@ -137,9 +138,9 @@ export function MobileBottomNav() {
     [isForening],
   )
 
-  function go(path: string) {
+  function go(path: string, state?: object) {
     setSheetOpen(false)
-    navigate(path)
+    navigate(path, state ? { state } : undefined)
   }
 
   return (
@@ -211,7 +212,7 @@ export function MobileBottomNav() {
                 <SheetTile
                   Icon={DocumentAddIcon}
                   label="Ny faktura"
-                  onClick={() => go('/app/invoices/new')}
+                  onClick={() => go('/app/invoices/new', invoiceWizardFreshNavigationState)}
                 />
               )}
             </div>

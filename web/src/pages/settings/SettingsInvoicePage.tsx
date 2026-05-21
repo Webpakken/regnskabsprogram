@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { invoiceWizardFreshNavigationState } from '@/lib/invoiceWizardDraft'
 import { supabase } from '@/lib/supabase'
 import { useApp } from '@/context/AppProvider'
 
@@ -348,6 +349,7 @@ export function SettingsInvoicePage() {
           {invoiceSeriesStarted === false ? (
             <Link
               to="/app/invoices/new"
+              state={invoiceWizardFreshNavigationState}
               className="mt-3 inline-flex text-xs font-medium text-indigo-600"
             >
               Opret første faktura

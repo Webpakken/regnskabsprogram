@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { invoiceWizardFreshNavigationState } from '@/lib/invoiceWizardDraft'
 import { AppPageLayout } from '@/components/AppPageLayout'
 import { SortableTh } from '@/components/SortableTh'
 import { nextColumnSortState, type ColumnSortDir } from '@/lib/tableSort'
@@ -185,6 +186,7 @@ export function InvoicesPage() {
           <DesktopListCardsToggle mode={desktopView} onChange={setDesktopView} />
           <Link
             to="/app/invoices/new"
+            state={invoiceWizardFreshNavigationState}
             className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
           >
             Ny faktura
