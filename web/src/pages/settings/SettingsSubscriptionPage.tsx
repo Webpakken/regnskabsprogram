@@ -169,6 +169,7 @@ export function SettingsSubscriptionPage() {
             onClick={() =>
               void checkout.launch(currentCompany.id, {
                 billingPlanId:
+                  plans.find((plan) => plan.id === chosenPlanId && plan.stripe_price_id)?.id ??
                   plans.find((plan) => plan.monthly_price_cents > 0 && plan.stripe_price_id)?.id,
               })
             }
