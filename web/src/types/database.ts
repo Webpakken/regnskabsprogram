@@ -24,6 +24,7 @@ export interface Database {
           id: string
           full_name: string | null
           current_company_id: string | null
+          last_seen_at: string | null
           created_at: string
           updated_at: string
         }
@@ -31,10 +32,12 @@ export interface Database {
           id: string
           full_name?: string | null
           current_company_id?: string | null
+          last_seen_at?: string | null
         }
         Update: {
           full_name?: string | null
           current_company_id?: string | null
+          last_seen_at?: string | null
         }
       }
       mfa_trusted_devices: {

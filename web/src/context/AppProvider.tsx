@@ -15,6 +15,7 @@ import { trialStatusFor } from '@/lib/trial'
 import type { BillingEntitlement, BillingFeatureKey } from '@/lib/billingEntitlements'
 import { canUseFeature, getFeatureLimit } from '@/lib/billingEntitlements'
 import { getOrCreateDeviceId } from '@/lib/trustedDevice'
+import { recordHeartbeat } from '@/lib/heartbeat'
 
 type Company = Database['public']['Tables']['companies']['Row']
 type Profile = Database['public']['Tables']['profiles']['Row']
@@ -175,6 +176,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .maybeSingle()
 
     setProfile(prof)
+
+    // Registrér at brugeren er aktiv (throttled) — så login/brug tæller som
+    // "Sidste aktivitet" på Medlemmer-siden, ikke kun faktura/bilag-hændelser.
+    recordHeartbeat(s.user.id)
 
     const { data: memberships } = await supabase
       .from('company_members')

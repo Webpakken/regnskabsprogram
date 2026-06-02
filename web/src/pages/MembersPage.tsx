@@ -202,25 +202,38 @@ export function MembersPage() {
 
     const userIds = rawMembers.map((m) => m.user_id)
     const namesByUser = new Map<string, string | null>()
+    const lastSeenByUser = new Map<string, string | null>()
     if (userIds.length > 0) {
       const { data: profileRows } = await supabase
         .from('profiles')
-        .select('id, full_name')
+        .select('id, full_name, last_seen_at')
         .in('id', userIds)
-      for (const p of (profileRows ?? []) as Array<{ id: string; full_name: string | null }>) {
+      for (const p of (profileRows ?? []) as Array<{
+        id: string
+        full_name: string | null
+        last_seen_at: string | null
+      }>) {
         namesByUser.set(p.id, p.full_name)
+        lastSeenByUser.set(p.id, p.last_seen_at)
       }
     }
 
     setMembers(
-      rawMembers.map((m) => ({
-        id: m.id,
-        user_id: m.user_id,
-        role: m.role,
-        created_at: m.created_at,
-        full_name: namesByUser.get(m.user_id) ?? null,
-        last_active_at: lastActiveByUser.get(m.user_id) ?? null,
-      })),
+      rawMembers.map((m) => {
+        // Sidste aktivitet = seneste af faktura/bilag-hændelse og login-heartbeat.
+        const eventAt = lastActiveByUser.get(m.user_id) ?? null
+        const seenAt = lastSeenByUser.get(m.user_id) ?? null
+        const lastActiveAt =
+          [eventAt, seenAt].filter((v): v is string => Boolean(v)).sort().pop() ?? null
+        return {
+          id: m.id,
+          user_id: m.user_id,
+          role: m.role,
+          created_at: m.created_at,
+          full_name: namesByUser.get(m.user_id) ?? null,
+          last_active_at: lastActiveAt,
+        }
+      }),
     )
     setInvites((invitesRes.data ?? []) as InviteRow[])
     setLoading(false)
