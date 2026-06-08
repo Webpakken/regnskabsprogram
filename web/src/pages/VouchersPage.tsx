@@ -140,6 +140,7 @@ export function VouchersPage() {
   const [sortDir, setSortDir] = useState<ColumnSortDir>(() => readStoredVoucherSort().dir)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [expenseLinkMode, setExpenseLinkMode] = useState<ExpenseLinkMode>('single_use')
+  const [expenseLinkExpiry, setExpenseLinkExpiry] = useState<'1h' | '1d' | '1w'>('1d')
   const [creatingExpenseLink, setCreatingExpenseLink] = useState(false)
   const [expenseLink, setExpenseLink] = useState<string | null>(null)
   const [expenseLinkModalOpen, setExpenseLinkModalOpen] = useState(false)
@@ -620,13 +621,19 @@ export function VouchersPage() {
     setExpenseLink(null)
     try {
       const token = randomExpenseLinkToken()
+      const expiryMs =
+        expenseLinkExpiry === '1h'
+          ? 60 * 60 * 1000
+          : expenseLinkExpiry === '1w'
+            ? 7 * 24 * 60 * 60 * 1000
+            : 24 * 60 * 60 * 1000
       const { error: linkErr } = await supabase
         .from('expense_upload_links')
         .insert({
           company_id: currentCompany.id,
           token_hash: await sha256Hex(token),
           mode: expenseLinkMode,
-          expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+          expires_at: new Date(Date.now() + expiryMs).toISOString(),
           max_uploads: expenseLinkMode === 'single_use' ? 1 : null,
           created_by: user.id,
         })
@@ -856,6 +863,7 @@ export function VouchersPage() {
                   setExpenseLink(null)
                   setExpenseLinkCopied(false)
                   setExpenseLinkMode('single_use')
+                  setExpenseLinkExpiry('1d')
                   setExpenseLinkModalOpen(true)
                 }}
                 title={!canUseExpenseLinks ? 'Udlægslink er ikke aktivt i den nuværende plan' : undefined}
@@ -1507,10 +1515,11 @@ export function VouchersPage() {
               </button>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-2">
+            <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Antal bilag</p>
+            <div className="mt-2 grid grid-cols-2 gap-2">
               {([
-                { value: 'single_use', label: '1 upload', sub: 'Linket kan kun bruges én gang' },
-                { value: 'time_window', label: '1 time', sub: 'Ubegrænset uploads i 1 time' },
+                { value: 'single_use', label: 'Kun 1 bilag', sub: 'Linket kan kun bruges én gang' },
+                { value: 'time_window', label: 'Flere bilag', sub: 'Upload flere kvitteringer i træk' },
               ] as Array<{ value: ExpenseLinkMode; label: string; sub: string }>).map((opt) => {
                 const active = expenseLinkMode === opt.value
                 return (
@@ -1527,6 +1536,32 @@ export function VouchersPage() {
                   >
                     <span className="text-sm font-semibold">{opt.label}</span>
                     <span className="mt-1 text-xs text-slate-500">{opt.sub}</span>
+                  </button>
+                )
+              })}
+            </div>
+
+            <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Udløber</p>
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              {([
+                { value: '1h', label: '1 time' },
+                { value: '1d', label: '1 dag' },
+                { value: '1w', label: '1 uge' },
+              ] as Array<{ value: '1h' | '1d' | '1w'; label: string }>).map((opt) => {
+                const active = expenseLinkExpiry === opt.value
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setExpenseLinkExpiry(opt.value)}
+                    className={
+                      'rounded-xl border px-3 py-2 text-sm font-semibold transition ' +
+                      (active
+                        ? 'border-indigo-500 bg-indigo-50 text-indigo-900 ring-2 ring-indigo-500/20'
+                        : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300')
+                    }
+                  >
+                    {opt.label}
                   </button>
                 )
               })}

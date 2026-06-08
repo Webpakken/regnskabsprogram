@@ -21,6 +21,9 @@ export function ExpenseUploadPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
+  const [justUploaded, setJustUploaded] = useState(false)
+  const [uploadedCount, setUploadedCount] = useState(0)
+  const [fileInputKey, setFileInputKey] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [ocrProgress, setOcrProgress] = useState<number | null>(null)
   const [file, setFile] = useState<File | null>(null)
@@ -61,6 +64,22 @@ export function ExpenseUploadPage() {
       timeStyle: 'short',
     }).format(new Date(info.expires_at))
   }, [info])
+
+  const allowsMultiple = info?.remaining_uploads === null
+
+  function resetForNext() {
+    setJustUploaded(false)
+    setFile(null)
+    setTitle('')
+    setExpenseDate(todayIso())
+    setGrossKr('')
+    setVatRate('25')
+    setCategory(null)
+    setNotes(null)
+    setOcrProgress(null)
+    setError(null)
+    setFileInputKey((k) => k + 1)
+  }
 
   async function onFileChange(nextFile: File | null) {
     setFile(nextFile)
@@ -136,7 +155,9 @@ export function ExpenseUploadPage() {
         vatCents,
         vatRate: rate,
       })
-      setDone(true)
+      setUploadedCount((n) => n + 1)
+      if (allowsMultiple) setJustUploaded(true)
+      else setDone(true)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Bilaget kunne ikke uploades.')
     } finally {
@@ -165,8 +186,33 @@ export function ExpenseUploadPage() {
             </p>
           ) : done ? (
             <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
-              <p className="font-semibold">Tak, bilaget er uploadet.</p>
+              <p className="font-semibold">
+                {uploadedCount > 1 ? `Tak, ${uploadedCount} bilag er uploadet.` : 'Tak, bilaget er uploadet.'}
+              </p>
               <p className="mt-1 text-sm">Virksomheden kan nu godkende og refundere udlægget.</p>
+            </div>
+          ) : justUploaded ? (
+            <div className="mt-5 space-y-4">
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
+                <p className="font-semibold">Bilaget er uploadet.</p>
+                <p className="mt-1 text-sm">
+                  Du har uploadet {uploadedCount} bilag. Har du flere kvitteringer, kan du uploade dem nu.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={resetForNext}
+                className="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-700"
+              >
+                Upload endnu et bilag
+              </button>
+              <button
+                type="button"
+                onClick={() => setDone(true)}
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Afslut
+              </button>
             </div>
           ) : (
             <div className="mt-5 space-y-4">
@@ -182,6 +228,7 @@ export function ExpenseUploadPage() {
                   Bilag <span className="text-rose-600">*</span>
                 </span>
                 <input
+                  key={fileInputKey}
                   type="file"
                   accept="image/*,application/pdf"
                   onChange={(e) => void onFileChange(e.target.files?.[0] ?? null)}
