@@ -23,6 +23,8 @@ type VoucherEditableFields = Pick<
   | 'vat_rate'
   | 'category'
   | 'voucher_project_id'
+  | 'voucher_type'
+  | 'payment_status'
 >
 
 const reimbursementStatusLabels: Record<ReimbursementStatus, string> = {
@@ -78,6 +80,8 @@ export function VoucherDetailPage() {
   const [vatKr, setVatKr] = useState('')
   const [category, setCategory] = useState('')
   const [projectId, setProjectId] = useState('')
+  const [voucherType, setVoucherType] = useState<'kvittering' | 'regning'>('kvittering')
+  const [paymentStatus, setPaymentStatus] = useState<'paid' | 'unpaid'>('paid')
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [formMessage, setFormMessage] = useState<string | null>(null)
@@ -90,6 +94,8 @@ export function VoucherDetailPage() {
     vatKr: '',
     category: '',
     projectId: '',
+    voucherType: 'kvittering' as 'kvittering' | 'regning',
+    paymentStatus: 'paid' as 'paid' | 'unpaid',
   })
 
   const load = useCallback(async () => {
@@ -131,6 +137,8 @@ export function VoucherDetailPage() {
     setVatKr(centsToKrInput(v.vat_cents))
     setCategory(v.category ?? '')
     setProjectId(v.voucher_project_id ?? '')
+    setVoucherType(v.voucher_type ?? 'kvittering')
+    setPaymentStatus(v.payment_status ?? 'paid')
     if (v.possible_duplicate_of) {
       const { data: orig } = await supabase
         .from('vouchers')
@@ -199,8 +207,8 @@ export function VoucherDetailPage() {
   // Hold formStateRef synkroniseret så autosave kan tjekke om bruger har skrevet videre
   // mens et tidligere save var i gang (uden at miste de nye ændringer).
   useEffect(() => {
-    formStateRef.current = { title, date, grossKr, vatKr, category, projectId }
-  }, [title, date, grossKr, vatKr, category, projectId])
+    formStateRef.current = { title, date, grossKr, vatKr, category, projectId, voucherType, paymentStatus }
+  }, [title, date, grossKr, vatKr, category, projectId, voucherType, paymentStatus])
 
   // Auto-recalc moms (25% dansk moms på brutto-inkl beløb: vat = gross * 0.2).
   // Bruges fra prisens onChange — hvis bruger ønsker en anden moms (fx 0 ved momsfri),
@@ -276,6 +284,10 @@ export function VoucherDetailPage() {
       vat_rate: vatRate,
       category: category || null,
       voucher_project_id: canUseVoucherProjects ? (projectId || null) : voucher.voucher_project_id,
+      voucher_type: voucherType,
+      // Kvitteringer er per definition allerede betalt; tving status så den ikke
+      // bliver hængende på "unpaid" hvis bruger skifter regning → kvittering.
+      payment_status: voucherType === 'regning' ? paymentStatus : 'paid',
     }
     const snapshot = { ...formStateRef.current }
     setSaving(true)
@@ -299,7 +311,9 @@ export function VoucherDetailPage() {
       current.grossKr === snapshot.grossKr &&
       current.vatKr === snapshot.vatKr &&
       current.category === snapshot.category &&
-      current.projectId === snapshot.projectId
+      current.projectId === snapshot.projectId &&
+      current.voucherType === snapshot.voucherType &&
+      current.paymentStatus === snapshot.paymentStatus
     ) {
       setDirty(false)
     }
@@ -315,7 +329,7 @@ export function VoucherDetailPage() {
     return () => window.clearTimeout(t)
     // handleSave er ikke memoiseret men setTimeout fanger den nyeste closure pr. render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dirty, saving, title, date, grossKr, vatKr, category, projectId])
+  }, [dirty, saving, title, date, grossKr, vatKr, category, projectId, voucherType, paymentStatus])
 
   // Skjul "Gemt." efter et par sekunder så badgen ikke bliver hængende.
   useEffect(() => {
@@ -566,6 +580,36 @@ export function VoucherDetailPage() {
                       {p.name}
                     </option>
                   ))}
+                </select>
+              </label>
+            ) : null}
+            <label className="block text-xs font-medium text-slate-600">
+              Bilagstype
+              <select
+                value={voucherType}
+                onChange={(e) => {
+                  setVoucherType(e.target.value as 'kvittering' | 'regning')
+                  setDirty(true)
+                }}
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+              >
+                <option value="kvittering">Kvittering (betalt)</option>
+                <option value="regning">Regning (skal betales)</option>
+              </select>
+            </label>
+            {voucherType === 'regning' ? (
+              <label className="block text-xs font-medium text-slate-600">
+                Betalingsstatus
+                <select
+                  value={paymentStatus}
+                  onChange={(e) => {
+                    setPaymentStatus(e.target.value as 'paid' | 'unpaid')
+                    setDirty(true)
+                  }}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+                >
+                  <option value="unpaid">Ikke betalt</option>
+                  <option value="paid">Betalt</option>
                 </select>
               </label>
             ) : null}

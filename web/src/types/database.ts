@@ -483,6 +483,8 @@ export interface Database {
           voucher_project_id: string | null
           file_hash: string | null
           possible_duplicate_of: string | null
+          voucher_type: 'kvittering' | 'regning'
+          payment_status: 'paid' | 'unpaid'
         }
         Insert: {
           id?: string
@@ -502,6 +504,8 @@ export interface Database {
           voucher_project_id?: string | null
           file_hash?: string | null
           possible_duplicate_of?: string | null
+          voucher_type?: 'kvittering' | 'regning'
+          payment_status?: 'paid' | 'unpaid'
         }
         Update: {
           title?: string | null
@@ -514,6 +518,8 @@ export interface Database {
           vat_rate?: number
           voucher_project_id?: string | null
           possible_duplicate_of?: string | null
+          voucher_type?: 'kvittering' | 'regning'
+          payment_status?: 'paid' | 'unpaid'
         }
       }
       expense_upload_links: {

@@ -120,6 +120,7 @@ export function VouchersPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [projectFilter, setProjectFilter] = useState<'all' | 'none' | string>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'unpaid'>('all')
   const [newProjectName, setNewProjectName] = useState('')
   const [projectCreateOpen, setProjectCreateOpen] = useState(false)
   const [projectFeatureUnavailable, setProjectFeatureUnavailable] = useState(false)
@@ -189,6 +190,9 @@ export function VouchersPage() {
       } else if (projectFilter !== 'all') {
         q = q.eq('voucher_project_id', projectFilter)
       }
+      if (statusFilter === 'unpaid') {
+        q = q.eq('voucher_type', 'regning').eq('payment_status', 'unpaid')
+      }
       const sortCol = sortKey ? VOUCHER_SORT_COLUMN[sortKey] : 'uploaded_at'
       const ascending = sortKey ? sortDir === 'asc' : false
       q = q.order(sortCol, { ascending, nullsFirst: false })
@@ -196,7 +200,7 @@ export function VouchersPage() {
       q = q.order('id', { ascending: false })
       return q.range(offset, offset + limit - 1)
     },
-    [currentCompany, debouncedSearch, projectFilter, sortKey, sortDir],
+    [currentCompany, debouncedSearch, projectFilter, statusFilter, sortKey, sortDir],
   )
 
   // Hent første side + sideforløb-data (projekter, refusioner) når deps ændres.
@@ -935,6 +939,17 @@ export function VouchersPage() {
               ) : null}
             </select>
           </label>
+          <label className="min-w-0 md:w-48 md:shrink-0">
+            <span className="sr-only">Filtrer på betalingsstatus</span>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as 'all' | 'unpaid')}
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900"
+            >
+              <option value="all">Alle betalingsstatus</option>
+              <option value="unpaid">Kun ubetalte regninger</option>
+            </select>
+          </label>
           <DesktopListCardsToggle mode={desktopView} onChange={setDesktopView} />
         </div>
 
@@ -1070,7 +1085,7 @@ export function VouchersPage() {
           </p>
         ) : rows.length === 0 ? (
           <p className="col-span-full rounded-2xl border border-slate-200 bg-white py-10 text-center text-sm text-slate-500 shadow-sm">
-            {debouncedSearch || projectFilter !== 'all'
+            {debouncedSearch || projectFilter !== 'all' || statusFilter !== 'all'
               ? 'Ingen bilag matcher søgningen.'
               : 'Ingen bilag endnu.'}
           </p>
@@ -1102,6 +1117,11 @@ export function VouchersPage() {
                         {dateStr}
                       </span>
                       <div className="flex flex-wrap items-center justify-end gap-2">
+                        {v.voucher_type === 'regning' && v.payment_status === 'unpaid' ? (
+                          <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
+                            Ubetalt
+                          </span>
+                        ) : null}
                         {v.possible_duplicate_of ? (
                           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
                             Mulig dublering
@@ -1237,6 +1257,11 @@ export function VouchersPage() {
                       </div>
                     ) : null}
                     <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2 text-xs text-slate-600">
+                      {v.voucher_type === 'regning' && v.payment_status === 'unpaid' ? (
+                        <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
+                          Ubetalt
+                        </span>
+                      ) : null}
                       {v.possible_duplicate_of ? (
                         <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
                           Mulig dublering
@@ -1338,7 +1363,7 @@ export function VouchersPage() {
             ) : rows.length === 0 ? (
               <tr>
                 <td colSpan={isForening ? 7 : 8} className="px-4 py-8 text-center text-slate-500">
-                  {debouncedSearch || projectFilter !== 'all'
+                  {debouncedSearch || projectFilter !== 'all' || statusFilter !== 'all'
                     ? 'Ingen bilag matcher søgningen.'
                     : 'Ingen bilag endnu.'}
                 </td>
@@ -1361,6 +1386,11 @@ export function VouchersPage() {
                   <td className="px-4 py-3 text-slate-800">
                     <div className="flex flex-wrap items-center gap-2">
                       <span>{v.title ?? '—'}</span>
+                      {v.voucher_type === 'regning' && v.payment_status === 'unpaid' ? (
+                        <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-700">
+                          Ubetalt
+                        </span>
+                      ) : null}
                       {v.possible_duplicate_of ? (
                         <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
                           Mulig dublering
