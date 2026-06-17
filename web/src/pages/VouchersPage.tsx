@@ -657,9 +657,19 @@ export function VouchersPage() {
   }
 
   async function updateReimbursementStatus(reimbursement: Reimbursement, status: ReimbursementStatus) {
+    if (!currentCompany) return
     const previous = reimbursements
+    const previousRows = rows
     setReimbursements((prev) =>
       prev.map((row) => (row.id === reimbursement.id ? { ...row, status } : row)),
+    )
+    // Refundering af et udlæg ER betalingen af bilaget — hold de to i sync.
+    const payment: { payment_status: 'paid' | 'unpaid'; paid_date: string | null } =
+      status === 'refunded'
+        ? { payment_status: 'paid', paid_date: todayIso() }
+        : { payment_status: 'unpaid', paid_date: null }
+    setRows((prev) =>
+      prev.map((row) => (row.id === reimbursement.voucher_id ? { ...row, ...payment } : row)),
     )
     const { error: statusErr } = await supabase
       .from('voucher_reimbursements')
@@ -667,8 +677,16 @@ export function VouchersPage() {
       .eq('id', reimbursement.id)
     if (statusErr) {
       setReimbursements(previous)
+      setRows(previousRows)
       setError(statusErr.message)
+      return
     }
+    const { error: payErr } = await supabase
+      .from('vouchers')
+      .update(payment)
+      .eq('id', reimbursement.voucher_id)
+      .eq('company_id', currentCompany.id)
+    if (payErr) setError(payErr.message)
   }
 
   async function uploadVoucherFiles(files: File[]) {

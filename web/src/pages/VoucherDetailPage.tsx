@@ -352,7 +352,7 @@ export function VoucherDetailPage() {
   }, [formMessage])
 
   async function updateReimbursementStatus(status: ReimbursementStatus) {
-    if (!reimbursement || !currentCompany) return
+    if (!reimbursement || !currentCompany || !voucher) return
     const previous = reimbursement.status
     setReimbursement({ ...reimbursement, status })
     const { error } = await supabase
@@ -363,7 +363,25 @@ export function VoucherDetailPage() {
     if (error) {
       setReimbursement({ ...reimbursement, status: previous })
       setFormError(error.message)
+      return
     }
+    // Refundering af et udlæg ER betalingen af bilaget — hold de to i sync.
+    const payment: { payment_status: 'paid' | 'unpaid'; paid_date: string | null } =
+      status === 'refunded'
+        ? { payment_status: 'paid', paid_date: todayDateInput() }
+        : { payment_status: 'unpaid', paid_date: null }
+    const { error: payErr } = await supabase
+      .from('vouchers')
+      .update(payment)
+      .eq('id', voucher.id)
+      .eq('company_id', currentCompany.id)
+    if (payErr) {
+      setFormError(payErr.message)
+      return
+    }
+    setVoucher({ ...voucher, ...payment })
+    setPaymentStatus(payment.payment_status)
+    setPaidDate(payment.paid_date ?? '')
   }
 
   async function handleDelete() {
