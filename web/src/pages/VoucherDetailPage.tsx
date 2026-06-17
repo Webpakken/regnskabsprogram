@@ -25,6 +25,7 @@ type VoucherEditableFields = Pick<
   | 'voucher_project_id'
   | 'voucher_type'
   | 'payment_status'
+  | 'paid_date'
 >
 
 const reimbursementStatusLabels: Record<ReimbursementStatus, string> = {
@@ -46,6 +47,14 @@ function parseKrToCents(input: string): number | null {
   const n = Number(normalized)
   if (!Number.isFinite(n) || n < 0) return null
   return Math.round(n * 100)
+}
+
+/** Dagens dato som YYYY-MM-DD til <input type="date">. */
+function todayDateInput(): string {
+  const d = new Date()
+  const mm = d.getMonth() + 1
+  const dd = d.getDate()
+  return `${d.getFullYear()}-${mm < 10 ? '0' + mm : mm}-${dd < 10 ? '0' + dd : dd}`
 }
 
 function canDelete(role: CompanyRole | null) {
@@ -82,6 +91,7 @@ export function VoucherDetailPage() {
   const [projectId, setProjectId] = useState('')
   const [voucherType, setVoucherType] = useState<'kvittering' | 'regning'>('kvittering')
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'unpaid'>('paid')
+  const [paidDate, setPaidDate] = useState('')
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [formMessage, setFormMessage] = useState<string | null>(null)
@@ -96,6 +106,7 @@ export function VoucherDetailPage() {
     projectId: '',
     voucherType: 'kvittering' as 'kvittering' | 'regning',
     paymentStatus: 'paid' as 'paid' | 'unpaid',
+    paidDate: '',
   })
 
   const load = useCallback(async () => {
@@ -139,6 +150,7 @@ export function VoucherDetailPage() {
     setProjectId(v.voucher_project_id ?? '')
     setVoucherType(v.voucher_type ?? 'kvittering')
     setPaymentStatus(v.payment_status ?? 'paid')
+    setPaidDate(v.paid_date ?? '')
     if (v.possible_duplicate_of) {
       const { data: orig } = await supabase
         .from('vouchers')
@@ -207,8 +219,8 @@ export function VoucherDetailPage() {
   // Hold formStateRef synkroniseret så autosave kan tjekke om bruger har skrevet videre
   // mens et tidligere save var i gang (uden at miste de nye ændringer).
   useEffect(() => {
-    formStateRef.current = { title, date, grossKr, vatKr, category, projectId, voucherType, paymentStatus }
-  }, [title, date, grossKr, vatKr, category, projectId, voucherType, paymentStatus])
+    formStateRef.current = { title, date, grossKr, vatKr, category, projectId, voucherType, paymentStatus, paidDate }
+  }, [title, date, grossKr, vatKr, category, projectId, voucherType, paymentStatus, paidDate])
 
   // Auto-recalc moms (25% dansk moms på brutto-inkl beløb: vat = gross * 0.2).
   // Bruges fra prisens onChange — hvis bruger ønsker en anden moms (fx 0 ved momsfri),
@@ -285,9 +297,9 @@ export function VoucherDetailPage() {
       category: category || null,
       voucher_project_id: canUseVoucherProjects ? (projectId || null) : voucher.voucher_project_id,
       voucher_type: voucherType,
-      // Kvitteringer er per definition allerede betalt; tving status så den ikke
-      // bliver hængende på "unpaid" hvis bruger skifter regning → kvittering.
-      payment_status: voucherType === 'regning' ? paymentStatus : 'paid',
+      payment_status: paymentStatus,
+      // Betalingsdato giver kun mening når bilaget er betalt.
+      paid_date: paymentStatus === 'paid' ? (paidDate || null) : null,
     }
     const snapshot = { ...formStateRef.current }
     setSaving(true)
@@ -313,7 +325,8 @@ export function VoucherDetailPage() {
       current.category === snapshot.category &&
       current.projectId === snapshot.projectId &&
       current.voucherType === snapshot.voucherType &&
-      current.paymentStatus === snapshot.paymentStatus
+      current.paymentStatus === snapshot.paymentStatus &&
+      current.paidDate === snapshot.paidDate
     ) {
       setDirty(false)
     }
@@ -329,7 +342,7 @@ export function VoucherDetailPage() {
     return () => window.clearTimeout(t)
     // handleSave er ikke memoiseret men setTimeout fanger den nyeste closure pr. render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dirty, saving, title, date, grossKr, vatKr, category, projectId, voucherType, paymentStatus])
+  }, [dirty, saving, title, date, grossKr, vatKr, category, projectId, voucherType, paymentStatus, paidDate])
 
   // Skjul "Gemt." efter et par sekunder så badgen ikke bliver hængende.
   useEffect(() => {
@@ -583,36 +596,50 @@ export function VoucherDetailPage() {
                 </select>
               </label>
             ) : null}
-            <label className="block text-xs font-medium text-slate-600">
-              Bilagstype
-              <select
-                value={voucherType}
-                onChange={(e) => {
-                  setVoucherType(e.target.value as 'kvittering' | 'regning')
-                  setDirty(true)
-                }}
-                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
-              >
-                <option value="kvittering">Kvittering (betalt)</option>
-                <option value="regning">Regning (skal betales)</option>
-              </select>
-            </label>
-            {voucherType === 'regning' ? (
-              <label className="block text-xs font-medium text-slate-600">
-                Betalingsstatus
-                <select
-                  value={paymentStatus}
-                  onChange={(e) => {
-                    setPaymentStatus(e.target.value as 'paid' | 'unpaid')
+            <div className="text-xs font-medium text-slate-600 sm:col-span-2">
+              Betaling
+              <div className="mt-1 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={paymentStatus === 'paid'}
+                  onClick={() => {
+                    if (paymentStatus === 'paid') {
+                      setPaymentStatus('unpaid')
+                      setPaidDate('')
+                    } else {
+                      setPaymentStatus('paid')
+                      if (!paidDate) setPaidDate(todayDateInput())
+                    }
                     setDirty(true)
                   }}
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition ${
+                    paymentStatus === 'paid' ? 'bg-emerald-500' : 'bg-slate-300'
+                  }`}
                 >
-                  <option value="unpaid">Ikke betalt</option>
-                  <option value="paid">Betalt</option>
-                </select>
-              </label>
-            ) : null}
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
+                      paymentStatus === 'paid' ? 'translate-x-5' : 'translate-x-0.5'
+                    }`}
+                  />
+                </button>
+                <span className="text-sm font-normal text-slate-700">
+                  {paymentStatus === 'paid' ? 'Betalt' : 'Ikke betalt'}
+                </span>
+                {paymentStatus === 'paid' ? (
+                  <input
+                    type="date"
+                    value={paidDate}
+                    aria-label="Betalingsdato"
+                    onChange={(e) => {
+                      setPaidDate(e.target.value)
+                      setDirty(true)
+                    }}
+                    className="ml-auto rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900"
+                  />
+                ) : null}
+              </div>
+            </div>
             {reimbursement ? (
               <label className="block text-xs font-medium text-slate-600">
                 Udlæg-status

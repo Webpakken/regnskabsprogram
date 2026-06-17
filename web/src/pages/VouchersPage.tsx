@@ -191,7 +191,7 @@ export function VouchersPage() {
         q = q.eq('voucher_project_id', projectFilter)
       }
       if (statusFilter === 'unpaid') {
-        q = q.eq('voucher_type', 'regning').eq('payment_status', 'unpaid')
+        q = q.eq('payment_status', 'unpaid')
       }
       const sortCol = sortKey ? VOUCHER_SORT_COLUMN[sortKey] : 'uploaded_at'
       const ascending = sortKey ? sortDir === 'asc' : false
@@ -947,7 +947,7 @@ export function VouchersPage() {
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900"
             >
               <option value="all">Alle betalingsstatus</option>
-              <option value="unpaid">Kun ubetalte regninger</option>
+              <option value="unpaid">Kun ikke-betalte</option>
             </select>
           </label>
           <DesktopListCardsToggle mode={desktopView} onChange={setDesktopView} />
@@ -1117,9 +1117,13 @@ export function VouchersPage() {
                         {dateStr}
                       </span>
                       <div className="flex flex-wrap items-center justify-end gap-2">
-                        {v.voucher_type === 'regning' && v.payment_status === 'unpaid' ? (
+                        {v.payment_status === 'unpaid' ? (
                           <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
                             Ubetalt
+                          </span>
+                        ) : v.paid_date ? (
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                            Betalt {formatDateOnly(v.paid_date)}
                           </span>
                         ) : null}
                         {v.possible_duplicate_of ? (
@@ -1257,9 +1261,13 @@ export function VouchersPage() {
                       </div>
                     ) : null}
                     <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2 text-xs text-slate-600">
-                      {v.voucher_type === 'regning' && v.payment_status === 'unpaid' ? (
+                      {v.payment_status === 'unpaid' ? (
                         <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
                           Ubetalt
+                        </span>
+                      ) : v.paid_date ? (
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                          Betalt {formatDateOnly(v.paid_date)}
                         </span>
                       ) : null}
                       {v.possible_duplicate_of ? (
@@ -1386,9 +1394,13 @@ export function VouchersPage() {
                   <td className="px-4 py-3 text-slate-800">
                     <div className="flex flex-wrap items-center gap-2">
                       <span>{v.title ?? '—'}</span>
-                      {v.voucher_type === 'regning' && v.payment_status === 'unpaid' ? (
+                      {v.payment_status === 'unpaid' ? (
                         <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-700">
                           Ubetalt
+                        </span>
+                      ) : v.paid_date ? (
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                          Betalt {formatDateOnly(v.paid_date)}
                         </span>
                       ) : null}
                       {v.possible_duplicate_of ? (

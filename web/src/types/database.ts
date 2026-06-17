@@ -485,6 +485,7 @@ export interface Database {
           possible_duplicate_of: string | null
           voucher_type: 'kvittering' | 'regning'
           payment_status: 'paid' | 'unpaid'
+          paid_date: string | null
         }
         Insert: {
           id?: string
@@ -506,6 +507,7 @@ export interface Database {
           possible_duplicate_of?: string | null
           voucher_type?: 'kvittering' | 'regning'
           payment_status?: 'paid' | 'unpaid'
+          paid_date?: string | null
         }
         Update: {
           title?: string | null
@@ -520,6 +522,7 @@ export interface Database {
           possible_duplicate_of?: string | null
           voucher_type?: 'kvittering' | 'regning'
           payment_status?: 'paid' | 'unpaid'
+          paid_date?: string | null
         }
       }
       expense_upload_links: {
