@@ -9,6 +9,7 @@ import {
   type TemplateKey,
 } from '../_shared/emailTemplateConfig.ts'
 import { resolveAppPublicUrl } from '../_shared/appUrl.ts'
+import { buildInvoicePdfAttachment } from '../_shared/invoiceEmailPdf.ts'
 
 function formatDkk(cents: number): string {
   return new Intl.NumberFormat('da-DK', {
@@ -44,19 +45,6 @@ const ROLE_LABELS: Record<string, string> = {
   manager: 'Administrator',
   bookkeeper: 'Bogholder',
   accountant: 'Revisor',
-}
-
-const MAX_INVOICE_PDF_BASE64_CHARS = 8_000_000
-
-function base64ToUint8Array(b64: string): Uint8Array | null {
-  try {
-    const binary = atob(b64.replace(/\s/g, ''))
-    const out = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i)
-    return out
-  } catch {
-    return null
-  }
 }
 
 type Kind =
@@ -107,7 +95,6 @@ serve(async (req) => {
     invitee_email?: string
     role?: string
     invoice_id?: string
-    invoice_pdf_base64?: string
   }
   try {
     body = await req.json()
@@ -316,17 +303,7 @@ serve(async (req) => {
 
   let pdfAttachment: { filename: string; content: Uint8Array } | undefined
   if (attachPdfSetting) {
-    const raw = typeof body.invoice_pdf_base64 === 'string' ? body.invoice_pdf_base64.trim() : ''
-    if (raw.length > 0 && raw.length <= MAX_INVOICE_PDF_BASE64_CHARS) {
-      const bytes = base64ToUint8Array(raw)
-      if (bytes && bytes.length > 0) {
-        const safeNum = (invoiceNum || 'faktura').replace(/[^\w.\-]+/g, '_')
-        pdfAttachment = {
-          filename: `faktura-${safeNum}.pdf`,
-          content: bytes,
-        }
-      }
-    }
+    pdfAttachment = (await buildInvoicePdfAttachment(admin, invoiceId)) ?? undefined
   }
 
   const send = await sendSmtpHtml({

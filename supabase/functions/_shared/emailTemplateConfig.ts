@@ -8,6 +8,7 @@ export type TemplateKey =
   | 'invoice_sent'
   | 'invoice_reminder'
   | 'invoice_dunning'
+  | 'subscription_invoice'
 
 export type TemplateBlock = {
   enabled: boolean
@@ -90,6 +91,19 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<TemplateKey, TemplateBlock> = {
 {{notes_block}}
 <p style="margin:16px 0 0;color:#64748b;font-size:13px;">Med venlig hilsen<br/><strong>{{company_name}}</strong></p>`,
   },
+  subscription_invoice: {
+    enabled: true,
+    subject: 'Kvittering for Bilago-abonnement — faktura {{invoice_number}}',
+    html: `<p style="margin:0 0 16px;">Hej {{company_name}},</p>
+<p style="margin:0 0 16px;">Tak for din betaling. Hermed kvittering og faktura <strong>{{invoice_number}}</strong> for dit Bilago-abonnement.</p>
+<table style="width:100%;border-collapse:collapse;margin:16px 0;background:#f8fafc;border-radius:10px;overflow:hidden;">
+  <tr><td style="padding:14px 16px;color:#64748b;font-size:13px;">Beløb inkl. moms</td><td style="padding:14px 16px;text-align:right;font-weight:700;color:#0f172a;">{{gross_amount}}</td></tr>
+  <tr><td style="padding:14px 16px;color:#64748b;font-size:13px;border-top:1px solid #e2e8f0;">Periode</td><td style="padding:14px 16px;text-align:right;border-top:1px solid #e2e8f0;">{{period}}</td></tr>
+  <tr><td style="padding:14px 16px;color:#64748b;font-size:13px;border-top:1px solid #e2e8f0;">Betalt</td><td style="padding:14px 16px;text-align:right;border-top:1px solid #e2e8f0;">{{paid_date}}</td></tr>
+</table>
+<p style="margin:16px 0 0;color:#64748b;font-size:13px;">Fakturaen er vedhæftet som PDF og ligger også under dine bilag i Bilago.</p>
+<p style="margin:16px 0 0;color:#64748b;font-size:13px;">Med venlig hilsen<br/><strong>Bilago</strong></p>`,
+  },
 }
 
 export function mergeEmailTemplates(db: unknown): Record<TemplateKey, TemplateBlock> {
@@ -104,6 +118,7 @@ export function mergeEmailTemplates(db: unknown): Record<TemplateKey, TemplateBl
     'invoice_sent',
     'invoice_reminder',
     'invoice_dunning',
+    'subscription_invoice',
   ]
   for (const k of keys) {
     const p = o[k]

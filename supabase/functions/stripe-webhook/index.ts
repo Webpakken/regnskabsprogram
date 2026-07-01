@@ -1,11 +1,22 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
 import Stripe from 'https://esm.sh/stripe@17.5.0?target=deno'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
+import { issueSubscriptionInvoice } from '../_shared/subscriptionInvoiceIssue.ts'
 
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
   apiVersion: '2024-11-20.acacia',
   httpClient: Stripe.createFetchHttpClient(),
 })
+
+/** Unix-sekunder → 'YYYY-MM-DD' i København. */
+function unixToCphYmd(unixSeconds: number): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Copenhagen',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(unixSeconds * 1000))
+}
 
 function mapStatus(
   s: Stripe.Subscription.Status,
@@ -155,6 +166,59 @@ serve(async (req) => {
         .eq('company_id', companyId)
       if (status === 'active' && prevRow?.status !== 'active') {
         await notifyPlatformActiveSubscription(companyId)
+      }
+    }
+
+    if (event.type === 'invoice.payment_succeeded') {
+      const invoice = event.data.object as Stripe.Invoice
+      const subscriptionId =
+        typeof invoice.subscription === 'string'
+          ? invoice.subscription
+          : (invoice.subscription?.id ?? null)
+      const customerId =
+        typeof invoice.customer === 'string'
+          ? invoice.customer
+          : (invoice.customer?.id ?? null)
+      const amountPaid = invoice.amount_paid ?? 0
+      // Kun abonnements-hævninger med reelt beløb (springer $0-prøveperioder over).
+      if (subscriptionId && customerId && amountPaid > 0 && invoice.id) {
+        const { data: subRow } = await admin
+          .from('subscriptions')
+          .select('company_id')
+          .eq('stripe_customer_id', customerId)
+          .maybeSingle()
+        let companyId = subRow?.company_id ?? null
+        // Første hævning kan nå frem før abonnementsrækken er oprettet af
+        // checkout.session.completed — fald tilbage til Stripe-metadata.
+        if (!companyId) {
+          try {
+            const fullSub = await stripe.subscriptions.retrieve(subscriptionId)
+            companyId = fullSub.metadata?.company_id ?? null
+          } catch (e) {
+            console.warn('subscription retrieve for company_id failed', e)
+          }
+        }
+        if (companyId) {
+          const paidAtUnix = invoice.status_transitions?.paid_at ?? invoice.created
+          const linePeriod = invoice.lines?.data?.[0]?.period
+          const periodStartUnix = linePeriod?.start ?? invoice.period_start ?? null
+          const periodEndUnix = linePeriod?.end ?? invoice.period_end ?? null
+          const result = await issueSubscriptionInvoice(admin, {
+            stripeInvoiceId: invoice.id,
+            stripeCustomerId: customerId,
+            stripeSubscriptionId: subscriptionId,
+            companyId,
+            currency: (invoice.currency ?? 'dkk').toUpperCase(),
+            grossCents: amountPaid,
+            paidDateYmd: unixToCphYmd(paidAtUnix),
+            periodStartYmd: periodStartUnix ? unixToCphYmd(periodStartUnix) : null,
+            periodEndYmd: periodEndUnix ? unixToCphYmd(periodEndUnix) : null,
+            recipientEmail: invoice.customer_email ?? null,
+          })
+          if (!result.ok) {
+            console.error('subscription-invoice issue failed', result.reason)
+          }
+        }
       }
     }
   } catch (e) {

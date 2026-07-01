@@ -11,6 +11,7 @@ import { corsHeaders, jsonResponse } from '../_shared/cors.ts'
 import { escapeHtml } from '../_shared/emailLayout.ts'
 import { loadSmtpProfile, sendSmtpHtml } from '../_shared/smtpMail.ts'
 import { mergeEmailTemplates, renderFinalEmail } from '../_shared/emailTemplateConfig.ts'
+import { buildInvoicePdfAttachment } from '../_shared/invoiceEmailPdf.ts'
 
 const APP_TIMEZONE = 'Europe/Copenhagen'
 const MAX_AUTO_REMINDERS_PER_INVOICE = 24
@@ -78,6 +79,7 @@ type CompanyRow = {
   automation_reminders_enabled: boolean
   automation_reminder_first_days_after_due: number
   automation_reminder_interval_days: number
+  invoice_attach_pdf_to_email: boolean
 }
 
 type InvoiceRow = {
@@ -155,7 +157,7 @@ serve(async (req) => {
   const { data: companies, error: cErr } = await admin
     .from('companies')
     .select(
-      'id, automation_reminders_enabled, automation_reminder_first_days_after_due, automation_reminder_interval_days',
+      'id, automation_reminders_enabled, automation_reminder_first_days_after_due, automation_reminder_interval_days, invoice_attach_pdf_to_email',
     )
     .eq('automation_reminders_enabled', true)
 
@@ -219,12 +221,18 @@ serve(async (req) => {
 
       if (!rendered) continue
 
+      const pdfAttachment =
+        co.invoice_attach_pdf_to_email !== false
+          ? await buildInvoicePdfAttachment(admin, inv.id)
+          : null
+
       const mail = await sendSmtpHtml({
         profile: tx.profile,
         fromName: companyName,
         to,
         subject: rendered.subject,
         html: rendered.html,
+        attachments: pdfAttachment ? [pdfAttachment] : undefined,
       })
 
       if (!mail.ok) {
