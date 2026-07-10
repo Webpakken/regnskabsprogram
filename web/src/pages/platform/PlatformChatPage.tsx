@@ -178,11 +178,12 @@ function SupportConversations() {
     }
   }
 
-  async function giveBackToMaria() {
+  // Afslut tråden som løst: Maria overtager igen og svarer på næste spørgsmål.
+  async function resolveConversation() {
     if (!activeId) return
     await supabase
       .from('chat_conversations')
-      .update({ ai_enabled: true, wants_human: false })
+      .update({ ai_enabled: true, wants_human: false, status: 'closed' })
       .eq('id', activeId)
     void loadMessages(activeId)
     void loadConvs()
@@ -249,18 +250,19 @@ function SupportConversations() {
                 <div className="truncate text-xs text-slate-500">{active.visitor_email || 'ingen e-mail'}</div>
               </div>
               <div className="ml-auto flex items-center gap-2">
-                {!aiEnabled ? (
-                  <button
-                    type="button"
-                    onClick={() => void giveBackToMaria()}
-                    className="rounded-lg border border-violet-200 px-2.5 py-1 text-xs font-medium text-violet-700 hover:bg-violet-50"
-                  >
-                    Giv tilbage til Maria
-                  </button>
-                ) : (
+                {aiEnabled && !active.wants_human ? (
                   <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-700">
                     Maria svarer
                   </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void resolveConversation()}
+                    className="rounded-lg border border-emerald-200 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                    title="Afslut tråden som løst — Maria svarer igen på næste spørgsmål"
+                  >
+                    Afslut & løst
+                  </button>
                 )}
               </div>
             </div>

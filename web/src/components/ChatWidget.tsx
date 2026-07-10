@@ -53,6 +53,8 @@ export function ChatWidget() {
   const [email, setEmail] = useState(defaultEmail)
   const [emailError, setEmailError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
+  // Venter vi på et Maria-svar? (Maria genereres i baggrunden efter afsendelse.)
+  const [awaitingReply, setAwaitingReply] = useState(false)
   const [aiEnabled, setAiEnabled] = useState(true)
   const [wantsHuman, setWantsHuman] = useState(false)
   const [confirmingHuman, setConfirmingHuman] = useState(false)
@@ -95,9 +97,12 @@ export function ChatWidget() {
     })
     if (error || !data) return
     const d = data as { messages?: Msg[]; aiEnabled?: boolean; wantsHuman?: boolean }
-    setMessages(d.messages ?? [])
+    const msgs = d.messages ?? []
+    setMessages(msgs)
     if (typeof d.aiEnabled === 'boolean') setAiEnabled(d.aiEnabled)
     if (typeof d.wantsHuman === 'boolean') setWantsHuman(d.wantsHuman)
+    // Et agent-svar (Maria eller medarbejder) er landet → stop "Maria skriver …".
+    if (msgs.length && msgs[msgs.length - 1].sender === 'agent') setAwaitingReply(false)
   }, [])
 
   // Init ved åbning
@@ -125,12 +130,19 @@ export function ChatWidget() {
       .catch(() => {})
   }, [open])
 
-  // Poll hver 5s mens åben (fallback)
+  // Poll mens åben. Hurtigere (1,5s) mens vi venter på Marias svar, ellers 5s.
   useEffect(() => {
     if (!open || !conv) return
-    const t = setInterval(() => void refetch(conv), 5000)
+    const t = setInterval(() => void refetch(conv), awaitingReply ? 1500 : 5000)
     return () => clearInterval(t)
-  }, [open, conv, refetch])
+  }, [open, conv, refetch, awaitingReply])
+
+  // Sikkerheds-timeout så "Maria skriver …" ikke hænger hvis noget fejler.
+  useEffect(() => {
+    if (!awaitingReply) return
+    const t = setTimeout(() => setAwaitingReply(false), 25000)
+    return () => clearTimeout(t)
+  }, [awaitingReply])
 
   // Broadcast-kanal for øjeblikkelig opdatering når en agent svarer.
   useEffect(() => {
@@ -203,9 +215,11 @@ export function ChatWidget() {
         ...m,
         { id: `tmp-${m.length}`, sender: 'visitor', body, created_at: new Date().toISOString() },
       ])
-      await supabase.functions.invoke('chat-send', {
+      const { data } = await supabase.functions.invoke('chat-send', {
         body: { id: c.id, token: c.token, body },
       })
+      // Viser om Maria svarer (så vi kan vise "Maria skriver …" + polle hurtigere).
+      setAwaitingReply(!!(data as { answering?: boolean } | null)?.answering)
       channelRef.current?.send({ type: 'broadcast', event: 'ping', payload: {} })
       await refetch(c)
     } finally {
@@ -295,7 +309,7 @@ export function ChatWidget() {
               </p>
             ) : null}
             {messages.map(renderMsg)}
-            {sending && aiEnabled && conv ? (
+            {awaitingReply ? (
               <div className="flex justify-start">
                 <div className="max-w-[85%] rounded-2xl bg-slate-100 px-3 py-2 text-sm italic text-slate-500">
                   Maria skriver …
@@ -362,7 +376,7 @@ export function ChatWidget() {
                 <p className="text-center text-xs text-slate-500">En medarbejder er hos dig 👋</p>
               ) : wantsHuman ? (
                 <p className="text-center text-xs text-slate-500">
-                  En medarbejder er underrettet 👋 Skriv endelig videre — Maria hjælper imens.
+                  En medarbejder er underrettet 👋 Vi vender tilbage til dig hurtigst muligt.
                 </p>
               ) : confirmingHuman ? (
                 <div className="space-y-1.5 text-center text-xs text-slate-500">

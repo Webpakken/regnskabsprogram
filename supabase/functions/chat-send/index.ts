@@ -12,13 +12,24 @@ import {
 } from '../_shared/maria.ts'
 
 /**
- * Besøgende sender en besked i Maria-chatten (flydende widget). Validerer
- * (id, token), gemmer beskeden, lader Maria svare synkront, og eskalerer til et
- * menneske hvis Maria ikke kan hjælpe. Anonyme tilgår kun her — ingen RLS.
+ * Besøgende sender en besked i Maria-chatten. Kundens besked gemmes og der
+ * svares STRAKS til klienten (så beskeden vises med det samme). Marias svar
+ * genereres i baggrunden (EdgeRuntime.waitUntil).
+ *
+ * Har kunden bedt om et menneske (wants_human), TIER Maria — indtil enten et
+ * menneske afslutter tråden (staff-konsollen), eller der er gået 24 timer siden
+ * seneste besked (så genoptager Maria automatisk).
  */
 
 const MARIA_DAILY_CAP = Number(Deno.env.get('MARIA_DAILY_CAP') ?? 800)
-const RESET_AFTER_MS = 30 * 60 * 1000
+// Maria genoptager en samtale efter 24 timers stilhed (også efter et menneske
+// har overtaget eller kunden har bedt om et menneske).
+const RESET_AFTER_MS = 24 * 60 * 60 * 1000
+
+// Supabase Edge Runtime: kør arbejde efter svaret er sendt.
+declare const EdgeRuntime:
+  | { waitUntil(p: Promise<unknown>): void }
+  | undefined
 
 serveWithSentry('chat-send', async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -49,7 +60,7 @@ serveWithSentry('chat-send', async (req) => {
     .insert({ conversation_id: id, sender: 'visitor', body: text })
   if (insErr) return jsonResponse({ error: insErr.message }, 500)
 
-  // Ny henvendelse efter pause → Maria svarer først igen (selv efter et menneske overtog / kø).
+  // Efter 24 timers stilhed genoptager Maria (nulstil menneske-overtagelse/kø).
   const idleMs = conv.last_message_at ? Date.now() - new Date(conv.last_message_at).getTime() : 0
   let aiEnabledNow = conv.ai_enabled !== false
   let wantsHuman = conv.wants_human === true
@@ -68,12 +79,51 @@ serveWithSentry('chat-send', async (req) => {
     })
     .eq('id', id)
 
-  // Redigerbar oplæring + global kill-switch (maria_settings.enabled).
+  // Maria svarer KUN når AI er slået til OG kunden ikke venter på/taler med et menneske.
   const mariaCfg = await loadMariaConfig(admin)
-  const aiOn = aiEnabledNow && mariaConfigured() && mariaCfg.enabled
+  const aiOn = aiEnabledNow && !wantsHuman && mariaConfigured() && mariaCfg.enabled
+
+  // Alt det tunge (Maria-svar + eskalering + push) kører efter svaret er sendt,
+  // så kundens besked vises med det samme.
+  const background = processAfterSend(admin, {
+    id,
+    text,
+    visitorName: conv.visitor_name,
+    userId: conv.user_id,
+    companyId: conv.company_id,
+    aiOn,
+    wantsHuman,
+    training: mariaCfg.training,
+  })
+  if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime?.waitUntil) {
+    EdgeRuntime.waitUntil(background)
+  } else {
+    // Fallback (lokalt uden EdgeRuntime): afvent så arbejdet ikke afbrydes.
+    await background
+  }
+
+  // answering: skal klienten vise "Maria skriver …"? wantsHuman afspejler status efter reset.
+  return jsonResponse({ ok: true, answering: aiOn, wants_human: wantsHuman })
+})
+
+type BgArgs = {
+  id: string
+  text: string
+  visitorName: string | null
+  userId: string | null
+  companyId: string | null
+  aiOn: boolean
+  wantsHuman: boolean
+  training: string | undefined
+}
+
+// deno-lint-ignore no-explicit-any
+async function processAfterSend(admin: any, args: BgArgs): Promise<void> {
+  const { id, text } = args
+  let wantsHuman = args.wantsHuman
   let escalated = false
 
-  if (aiOn) {
+  if (args.aiOn) {
     try {
       const since = new Date(Date.now() - 60 * 1000).toISOString()
       const dailySince = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
@@ -99,8 +149,8 @@ serveWithSentry('chat-send', async (req) => {
           text: m.body,
         }))
         const facts = await loadPlanFacts(admin)
-        const userInfo = await buildUserInfo(admin, conv.user_id, conv.company_id)
-        const reply = await generateMariaReply(turns, facts, userInfo, mariaCfg.training)
+        const userInfo = await buildUserInfo(admin, args.userId, args.companyId)
+        const reply = await generateMariaReply(turns, facts, userInfo, args.training)
         if (reply) {
           await admin.from('chat_messages').insert({
             conversation_id: id,
@@ -108,13 +158,13 @@ serveWithSentry('chat-send', async (req) => {
             agent_name: MARIA_NAME,
             body: reply,
           })
-          const patch: Record<string, string> = { last_message_at: new Date().toISOString() }
-          // Marker som læst medmindre kunden venter på et menneske (så forbliver den ulæst i konsollen).
-          if (!wantsHuman) patch.agent_read_at = new Date().toISOString()
-          await admin.from('chat_conversations').update(patch).eq('id', id)
-        } else {
-          escalated = true
+          await admin
+            .from('chat_conversations')
+            .update({ last_message_at: new Date().toISOString(), agent_read_at: new Date().toISOString() })
+            .eq('id', id)
+          return // Maria svarede — ingen grund til at forstyrre et menneske.
         }
+        escalated = true
       }
     } catch (e) {
       console.error('[chat-send] Maria-svar fejlede:', e)
@@ -134,17 +184,15 @@ serveWithSentry('chat-send', async (req) => {
     })
   }
 
-  // Notificér teamet når et menneske skal se samtalen.
-  if (!aiOn || wantsHuman || escalated) {
+  // Notificér teamet når et menneske skal se samtalen (kø, eskalering, eller AI slået fra).
+  if (!args.aiOn || wantsHuman || escalated) {
     await pushPlatformStaff(admin, {
-      title: conv.visitor_name ? `Chat fra ${conv.visitor_name}` : 'Ny live chat',
+      title: args.visitorName ? `Chat fra ${args.visitorName}` : 'Ny live chat',
       body: text.length > 120 ? `${text.slice(0, 117)}…` : text,
       url: `/platform/chat?c=${id}`,
     })
   }
-
-  return jsonResponse({ ok: true })
-})
+}
 
 // deno-lint-ignore no-explicit-any
 async function buildUserInfo(admin: any, userId: string | null, companyId: string | null): Promise<string | undefined> {
