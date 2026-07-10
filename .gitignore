@@ -39,6 +39,9 @@ yarn-error.log*
 .env*
 !.env.example
 !**/.env.example
+# Offentlige build-tids VITE_-vars (ikke hemmelige) committes for reproducerbare builds.
+!.env.production
+!**/.env.production
 
 # vercel
 .vercel

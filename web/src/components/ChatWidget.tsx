@@ -247,25 +247,23 @@ export function ChatWidget() {
 
   return (
     <>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        aria-label="Åbn chat"
-        className="fixed bottom-20 right-4 z-[60] grid h-14 w-14 place-items-center rounded-full bg-indigo-600 text-white shadow-lg transition hover:bg-indigo-700 md:bottom-5 md:right-5"
-      >
-        {open ? (
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <path d="M18 6 6 18M6 6l12 12" />
-          </svg>
-        ) : (
+      {/* Flydende knap — skjules når panelet er åbent (panelet har sin egen luk-knap). */}
+      {!open ? (
+        <button
+          onClick={() => setOpen(true)}
+          aria-label="Åbn chat"
+          className="fixed bottom-20 right-4 z-[60] grid h-14 w-14 place-items-center rounded-full bg-indigo-600 text-white shadow-lg transition hover:bg-indigo-700 md:bottom-5 md:right-5"
+        >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
-        )}
-      </button>
+        </button>
+      ) : null}
 
       {open ? (
-        <div className="fixed bottom-36 right-4 z-[60] flex max-h-[70vh] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl md:bottom-24 md:right-5 md:w-96">
-          <div className="flex items-start justify-between gap-2 bg-indigo-600 px-4 py-3 text-white">
+        // Mobil: fuldskærm. Desktop: fuld-højde panel i højre side.
+        <div className="fixed inset-0 z-[80] flex flex-col bg-white md:inset-y-0 md:left-auto md:right-0 md:w-[400px] md:border-l md:border-slate-200 md:shadow-2xl">
+          <div className="flex items-start justify-between gap-2 bg-indigo-600 px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] text-white md:pt-3">
             <div>
               <div className="font-bold">Chat med Maria</div>
               <div className="flex items-center gap-1.5 text-xs text-white/80">
@@ -306,7 +304,7 @@ export function ChatWidget() {
             ) : null}
           </div>
 
-          <div className="space-y-2 border-t border-slate-200 p-3">
+          <div className="space-y-2 border-t border-slate-200 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:pb-3">
             {known && !conv ? (
               <p className="text-xs text-slate-500">
                 Skriver som{' '}
