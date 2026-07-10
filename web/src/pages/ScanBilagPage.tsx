@@ -59,24 +59,6 @@ export function ScanBilagPage() {
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [searching, setSearching] = useState(true)
   const [documentFound, setDocumentFound] = useState(false)
-  // ...existing code...
-    // Automatisk capture når dokument er fundet og stabilt
-    useEffect(() => {
-      if (
-        phase === 'stream' &&
-        documentFound &&
-        !searching &&
-        !autoCaptureRef.current
-      ) {
-        autoCaptureRef.current = true
-        captureFromCamera().finally(() => {
-          // Tillad ny auto-capture hvis man går tilbage til stream
-          setTimeout(() => {
-            autoCaptureRef.current = false
-          }, 2000)
-        })
-      }
-    }, [phase, documentFound, searching])
   const [ocrProgress, setOcrProgress] = useState(0)
   const [ocrText, setOcrText] = useState('')
   const [parsed, setParsed] = useState<ExtractedVoucher | null>(null)
@@ -279,6 +261,21 @@ export function ScanBilagPage() {
       setCameraKey((k) => k + 1)
     }
   }
+
+  // Automatisk capture når dokument er fundet og stabilt (defineret efter
+  // captureFromCamera, så funktionen er deklareret før den bruges).
+  useEffect(() => {
+    if (phase === 'stream' && documentFound && !searching && !autoCaptureRef.current) {
+      autoCaptureRef.current = true
+      captureFromCamera().finally(() => {
+        // Tillad ny auto-capture hvis man går tilbage til stream
+        setTimeout(() => {
+          autoCaptureRef.current = false
+        }, 2000)
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, documentFound, searching])
 
   async function handleGalleryFile(file: File | null) {
     if (!file) return

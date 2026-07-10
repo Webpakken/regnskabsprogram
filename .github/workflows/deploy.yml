@@ -1,0 +1,73 @@
+# Deployer til produktion ved push til main.
+# Rodårsag til dagens fejl (webhook/chat/cvr-search kørte gammel eller manglende
+# kode): al deploy var manuel, så produktion drev fra git. Denne workflow holder
+# edge-funktioner OG frontend i sync med main automatisk.
+#
+# Kræver GitHub-secrets:
+#   SUPABASE_ACCESS_TOKEN       – Supabase PAT (sbp_...) med adgang til projektet
+#   HOSTINGER_FTP_HOST          – FTP-host (fx ftp.dindomæne.dk)
+#   HOSTINGER_FTP_USERNAME      – FTP-bruger
+#   HOSTINGER_FTP_PASSWORD      – FTP-adgangskode
+#   HOSTINGER_FTP_REMOTE_DIR    – målmappe på serveren (fx /public_html/)
+#
+# Edge-funktioners JWT-indstillinger styres af supabase/config.toml og
+# respekteres automatisk af `supabase functions deploy`.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: true
+
+env:
+  SUPABASE_PROJECT_REF: vfswagwhjshjnmppptif
+
+jobs:
+  deploy-functions:
+    name: Edge functions → Supabase
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Deploy alle edge-funktioner
+        run: |
+          set -euo pipefail
+          for dir in supabase/functions/*/; do
+            fn=$(basename "$dir")
+            [ "$fn" = "_shared" ] && continue
+            echo "::group::deploy $fn"
+            supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF"
+            echo "::endgroup::"
+          done
+
+  deploy-web:
+    name: Frontend → Hostinger
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      # VITE_*-vars kommer fra committed web/.env.production, så build er reproducerbart.
+      - run: npm run build
+      - name: Upload web/dist til Hostinger (FTP)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.HOSTINGER_FTP_HOST }}
+          username: ${{ secrets.HOSTINGER_FTP_USERNAME }}
+          password: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
+          local-dir: ./dist/
+          server-dir: ${{ secrets.HOSTINGER_FTP_REMOTE_DIR }}

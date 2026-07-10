@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AppPageLayout } from '@/components/AppPageLayout'
 import { useApp } from '@/context/AppProvider'
@@ -66,6 +66,9 @@ export function ImportInvoicesPage() {
   )
   const [updatingNext, setUpdatingNext] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  // Ref til seneste onFiles, så den globale drop-listener (bundet én gang) altid
+  // kalder den nyeste version uden at referere funktionen før den er deklareret.
+  const onFilesRef = useRef<(fl: FileList | null) => void>(() => {})
 
   // Hele siden fungerer som drop-zone: drop hvor som helst → importér.
   useEffect(() => {
@@ -93,7 +96,7 @@ export function ImportInvoicesPage() {
       e.preventDefault()
       dragDepth = 0
       setDragOver(false)
-      void onFiles(e.dataTransfer?.files ?? null)
+      void onFilesRef.current(e.dataTransfer?.files ?? null)
     }
     window.addEventListener('dragenter', onDragEnter)
     window.addEventListener('dragover', onDragOver)
@@ -106,6 +109,35 @@ export function ImportInvoicesPage() {
       window.removeEventListener('drop', onDrop)
     }
   }, [])
+
+  function updateRow(id: string, patch: Partial<Row>) {
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)))
+  }
+
+  async function lookupRowCvr(id: string, cvr: string) {
+    const digits = normalizeCvrDigits(cvr)
+    if (!digits || digits.length !== 8) return
+    updateRow(id, { cvrLookupState: 'loading' })
+    try {
+      const results = await searchCvrFromApicvr(digits)
+      const hit = results[0]
+      if (hit && hit.name) {
+        updateRow(id, {
+          customerName: hit.name,
+          customerEmail: hit.email ?? '',
+          customerPhone: hit.phone ?? '',
+          customerAddress: hit.address ?? '',
+          customerZip: hit.zipcode ?? '',
+          customerCity: hit.city ?? '',
+          cvrLookupState: 'ok',
+        })
+      } else {
+        updateRow(id, { cvrLookupState: 'notfound' })
+      }
+    } catch {
+      updateRow(id, { cvrLookupState: 'error' })
+    }
+  }
 
   async function onFiles(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return
@@ -193,37 +225,13 @@ export function ImportInvoicesPage() {
     setExtracting(false)
   }
 
-  function updateRow(id: string, patch: Partial<Row>) {
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)))
-  }
+  // Hold drop-listenerens ref opdateret med den nyeste onFiles (undgår stale closure).
+  useEffect(() => {
+    onFilesRef.current = onFiles
+  })
 
   function removeRow(id: string) {
     setRows((prev) => prev.filter((r) => r.id !== id))
-  }
-
-  async function lookupRowCvr(id: string, cvr: string) {
-    const digits = normalizeCvrDigits(cvr)
-    if (!digits || digits.length !== 8) return
-    updateRow(id, { cvrLookupState: 'loading' })
-    try {
-      const results = await searchCvrFromApicvr(digits)
-      const hit = results[0]
-      if (hit && hit.name) {
-        updateRow(id, {
-          customerName: hit.name,
-          customerEmail: hit.email ?? '',
-          customerPhone: hit.phone ?? '',
-          customerAddress: hit.address ?? '',
-          customerZip: hit.zipcode ?? '',
-          customerCity: hit.city ?? '',
-          cvrLookupState: 'ok',
-        })
-      } else {
-        updateRow(id, { cvrLookupState: 'notfound' })
-      }
-    } catch {
-      updateRow(id, { cvrLookupState: 'error' })
-    }
   }
 
   async function importAll() {

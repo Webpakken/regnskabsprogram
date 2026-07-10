@@ -63,9 +63,6 @@ verify_jwt = false
 [functions.auth-signup-cleanup]
 verify_jwt = false
 
-[functions.push-subscribe]
-verify_jwt = false
-
 [functions.web-push-subscribe]
 verify_jwt = false
 
