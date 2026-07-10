@@ -1,25 +1,29 @@
-# Deployer til produktion ved push til main.
+# Auto-deployer edge-funktioner til Supabase ved push til main.
 # Rodårsag til dagens fejl (webhook/chat/cvr-search kørte gammel eller manglende
-# kode): al deploy var manuel, så produktion drev fra git. Denne workflow holder
-# edge-funktioner OG frontend i sync med main automatisk.
+# kode): edge-funktioner blev deployet manuelt, så produktion drev fra git.
+# Denne workflow holder dem i sync med main automatisk.
 #
-# Kræver GitHub-secrets:
-#   SUPABASE_ACCESS_TOKEN       – Supabase PAT (sbp_...) med adgang til projektet
-#   HOSTINGER_FTP_HOST          – FTP-host (fx ftp.dindomæne.dk)
-#   HOSTINGER_FTP_USERNAME      – FTP-bruger
-#   HOSTINGER_FTP_PASSWORD      – FTP-adgangskode
-#   HOSTINGER_FTP_REMOTE_DIR    – målmappe på serveren (fx /public_html/)
+# Frontend deployes separat til Hostinger via egen GitHub-integration — derfor
+# håndterer denne workflow KUN edge-funktioner.
+#
+# Kræver GitHub-secret:
+#   SUPABASE_ACCESS_TOKEN  – Supabase PAT (sbp_...) med adgang til projektet
 #
 # Edge-funktioners JWT-indstillinger styres af supabase/config.toml og
 # respekteres automatisk af `supabase functions deploy`.
-name: Deploy
+name: Deploy edge functions
 
 on:
   push:
     branches: [main]
+    paths:
+      - "supabase/functions/**"
+      - "supabase/config.toml"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
 
 concurrency:
-  group: deploy-main
+  group: deploy-functions-main
   cancel-in-progress: true
 
 env:
@@ -46,28 +50,3 @@ jobs:
             supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF"
             echo "::endgroup::"
           done
-
-  deploy-web:
-    name: Frontend → Hostinger
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: web
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-      - run: npm ci
-      # VITE_*-vars kommer fra committed web/.env.production, så build er reproducerbart.
-      - run: npm run build
-      - name: Upload web/dist til Hostinger (FTP)
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.HOSTINGER_FTP_HOST }}
-          username: ${{ secrets.HOSTINGER_FTP_USERNAME }}
-          password: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
-          local-dir: ./dist/
-          server-dir: ${{ secrets.HOSTINGER_FTP_REMOTE_DIR }}
