@@ -64,6 +64,25 @@ type Detail = {
   payments: Payment[]
 }
 
+type StripePayment = {
+  id: string
+  invoice_number: string
+  gross_cents: number
+  currency: string
+  paid_at: string
+  period_start: string | null
+  period_end: string | null
+  hosted_invoice_url: string | null
+  invoice_pdf: string | null
+}
+
+type StripeBilling = {
+  subscription: { status: string | null; current_period_end: string | null } | null
+  payments: StripePayment[]
+  issued: number
+  skipped: number
+}
+
 const SUBSCRIPTION_LABELS: Record<string, { label: string; cls: string }> = {
   active: { label: 'Aktiv', cls: 'bg-emerald-50 text-emerald-700 ring-emerald-100' },
   trialing: { label: 'Prøveperiode', cls: 'bg-indigo-50 text-indigo-700 ring-indigo-100' },
@@ -101,6 +120,9 @@ export function PlatformCompanyDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [billing, setBilling] = useState<StripeBilling | null>(null)
+  const [billingLoading, setBillingLoading] = useState(false)
+  const [backfilling, setBackfilling] = useState(false)
 
   const load = useCallback(async () => {
     if (!companyId) return
@@ -117,9 +139,44 @@ export function PlatformCompanyDetailPage() {
     setDetail(data as unknown as Detail)
   }, [companyId])
 
+  // Live betalinger + fornyelsesdato fra Stripe (read-only, ingen bivirkninger).
+  const loadBilling = useCallback(async () => {
+    if (!companyId) return
+    setBillingLoading(true)
+    const { data, error: fnErr } = await supabase.functions.invoke('platform-stripe-billing', {
+      body: { company_id: companyId, action: 'read' },
+    })
+    setBillingLoading(false)
+    if (fnErr) return
+    setBilling(data as StripeBilling)
+  }, [companyId])
+
+  async function backfillInvoices() {
+    if (!companyId) return
+    if (
+      !window.confirm(
+        'Udsted Bilago-fakturaer for alle kundens Stripe-betalinger?\n\nDette opretter bilag OG sender en kvittering på mail til kunden for hver betaling. Kan ikke fortrydes.',
+      )
+    )
+      return
+    setBackfilling(true)
+    setError(null)
+    const { data, error: fnErr } = await supabase.functions.invoke('platform-stripe-billing', {
+      body: { company_id: companyId, action: 'backfill' },
+    })
+    setBackfilling(false)
+    if (fnErr) {
+      setError(fnErr.message)
+      return
+    }
+    setBilling(data as StripeBilling)
+    await load()
+  }
+
   useEffect(() => {
     void load()
-  }, [load])
+    void loadBilling()
+  }, [load, loadBilling])
 
   async function openAsCompany() {
     if (!companyId) return
@@ -251,7 +308,11 @@ export function PlatformCompanyDetailPage() {
                 />
                 <InfoRow
                   label="Fornyes"
-                  value={sub.current_period_end ? formatDate(sub.current_period_end) : '—'}
+                  value={(() => {
+                    const cpe = billing?.subscription?.current_period_end ?? sub.current_period_end
+                    if (cpe) return formatDate(cpe)
+                    return billingLoading ? 'Henter…' : '—'
+                  })()}
                 />
                 <InfoRow label="Stripe-kunde" value={sub.stripe_customer_id ?? '—'} />
               </>
@@ -261,37 +322,68 @@ export function PlatformCompanyDetailPage() {
           </Card>
 
           <Card title="Betalingshistorik">
-            {detail && detail.payments.length > 0 ? (
-              <div className="-mx-1 overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    <tr>
-                      <th className="px-1 py-2">Faktura</th>
-                      <th className="px-1 py-2">Dato</th>
-                      <th className="hidden px-1 py-2 sm:table-cell">Periode</th>
-                      <th className="px-1 py-2 text-right">Beløb</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {detail.payments.map((p) => (
-                      <tr key={p.id}>
-                        <td className="px-1 py-2 font-medium text-slate-900">{p.invoice_number}</td>
-                        <td className="px-1 py-2 text-slate-600">{formatDate(p.issued_at)}</td>
-                        <td className="hidden px-1 py-2 text-slate-600 sm:table-cell">
-                          {p.period_start && p.period_end
-                            ? `${formatDate(p.period_start)} – ${formatDate(p.period_end)}`
-                            : '—'}
-                        </td>
-                        <td className="px-1 py-2 text-right font-medium text-slate-900">
-                          {formatDkk(p.gross_cents, p.currency)}
-                        </td>
+            {billingLoading && !billing ? (
+              <p className="py-2 text-sm text-slate-500">Henter betalinger fra Stripe…</p>
+            ) : billing && billing.payments.length > 0 ? (
+              <>
+                <div className="-mx-1 overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-1 py-2">Faktura</th>
+                        <th className="px-1 py-2">Betalt</th>
+                        <th className="hidden px-1 py-2 sm:table-cell">Periode</th>
+                        <th className="px-1 py-2 text-right">Beløb</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {billing.payments.map((p) => (
+                        <tr key={p.id}>
+                          <td className="px-1 py-2 font-medium text-slate-900">
+                            {p.hosted_invoice_url ? (
+                              <a
+                                href={p.hosted_invoice_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-indigo-600 hover:underline"
+                              >
+                                {p.invoice_number}
+                              </a>
+                            ) : (
+                              p.invoice_number
+                            )}
+                          </td>
+                          <td className="px-1 py-2 text-slate-600">{formatDate(p.paid_at)}</td>
+                          <td className="hidden px-1 py-2 text-slate-600 sm:table-cell">
+                            {p.period_start && p.period_end
+                              ? `${formatDate(p.period_start)} – ${formatDate(p.period_end)}`
+                              : '—'}
+                          </td>
+                          <td className="px-1 py-2 text-right font-medium text-slate-900">
+                            {formatDkk(p.gross_cents, p.currency)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                  <p className="text-xs text-slate-500">
+                    Hentet direkte fra Stripe. Udsted Bilago-fakturaer for at oprette bilag og maile
+                    kvitteringer til kunden.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void backfillInvoices()}
+                    disabled={backfilling}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-900 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    {backfilling ? 'Udsteder…' : 'Udsted Bilago-fakturaer'}
+                  </button>
+                </div>
+              </>
             ) : (
-              <p className="py-2 text-sm text-slate-500">Ingen betalinger endnu.</p>
+              <p className="py-2 text-sm text-slate-500">Ingen betalinger fundet i Stripe.</p>
             )}
           </Card>
 
