@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { subscriptionOk, useApp } from '@/context/AppProvider'
-import { formatDateTime, formatKrPerMonth } from '@/lib/format'
+import { formatDate, formatDateTime, formatDkk, formatKrPerMonth } from '@/lib/format'
 import { subscriptionStatusLabelDa } from '@/lib/subscriptionLabels'
 import type { Database } from '@/types/database'
 import { changeStripePlan } from '@/lib/edge'
@@ -14,6 +14,18 @@ import {
   setHideTrialBannerDuringTrial,
 } from '@/lib/trialPaymentUiPreference'
 
+type StripePayment = {
+  id: string
+  invoice_number: string
+  gross_cents: number
+  currency: string
+  paid_at: string
+  period_start: string | null
+  period_end: string | null
+  hosted_invoice_url: string | null
+  invoice_pdf: string | null
+}
+
 export function SettingsSubscriptionPage() {
   const { currentCompany, currentRole, subscription, billingEntitlements, refresh } = useApp()
   const ok = subscriptionOk(subscription)
@@ -25,6 +37,7 @@ export function SettingsSubscriptionPage() {
   const [planNotice, setPlanNotice] = useState<string | null>(null)
   const [planError, setPlanError] = useState<string | null>(null)
   const [changingPlanId, setChangingPlanId] = useState<string | null>(null)
+  const [payments, setPayments] = useState<StripePayment[] | null>(null)
   const priceLabel = priceCents != null ? formatKrPerMonth(priceCents) : null
   const checkout = useStripeCheckoutLauncher()
   const currentPlanId = billingEntitlements[0]?.plan_id ?? subscription?.billing_plan_id ?? null
@@ -90,6 +103,23 @@ export function SettingsSubscriptionPage() {
       cancelled = true
     }
   }, [currentPlanId])
+
+  // Hent kundens egne betalinger fra Stripe (read-only) så de kan se hvornår de har betalt.
+  useEffect(() => {
+    const companyId = currentCompany?.id
+    if (!companyId) return
+    let cancelled = false
+    void (async () => {
+      const { data, error } = await supabase.functions.invoke('platform-stripe-billing', {
+        body: { company_id: companyId, action: 'read' },
+      })
+      if (cancelled || error) return
+      setPayments((data as { payments?: StripePayment[] })?.payments ?? [])
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [currentCompany?.id])
 
   const bulletsByPlan = useMemo(() => {
     const map = new Map<string, Database['public']['Tables']['billing_plan_bullets']['Row'][]>()
@@ -184,6 +214,54 @@ export function SettingsSubscriptionPage() {
           </p>
         ) : null}
       </div>
+
+      {payments && payments.length > 0 ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-medium text-slate-900">Betalingshistorik</h2>
+          <p className="mt-1 text-sm text-slate-600">Dine betalinger for Bilago-abonnementet.</p>
+          <div className="mt-4 -mx-1 overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-1 py-2">Betalt</th>
+                  <th className="hidden px-1 py-2 sm:table-cell">Periode</th>
+                  <th className="px-1 py-2 text-right">Beløb</th>
+                  <th className="px-1 py-2 text-right">Kvittering</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {payments.map((p) => (
+                  <tr key={p.id}>
+                    <td className="px-1 py-2 font-medium text-slate-900">{formatDate(p.paid_at)}</td>
+                    <td className="hidden px-1 py-2 text-slate-600 sm:table-cell">
+                      {p.period_start && p.period_end
+                        ? `${formatDate(p.period_start)} – ${formatDate(p.period_end)}`
+                        : '—'}
+                    </td>
+                    <td className="px-1 py-2 text-right font-medium text-slate-900">
+                      {formatDkk(p.gross_cents, p.currency)}
+                    </td>
+                    <td className="px-1 py-2 text-right">
+                      {p.invoice_pdf || p.hosted_invoice_url ? (
+                        <a
+                          href={(p.invoice_pdf ?? p.hosted_invoice_url) as string}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-indigo-600 hover:underline"
+                        >
+                          Se
+                        </a>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
 
       {plans.length > 0 && canManageBilling ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">

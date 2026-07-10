@@ -49,14 +49,6 @@ serveWithSentry('platform-stripe-billing', async (req) => {
 
   const admin = createClient(supabaseUrl, serviceKey)
 
-  // Kun platform-staff må se andres betalingsdata.
-  const { data: staff } = await admin
-    .from('platform_staff')
-    .select('user_id')
-    .eq('user_id', auth.user.id)
-    .maybeSingle()
-  if (!staff) return jsonResponse({ error: 'Forbidden' }, 403)
-
   let body: { company_id?: string; action?: 'read' | 'backfill' }
   try {
     body = await req.json()
@@ -66,6 +58,25 @@ serveWithSentry('platform-stripe-billing', async (req) => {
   const companyId = body.company_id?.trim()
   const action = body.action === 'backfill' ? 'backfill' : 'read'
   if (!companyId) return jsonResponse({ error: 'company_id er påkrævet' }, 400)
+
+  // Autorisation: platform-staff må se alt; et virksomhedsmedlem må kun læse
+  // sin egen virksomheds betalinger. Backfill (mailer kunden) er staff-only.
+  const { data: staff } = await admin
+    .from('platform_staff')
+    .select('user_id')
+    .eq('user_id', auth.user.id)
+    .maybeSingle()
+  const isStaff = Boolean(staff)
+  if (!isStaff) {
+    if (action === 'backfill') return jsonResponse({ error: 'Forbidden' }, 403)
+    const { data: member } = await admin
+      .from('company_members')
+      .select('user_id')
+      .eq('company_id', companyId)
+      .eq('user_id', auth.user.id)
+      .maybeSingle()
+    if (!member) return jsonResponse({ error: 'Forbidden' }, 403)
+  }
 
   const { data: subRow } = await admin
     .from('subscriptions')
