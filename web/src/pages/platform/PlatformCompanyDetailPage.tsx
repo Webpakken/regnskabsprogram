@@ -14,7 +14,17 @@ type Company = {
   postal_code?: string | null
   city?: string | null
   invoice_email?: string | null
+  trial_ends_at?: string | null
   created_at: string
+}
+
+const DAY_MS = 86_400_000
+const TRIAL_DAYS = 30
+
+/** Effektiv prøveperiode-slutdato: override hvis sat, ellers created_at + 30 dage. */
+function effectiveTrialEnd(company: { created_at: string; trial_ends_at?: string | null }): Date {
+  if (company.trial_ends_at) return new Date(company.trial_ends_at)
+  return new Date(new Date(company.created_at).getTime() + TRIAL_DAYS * DAY_MS)
 }
 
 type Subscription = {
@@ -123,6 +133,7 @@ export function PlatformCompanyDetailPage() {
   const [billing, setBilling] = useState<StripeBilling | null>(null)
   const [billingLoading, setBillingLoading] = useState(false)
   const [backfilling, setBackfilling] = useState(false)
+  const [extending, setExtending] = useState(false)
 
   const load = useCallback(async () => {
     if (!companyId) return
@@ -177,6 +188,23 @@ export function PlatformCompanyDetailPage() {
     void load()
     void loadBilling()
   }, [load, loadBilling])
+
+  async function extendTrial(days: number) {
+    if (!companyId || extending) return
+    setExtending(true)
+    setError(null)
+    const { error: rpcErr } = await supabase.rpc('extend_company_trial', {
+      p_company_id: companyId,
+      p_days: days,
+    })
+    setExtending(false)
+    if (rpcErr) {
+      setError(rpcErr.message)
+      return
+    }
+    await load()
+    await loadBilling()
+  }
 
   async function openAsCompany() {
     if (!companyId) return
@@ -319,6 +347,42 @@ export function PlatformCompanyDetailPage() {
             ) : (
               <p className="py-2 text-sm text-slate-500">Intet abonnement — sandsynligvis på prøveperiode uden betaling.</p>
             )}
+
+            {/* Forlæng prøveperiode (platform-staff). */}
+            {(() => {
+              const end = effectiveTrialEnd(company)
+              const expired = end.getTime() <= Date.now()
+              const daysLeft = Math.max(0, Math.ceil((end.getTime() - Date.now()) / DAY_MS))
+              return (
+                <div className="mt-3 border-t border-slate-100 pt-3">
+                  <InfoRow
+                    label="Prøveperiode slutter"
+                    value={
+                      <span className={expired ? 'text-rose-600' : undefined}>
+                        {formatDate(end.toISOString())}
+                        {company.trial_ends_at ? ' (forlænget)' : ''}
+                        {expired ? ' — udløbet' : ` — ${daysLeft} dag${daysLeft === 1 ? '' : 'e'} tilbage`}
+                      </span>
+                    }
+                  />
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className="text-sm text-slate-500">Forlæng:</span>
+                    {[7, 14, 30].map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        disabled={extending}
+                        onClick={() => void extendTrial(d)}
+                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                      >
+                        +{d} dage
+                      </button>
+                    ))}
+                    {extending ? <span className="text-sm text-slate-400">Forlænger…</span> : null}
+                  </div>
+                </div>
+              )
+            })()}
           </Card>
 
           <Card title="Betalingshistorik">

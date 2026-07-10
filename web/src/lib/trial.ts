@@ -27,11 +27,15 @@ export type TrialStatus = {
   expired: boolean
 }
 
-export function trialStatusFor(company: { created_at: string } | null): TrialStatus | null {
+export function trialStatusFor(
+  company: { created_at: string; trial_ends_at?: string | null } | null,
+): TrialStatus | null {
   if (!company?.created_at) return null
   const start = new Date(company.created_at).getTime()
   if (!Number.isFinite(start)) return null
-  const end = start + TRIAL_DAYS * DAY_MS
+  // Foretræk en lagret slut-override (sat når platform-ejeren forlænger), ellers created_at + 30 dage.
+  const override = company.trial_ends_at ? new Date(company.trial_ends_at).getTime() : NaN
+  const end = Number.isFinite(override) ? override : start + TRIAL_DAYS * DAY_MS
   const now = Date.now()
   const daysLeft = Math.max(0, Math.ceil((end - now) / DAY_MS))
   return {

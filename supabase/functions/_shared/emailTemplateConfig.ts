@@ -9,6 +9,7 @@ export type TemplateKey =
   | 'invoice_reminder'
   | 'invoice_dunning'
   | 'subscription_invoice'
+  | 'trial_reminder'
 
 export type TemplateBlock = {
   enabled: boolean
@@ -104,6 +105,16 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<TemplateKey, TemplateBlock> = {
 <p style="margin:16px 0 0;color:#64748b;font-size:13px;">Fakturaen er vedhæftet som PDF og ligger også under dine bilag i Bilago.</p>
 <p style="margin:16px 0 0;color:#64748b;font-size:13px;">Med venlig hilsen<br/><strong>Bilago</strong></p>`,
   },
+  trial_reminder: {
+    enabled: true,
+    subject: 'Husk at aktivere dit Bilago-abonnement',
+    html: `<p style="margin:0 0 16px;">Hej {{company_name}},</p>
+<p style="margin:0 0 16px;">Din gratis prøveperiode i Bilago er slut. Aktivér et abonnement for {{plan_price}}, så du igen får fuld adgang til fakturaer, bilag, moms og bank — alle dine data er gemt.</p>
+<p style="margin:0 0 20px;">
+  <a href="{{activate_url}}" style="display:inline-block;background:#4f46e5;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:10px;font-weight:600;font-size:14px;">Aktivér abonnement</a>
+</p>
+<p style="margin:0;color:#64748b;font-size:13px;">Ingen binding — opsig når som helst. Har du spørgsmål, er du velkommen til at skrive til os.</p>`,
+  },
 }
 
 export function mergeEmailTemplates(db: unknown): Record<TemplateKey, TemplateBlock> {
@@ -119,6 +130,7 @@ export function mergeEmailTemplates(db: unknown): Record<TemplateKey, TemplateBl
     'invoice_reminder',
     'invoice_dunning',
     'subscription_invoice',
+    'trial_reminder',
   ]
   for (const k of keys) {
     const p = o[k]

@@ -119,6 +119,11 @@ serveWithSentry('stripe-webhook', async (req) => {
           { onConflict: 'company_id' },
         )
         if (subStatus === 'active') {
+          // Kunden har betalt → nulstil prøveperiode-påmindelser.
+          await admin
+            .from('companies')
+            .update({ trial_reminder_stage: 0, trial_reminder_last_sent_at: null })
+            .eq('id', companyId)
           await notifyPlatformActiveSubscription(companyId)
         }
       }
@@ -165,6 +170,13 @@ serveWithSentry('stripe-webhook', async (req) => {
           updated_at: new Date().toISOString(),
         })
         .eq('company_id', companyId)
+      if (status === 'active') {
+        // Kunden har betalt → nulstil prøveperiode-påmindelser.
+        await admin
+          .from('companies')
+          .update({ trial_reminder_stage: 0, trial_reminder_last_sent_at: null })
+          .eq('id', companyId)
+      }
       if (status === 'active' && prevRow?.status !== 'active') {
         await notifyPlatformActiveSubscription(companyId)
       }

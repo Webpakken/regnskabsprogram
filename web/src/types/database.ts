@@ -88,6 +88,9 @@ export interface Database {
           vat_period: 'monthly' | 'quarterly' | 'half_yearly'
           vat_period_started_at: string | null
           accounting_locked_until: string | null
+          trial_ends_at: string | null
+          trial_reminder_stage: number
+          trial_reminder_last_sent_at: string | null
           created_at: string
           updated_at: string
         }
@@ -1129,6 +1132,10 @@ export interface Database {
       }
     }
     Functions: {
+      extend_company_trial: {
+        Args: { p_company_id: string; p_days: number }
+        Returns: string
+      }
       support_conversations: {
         Args: Record<string, never>
         Returns: {

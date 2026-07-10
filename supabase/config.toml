@@ -78,6 +78,9 @@ verify_jwt = false
 [functions.invoice-automation-reminders]
 verify_jwt = false
 
+[functions.trial-reminders]
+verify_jwt = false
+
 [functions.platform-event-push]
 verify_jwt = false
 
