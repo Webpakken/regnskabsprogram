@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useApp } from '@/context/AppProvider'
 import { PushEnableCard } from '@/components/PushEnableCard'
+import { NotificationToggleRow } from '@/components/NotificationToggleRow'
 import type { Database } from '@/types/database'
 
 type PrefRow = Database['public']['Tables']['notification_preferences']['Row']
@@ -27,42 +28,6 @@ const DEFAULT_PREFS: PrefState = {
   platform_new_companies: true,
   platform_new_support: true,
   platform_new_subscriptions: true,
-}
-
-function ToggleRow(props: {
-  id: keyof PrefState
-  title: string
-  body: string
-  checked: boolean
-  disabled?: boolean
-  onChange: (next: boolean) => void
-}) {
-  const { id, title, body, checked, disabled, onChange } = props
-  return (
-    <div className="flex items-start justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-      <label htmlFor={id} className="cursor-pointer">
-        <div className="text-sm font-medium text-slate-900">{title}</div>
-        <p className="mt-1 text-sm leading-relaxed text-slate-600">{body}</p>
-      </label>
-      <button
-        id={id}
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        disabled={disabled}
-        onClick={() => onChange(!checked)}
-        className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${
-          checked ? 'bg-indigo-600' : 'bg-slate-300'
-        }`}
-      >
-        <span
-          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${
-            checked ? 'translate-x-5' : 'translate-x-0.5'
-          }`}
-        />
-      </button>
-    </div>
-  )
 }
 
 export function SettingsNotificationsPage() {
@@ -156,35 +121,35 @@ export function SettingsNotificationsPage() {
                 </p>
               </div>
 
-              <ToggleRow
+              <NotificationToggleRow
                 id="support_replies"
                 title="Support-svar"
                 body="Få besked når Bilago svarer på din supporttråd."
                 checked={prefs.support_replies}
                 onChange={(next) => setPref('support_replies', next)}
               />
-              <ToggleRow
+              <NotificationToggleRow
                 id="member_invites"
                 title="Medlemsinvitationer"
                 body="Få besked når du inviteres til en virksomhed eller et samarbejde."
                 checked={prefs.member_invites}
                 onChange={(next) => setPref('member_invites', next)}
               />
-              <ToggleRow
+              <NotificationToggleRow
                 id="invoice_sent"
                 title="Faktura sendt"
                 body="Få besked når en faktura sendes til en kunde."
                 checked={prefs.invoice_sent}
                 onChange={(next) => setPref('invoice_sent', next)}
               />
-              <ToggleRow
+              <NotificationToggleRow
                 id="invoice_reminders"
                 title="Betalingspåmindelser og rykkere"
                 body="Få besked når en betalingspåmindelse eller rykker bliver sendt."
                 checked={prefs.invoice_reminders}
                 onChange={(next) => setPref('invoice_reminders', next)}
               />
-              <ToggleRow
+              <NotificationToggleRow
                 id="subscription_updates"
                 title="Abonnement og betaling"
                 body="Få besked om ændringer i abonnement, betalinger og prøveperiode."
@@ -204,21 +169,21 @@ export function SettingsNotificationsPage() {
                   </p>
                 </div>
 
-                <ToggleRow
+                <NotificationToggleRow
                   id="platform_new_companies"
                   title="Nye virksomheder"
                   body="Få besked når en ny virksomhed bliver oprettet."
                   checked={prefs.platform_new_companies}
                   onChange={(next) => setPref('platform_new_companies', next)}
                 />
-                <ToggleRow
+                <NotificationToggleRow
                   id="platform_new_support"
                   title="Nye supporthenvendelser"
                   body="Få besked når en kunde skriver en ny supportbesked."
                   checked={prefs.platform_new_support}
                   onChange={(next) => setPref('platform_new_support', next)}
                 />
-                <ToggleRow
+                <NotificationToggleRow
                   id="platform_new_subscriptions"
                   title="Nye abonnementer"
                   body="Få besked når et abonnement bliver oprettet eller ændret."

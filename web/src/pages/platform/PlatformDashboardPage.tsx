@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { PushEnableCard } from '@/components/PushEnableCard'
+import { PlatformNotificationPrefsCard } from '@/components/PlatformNotificationPrefsCard'
 
 type Stats = {
   companies: number
@@ -78,6 +79,7 @@ export function PlatformDashboardPage() {
           abonnementer — også når appen er lukket.
         </p>
         <PushEnableCard />
+        <PlatformNotificationPrefsCard />
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
