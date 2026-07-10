@@ -1,4 +1,4 @@
-import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
+import { serveWithSentry } from '../_shared/sentry.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts'
 
@@ -7,7 +7,7 @@ type SubBody = {
   keys?: { p256dh?: string; auth?: string }
 }
 
-serve(async (req) => {
+serveWithSentry('push-subscribe', async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }

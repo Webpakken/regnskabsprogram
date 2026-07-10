@@ -63,7 +63,7 @@ export function PlatformDashboardPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Virksomheder" value={stats?.companies ?? '—'} />
         <StatCard label="Aktive abonnementer" value={stats?.subscriptionsActive ?? '—'} />
         <StatCard label="Prøveperiode" value={stats?.subscriptionsTrialing ?? '—'} />

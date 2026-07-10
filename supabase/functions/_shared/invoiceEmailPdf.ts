@@ -10,6 +10,7 @@ import {
   type PdfInvoice,
   type PdfLine,
 } from './invoicePdf.ts'
+import { captureError } from './sentry.ts'
 
 type Admin = SupabaseClient
 
@@ -123,7 +124,9 @@ export async function buildInvoicePdfAttachment(
     )
     if (bytes.length === 0) return null
     return { filename, content: bytes }
-  } catch {
+  } catch (e) {
+    // PDF-fejl må ikke blokere mailen, men skal ikke sluges tavst — rapportér.
+    await captureError(e, { step: 'build_invoice_pdf_attachment', invoice_id: invoiceId })
     return null
   }
 }

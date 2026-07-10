@@ -1,4 +1,4 @@
-import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
+import { serveWithSentry } from '../_shared/sentry.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { fetchAuthV1User } from '../_shared/authV1User.ts'
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts'
@@ -9,7 +9,7 @@ function randomState() {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-serve(async (req) => {
+serveWithSentry('aiia-oauth-start', async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }

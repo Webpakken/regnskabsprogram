@@ -30,8 +30,14 @@ function customerTicketStatusLabel(status: string): string {
   }
 }
 
-function SupportMessageList({ messages }: { messages: Message[] }) {
-  if (messages.length === 0) {
+function SupportMessageList({
+  messages,
+  mariaThinking = false,
+}: {
+  messages: Message[]
+  mariaThinking?: boolean
+}) {
+  if (messages.length === 0 && !mariaThinking) {
     return <p className="text-sm text-slate-500">Ingen beskeder endnu.</p>
   }
   return (
@@ -40,18 +46,25 @@ function SupportMessageList({ messages }: { messages: Message[] }) {
         <li
           key={m.id}
           className={`rounded-xl border px-4 py-3 text-sm ${
-            m.is_staff
-              ? 'border-indigo-100 bg-indigo-50 text-slate-800'
-              : 'border-slate-200 bg-white text-slate-800 shadow-sm'
+            m.is_ai
+              ? 'border-violet-100 bg-violet-50 text-slate-800'
+              : m.is_staff
+                ? 'border-indigo-100 bg-indigo-50 text-slate-800'
+                : 'border-slate-200 bg-white text-slate-800 shadow-sm'
           }`}
         >
           <div className="flex justify-between gap-2 text-xs text-slate-500">
-            <span>{m.is_staff ? 'Bilago' : 'Dig'}</span>
+            <span>{m.is_ai ? 'Maria' : m.is_staff ? 'Bilago' : 'Dig'}</span>
             <span>{formatDateTime(m.created_at)}</span>
           </div>
           <p className="mt-2 whitespace-pre-wrap">{m.body}</p>
         </li>
       ))}
+      {mariaThinking ? (
+        <li className="rounded-xl border border-violet-100 bg-violet-50 px-4 py-3 text-sm italic text-slate-500">
+          Maria skriver …
+        </li>
+      ) : null}
     </ul>
   )
 }
@@ -65,6 +78,8 @@ export function SupportPage() {
   const [body, setBody] = useState('')
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const [mariaThinking, setMariaThinking] = useState(false)
+  const [escalating, setEscalating] = useState(false)
   const [pushEnabled, setPushEnabled] = useState(false)
   const [pushBusy, setPushBusy] = useState(false)
   const [pushResult, setPushResult] = useState<string | null>(null)
@@ -233,35 +248,80 @@ export function SupportPage() {
     setBody('')
     await loadThread(currentCompany.id)
     setSending(false)
-    void supabase.functions
-      .invoke('support-push-customer-notify', { body: { ticket_id: ticketId } })
-      .then(({ data, error }) => {
-        if (error) {
-          console.warn('[support-push-customer-notify]', error.message)
-          setPushResult(`Push-fejl: ${error.message}`)
-          return
-        }
-        if (data && typeof data === 'object' && 'subscriptionCount' in data) {
-          const d = data as { sent?: number; subscriptionCount?: number; firstError?: string }
-          if ((d.subscriptionCount ?? 0) === 0) {
-            setPushResult('Push: 0 abonnementer fundet hos Bilago-team.')
-            console.info(
-              '[push] Ingen registrerede enheder hos Bilago-team — notifikation kan ikke sendes.',
-            )
-          } else if ((d.sent ?? 0) > 0) {
-            setPushResult(
-              `Push sendt til ${d.sent} enhed${(d.sent ?? 0) === 1 ? '' : 'er'}.`,
-            )
-          } else if ((d.sent ?? 0) === 0 && d.firstError) {
-            setPushResult(`Push-fejl: ${d.firstError}`)
-            console.warn('[support-push-customer-notify] send', d.firstError)
-          } else {
-            setPushResult(
-              `Push-resultat: ${d.sent ?? 0} sendt / ${d.subscriptionCount ?? 0} abonnementer.`,
-            )
-          }
-        }
+
+    // Lad Maria svare synkront. Kun hvis hun IKKE kunne svare (eskaleret, slået
+    // fra, eller kunden allerede venter på et menneske) pusher vi medarbejdere.
+    setMariaThinking(true)
+    let mariaAnswered = false
+    let needStaffPush = true
+    try {
+      const { data, error } = await supabase.functions.invoke('support-maria-reply', {
+        body: { ticket_id: ticketId },
       })
+      if (error) {
+        console.warn('[support-maria-reply]', error.message)
+      } else if (data && typeof data === 'object') {
+        const d = data as { answered?: boolean; escalated?: boolean; wants_human?: boolean }
+        mariaAnswered = !!d.answered
+        // Push medarbejdere når Maria ikke selv svarede kunden.
+        needStaffPush = !d.answered || !!d.wants_human || !!d.escalated
+      }
+    } catch (e) {
+      console.warn('[support-maria-reply]', e)
+    } finally {
+      setMariaThinking(false)
+      await loadThread(currentCompany.id)
+    }
+
+    if (needStaffPush && ticketId) {
+      void notifyStaff(ticketId)
+    }
+    if (mariaAnswered) {
+      setPushResult(null)
+    }
+  }
+
+  // Push til Bilago-teamet (bruges når Maria ikke selv kunne svare, eller kunden
+  // venter på et menneske).
+  async function notifyStaff(ticketId: string) {
+    const { data, error } = await supabase.functions.invoke('support-push-customer-notify', {
+      body: { ticket_id: ticketId },
+    })
+    if (error) {
+      console.warn('[support-push-customer-notify]', error.message)
+      setPushResult(`Push-fejl: ${error.message}`)
+      return
+    }
+    if (data && typeof data === 'object' && 'subscriptionCount' in data) {
+      const d = data as { sent?: number; subscriptionCount?: number; firstError?: string }
+      if ((d.subscriptionCount ?? 0) === 0) {
+        setPushResult('Push: 0 abonnementer fundet hos Bilago-team.')
+      } else if ((d.sent ?? 0) > 0) {
+        setPushResult(`Push sendt til ${d.sent} enhed${(d.sent ?? 0) === 1 ? '' : 'er'}.`)
+      } else if ((d.sent ?? 0) === 0 && d.firstError) {
+        setPushResult(`Push-fejl: ${d.firstError}`)
+      } else {
+        setPushResult(`Push-resultat: ${d.sent ?? 0} sendt / ${d.subscriptionCount ?? 0} abonnementer.`)
+      }
+    }
+  }
+
+  // Kunden beder om et menneske → sæt sagen i kø og notificér teamet. Maria
+  // svarer stadig imens, indtil et menneske overtager.
+  async function requestHuman() {
+    const ticketId = selectedTicket?.id ?? activeTicket?.id
+    if (!ticketId || escalating) return
+    setEscalating(true)
+    setError(null)
+    try {
+      await supabase.from('support_tickets').update({ wants_human: true }).eq('id', ticketId)
+      await loadThread(currentCompany!.id)
+      await notifyStaff(ticketId)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Kunne ikke tilkalde en medarbejder.')
+    } finally {
+      setEscalating(false)
+    }
   }
 
   if (!currentCompany) {
@@ -273,7 +333,8 @@ export function SupportPage() {
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Support</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Vi svarer på hverdage. Når en sag er afsluttet, starter en ny besked en ny sag.
+          Maria, vores AI-assistent, svarer med det samme. Har du brug for et menneske, kan du
+          altid tilkalde teamet. Når en sag er afsluttet, starter en ny besked en ny sag.
         </p>
       </div>
 
@@ -325,7 +386,10 @@ export function SupportPage() {
                   </span>
                 </p>
               </div>
-              <SupportMessageList messages={messagesByTicket[selectedTicket.id] ?? []} />
+              <SupportMessageList
+                messages={messagesByTicket[selectedTicket.id] ?? []}
+                mariaThinking={mariaThinking}
+              />
             </section>
           ) : tickets.length > 0 ? (
             <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
@@ -352,6 +416,24 @@ export function SupportPage() {
             >
               {sending ? 'Sender…' : 'Send'}
             </button>
+            {selectedTicket && selectedTicket.status !== 'closed' ? (
+              selectedTicket.ai_enabled === false ? (
+                <p className="mt-3 text-sm text-slate-500">En medarbejder er hos dig 👋</p>
+              ) : selectedTicket.wants_human ? (
+                <p className="mt-3 text-sm text-slate-500">
+                  En medarbejder er underrettet 👋 Skriv endelig videre — Maria hjælper imens.
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  disabled={escalating}
+                  onClick={() => void requestHuman()}
+                  className="mt-3 block text-sm text-slate-500 underline-offset-2 hover:text-indigo-600 hover:underline disabled:opacity-60"
+                >
+                  {escalating ? 'Tilkalder…' : 'Tal med et menneske'}
+                </button>
+              )
+            ) : null}
             {pushResult ? (
               <p className="mt-3 text-sm text-slate-600">{pushResult}</p>
             ) : null}

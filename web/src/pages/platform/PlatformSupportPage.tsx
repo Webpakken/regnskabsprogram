@@ -143,15 +143,18 @@ export function PlatformSupportPage() {
       user_id: user.id,
       body: reply.trim(),
       is_staff: true,
+      is_ai: false,
     })
     if (insErr) {
       setError(insErr.message)
       setSending(false)
       return
     }
+    // Et menneske har nu overtaget → Maria svarer ikke mere i denne tråd, og
+    // kunden er ikke længere i kø.
     await supabase
       .from('support_tickets')
-      .update({ updated_at: new Date().toISOString() })
+      .update({ updated_at: new Date().toISOString(), ai_enabled: false, wants_human: false })
       .eq('id', selectedId)
     setReply('')
     await loadMessages(selectedId)
@@ -260,8 +263,17 @@ export function PlatformSupportPage() {
                         {formatSupportTicketNumber(t.ticket_number)}
                       </span>
                     </div>
-                    <div className="mt-0.5 text-xs text-slate-500">
-                      {statusLabels[t.status] ?? t.status}
+                    <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-500">
+                      <span>{statusLabels[t.status] ?? t.status}</span>
+                      {t.wants_human ? (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800">
+                          Venter på menneske
+                        </span>
+                      ) : t.ai_enabled ? (
+                        <span className="rounded-full bg-violet-100 px-2 py-0.5 font-medium text-violet-700">
+                          Maria
+                        </span>
+                      ) : null}
                     </div>
                   </button>
                 </li>
@@ -335,13 +347,15 @@ export function PlatformSupportPage() {
                     <li
                       key={m.id}
                       className={`rounded-lg border px-4 py-3 text-sm ${
-                        m.is_staff
-                          ? 'border-indigo-100 bg-indigo-50 text-slate-800'
-                          : 'border-slate-100 bg-slate-50 text-slate-800'
+                        m.is_ai
+                          ? 'border-violet-100 bg-violet-50 text-slate-800'
+                          : m.is_staff
+                            ? 'border-indigo-100 bg-indigo-50 text-slate-800'
+                            : 'border-slate-100 bg-slate-50 text-slate-800'
                       }`}
                     >
                       <div className="flex flex-wrap justify-between gap-2 text-xs text-slate-500">
-                        <span>{m.is_staff ? 'Bilago' : 'Kunde'}</span>
+                        <span>{m.is_ai ? 'Maria (AI)' : m.is_staff ? 'Bilago' : 'Kunde'}</span>
                         <span>{formatDateTime(m.created_at)}</span>
                       </div>
                       <p className="mt-2 whitespace-pre-wrap">{m.body}</p>

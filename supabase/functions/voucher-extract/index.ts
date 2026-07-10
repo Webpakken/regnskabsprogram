@@ -7,7 +7,7 @@
  *
  * Auth: kræver Supabase JWT — så kun loggede brugere kan brænde Anthropic-credits.
  */
-import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
+import { serveWithSentry } from '../_shared/sentry.ts'
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts'
 import { fetchAuthV1User } from '../_shared/authV1User.ts'
 
@@ -117,7 +117,7 @@ type ExtractionResult = {
   notes: string | null
 }
 
-serve(async (req: Request) => {
+serveWithSentry('voucher-extract', async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }

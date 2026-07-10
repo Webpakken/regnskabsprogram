@@ -152,7 +152,13 @@ export function PlatformCompaniesPage() {
                 >
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium text-slate-900">{c.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/platform/companies/${c.id}`)}
+                        className="text-left font-medium text-slate-900 hover:text-indigo-700 hover:underline"
+                      >
+                        {c.name}
+                      </button>
                       <span
                         className={
                           'rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ' +

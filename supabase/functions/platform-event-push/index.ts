@@ -6,7 +6,7 @@
  * Auth: shared secret i header `x-bilago-platform-event` (matches env PLATFORM_EVENT_SECRET).
  * Server-to-server only — ingen brugere kalder denne funktion direkte.
  */
-import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
+import { serveWithSentry } from '../_shared/sentry.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import webpush from 'npm:web-push@3.6.6'
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts'
@@ -14,7 +14,7 @@ import { normalizeVapidSubject } from '../_shared/push.ts'
 
 type Kind = 'company' | 'subscription'
 
-serve(async (req) => {
+serveWithSentry('platform-event-push', async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }

@@ -6,6 +6,7 @@ import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1
 import { loadSmtpProfile, sendSmtpHtml } from './smtpMail.ts'
 import { mergeEmailTemplates, renderFinalEmail } from './emailTemplateConfig.ts'
 import { generateSubscriptionInvoicePdfBytes } from './subscriptionInvoicePdf.ts'
+import { captureError } from './sentry.ts'
 
 type Admin = SupabaseClient
 
@@ -181,9 +182,21 @@ export async function issueSubscriptionInvoice(
       .select('id')
       .single()
     if (!vErr && voucher) voucherId = voucher.id
-    else if (vErr) console.error('subscription-invoice: voucher insert failed', vErr)
+    else if (vErr) {
+      console.error('subscription-invoice: voucher insert failed', vErr)
+      await captureError(vErr, {
+        step: 'voucher_insert',
+        company_id: input.companyId,
+        invoice_number: invoiceNumber,
+      })
+    }
   } else {
     console.error('subscription-invoice: pdf upload failed', upErr)
+    await captureError(upErr, {
+      step: 'pdf_upload',
+      company_id: input.companyId,
+      invoice_number: invoiceNumber,
+    })
   }
 
   // 6. Knyt bilag + PDF-sti til fakturaregisteret.
@@ -224,7 +237,14 @@ export async function issueSubscriptionInvoice(
           html: rendered.html,
           attachments: [{ filename, content: pdfBytes }],
         })
-        if (!mail.ok) console.error('subscription-invoice: email failed', mail.message)
+        if (!mail.ok) {
+          console.error('subscription-invoice: email failed', mail.message)
+          await captureError(new Error(`subscription-invoice email failed: ${mail.message}`), {
+            step: 'email',
+            company_id: input.companyId,
+            invoice_number: invoiceNumber,
+          })
+        }
       }
     }
   }

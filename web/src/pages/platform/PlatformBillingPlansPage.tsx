@@ -38,6 +38,17 @@ export function PlatformBillingPlansPage() {
   const [bullets, setBullets] = useState<Bullet[]>([])
   const [error, setError] = useState<string | null>(null)
   const [openEntitlementsFor, setOpenEntitlementsFor] = useState<string | null>(null)
+  // Kort starter kollapset — kun de udvidede plan-id'er ligger i settet.
+  const [expandedPlans, setExpandedPlans] = useState<Set<string>>(new Set())
+
+  function togglePlanExpanded(planId: string) {
+    setExpandedPlans((prev) => {
+      const next = new Set(prev)
+      if (next.has(planId)) next.delete(planId)
+      else next.add(planId)
+      return next
+    })
+  }
 
   const load = useCallback(async () => {
     const [planRes, featureRes, planFeatureRes, bulletRes] = await Promise.all([
@@ -344,7 +355,7 @@ export function PlatformBillingPlansPage() {
         </p>
       ) : null}
 
-      <div className="space-y-6">
+      <div className="space-y-8">
         {plans.map((plan, index) => {
           const planBullets = bulletsByPlan.get(plan.id) ?? []
           const usedFeatureIds = new Set(
@@ -352,6 +363,7 @@ export function PlatformBillingPlansPage() {
           )
           const availableFeatures = features.filter((f) => !usedFeatureIds.has(f.id))
           const entitlementsOpen = openEntitlementsFor === plan.id
+          const isExpanded = expandedPlans.has(plan.id)
           const visiblePrevPlan = (() => {
             if (plan.marketing_hidden) return null
             for (let i = index - 1; i >= 0; i--) {
@@ -364,7 +376,13 @@ export function PlatformBillingPlansPage() {
           const planCornerLabel =
             plan.slug === 'pro' ? 'Mest værdi' : plan.is_default_free ? 'Start her' : null
           return (
-            <div key={plan.id} className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
+            <div
+              key={plan.id}
+              className={
+                'grid gap-5 ' +
+                (isExpanded ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]' : '')
+              }
+            >
             <div
               className={
                 'flex flex-col rounded-2xl border bg-white p-5 shadow-sm ' +
@@ -373,6 +391,15 @@ export function PlatformBillingPlansPage() {
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => togglePlanExpanded(plan.id)}
+                    aria-expanded={isExpanded}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50"
+                    title={isExpanded ? 'Skjul detaljer' : 'Vis detaljer'}
+                  >
+                    {isExpanded ? '▾' : '▸'}
+                  </button>
                   <button
                     type="button"
                     disabled={index === 0}
@@ -471,6 +498,8 @@ export function PlatformBillingPlansPage() {
                 placeholder="slug"
                 className="mt-1 w-full rounded-lg border border-transparent px-2 py-0.5 font-mono text-xs text-slate-500 hover:border-slate-200 focus:border-slate-300 focus:outline-none"
               />
+              {isExpanded ? (
+              <>
               <textarea
                 value={plan.description ?? ''}
                 onChange={(e) => {
@@ -782,8 +811,11 @@ export function PlatformBillingPlansPage() {
                   </ul>
                 ) : null}
               </div>
+              </>
+              ) : null}
             </div>
 
+            {isExpanded ? (
             <div className="lg:sticky lg:top-4 lg:self-start">
               <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                 Forhåndsvisning (sådan vises kortet på pricing-siden)
@@ -821,6 +853,7 @@ export function PlatformBillingPlansPage() {
                 asLink={false}
               />
             </div>
+            ) : null}
             </div>
           )
         })}
@@ -876,7 +909,7 @@ function FeaturesRegistry({
       </div>
       <ul className="mt-4 divide-y divide-slate-100 text-sm">
         {features.map((f) => (
-          <li key={f.id} className="flex items-center gap-2 py-2">
+          <li key={f.id} className="flex flex-wrap items-center gap-2 py-2">
             <input
               value={f.name}
               onChange={(e) => onUpdate(f, { name: e.target.value })}
@@ -885,7 +918,7 @@ function FeaturesRegistry({
                 if (!value) return
                 onUpdate(f, { name: value })
               }}
-              className="flex-1 rounded border border-transparent px-1 py-0.5 font-medium text-slate-900 hover:border-slate-200 focus:border-slate-300 focus:outline-none"
+              className="min-w-0 flex-1 rounded border border-transparent px-1 py-0.5 font-medium text-slate-900 hover:border-slate-200 focus:border-slate-300 focus:outline-none"
             />
             <span className="font-mono text-[10px] text-slate-400">{f.key}</span>
             <input
@@ -893,7 +926,7 @@ function FeaturesRegistry({
               onChange={(e) => onUpdate(f, { description: e.target.value })}
               onBlur={(e) => onUpdate(f, { description: e.target.value.trim() || null })}
               placeholder="Standard undertekst"
-              className="w-64 rounded border border-slate-200 px-2 py-1 text-xs"
+              className="w-full min-w-0 rounded border border-slate-200 px-2 py-1 text-xs sm:w-64"
             />
           </li>
         ))}

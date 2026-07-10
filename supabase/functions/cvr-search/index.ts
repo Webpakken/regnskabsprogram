@@ -1,4 +1,4 @@
-import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
+import { serveWithSentry } from '../_shared/sentry.ts'
 import { fetchAuthV1User } from '../_shared/authV1User.ts'
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts'
 
@@ -46,7 +46,7 @@ function mapApicvr(raw: Record<string, unknown>): CvrCompany | null {
   }
 }
 
-serve(async (req) => {
+serveWithSentry('cvr-search', async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }

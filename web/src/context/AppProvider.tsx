@@ -10,6 +10,7 @@ import {
 } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
+import { clearSentryUser, setSentryUser } from '@/lib/sentry'
 import type { CompanyRole, Database } from '@/types/database'
 import { trialStatusFor } from '@/lib/trial'
 import type { BillingEntitlement, BillingFeatureKey } from '@/lib/billingEntitlements'
@@ -311,6 +312,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     return null
   }, [currentCompany, rolesByCompany, platformRole, profile?.current_company_id])
+
+  // Vedhæft bruger-/virksomhedskontekst til Sentry-fejl (kun id'er + rolle, ingen PII).
+  useEffect(() => {
+    if (user) {
+      setSentryUser({
+        id: user.id,
+        companyId: currentCompany?.id ?? null,
+        role: currentRole,
+        platformRole,
+      })
+    } else {
+      clearSentryUser()
+    }
+  }, [user, currentCompany?.id, currentRole, platformRole])
 
   const value = useMemo(
     () => ({

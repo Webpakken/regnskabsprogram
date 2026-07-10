@@ -1,11 +1,11 @@
-import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
+import { serveWithSentry } from '../_shared/sentry.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts'
 import { loadSmtpProfile, sendSmtpHtml } from '../_shared/smtpMail.ts'
 import { mergeEmailTemplates, renderFinalEmail } from '../_shared/emailTemplateConfig.ts'
 import { resolveAppPublicUrl } from '../_shared/appUrl.ts'
 
-serve(async (req) => {
+serveWithSentry('auth-password-reset', async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }

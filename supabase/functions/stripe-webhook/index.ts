@@ -1,7 +1,8 @@
-import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
+import { serveWithSentry } from '../_shared/sentry.ts'
 import Stripe from 'https://esm.sh/stripe@17.5.0?target=deno'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { issueSubscriptionInvoice } from '../_shared/subscriptionInvoiceIssue.ts'
+import { captureError } from '../_shared/sentry.ts'
 
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
   apiVersion: '2024-11-20.acacia',
@@ -36,7 +37,7 @@ function mapStatus(
   }
 }
 
-serve(async (req) => {
+serveWithSentry('stripe-webhook', async (req) => {
   const sig = req.headers.get('stripe-signature')
   const secret = Deno.env.get('STRIPE_WEBHOOK_SECRET')
   const body = await req.text()
@@ -217,12 +218,19 @@ serve(async (req) => {
           })
           if (!result.ok) {
             console.error('subscription-invoice issue failed', result.reason)
+            await captureError(new Error('subscription-invoice issue failed'), {
+              function: 'stripe-webhook',
+              event: event.type,
+              reason: result.reason,
+              stripe_invoice_id: invoice.id,
+            })
           }
         }
       }
     }
   } catch (e) {
     console.error(e)
+    await captureError(e, { function: 'stripe-webhook', event: event.type })
     return new Response('Handler error', { status: 500 })
   }
 

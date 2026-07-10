@@ -1,4 +1,4 @@
-import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
+import { serveWithSentry } from '../_shared/sentry.ts'
 import Stripe from 'https://esm.sh/stripe@17.5.0?target=deno'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { fetchAuthV1User } from '../_shared/authV1User.ts'
@@ -12,7 +12,7 @@ function stripeErrorMessage(err: unknown): string {
   return String(err)
 }
 
-serve(async (req) => {
+serveWithSentry('stripe-change-plan', async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }

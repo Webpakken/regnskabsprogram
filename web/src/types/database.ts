@@ -936,6 +936,8 @@ export interface Database {
           ticket_number: number
           status: 'open' | 'closed' | 'waiting_customer'
           consent_deep_access: boolean
+          ai_enabled: boolean
+          wants_human: boolean
           created_at: string
           updated_at: string
         }
@@ -944,10 +946,14 @@ export interface Database {
           company_id: string
           status?: 'open' | 'closed' | 'waiting_customer'
           consent_deep_access?: boolean
+          ai_enabled?: boolean
+          wants_human?: boolean
         }
         Update: {
           status?: 'open' | 'closed' | 'waiting_customer'
           consent_deep_access?: boolean
+          ai_enabled?: boolean
+          wants_human?: boolean
         }
       }
       support_messages: {
@@ -957,6 +963,7 @@ export interface Database {
           user_id: string | null
           body: string
           is_staff: boolean
+          is_ai: boolean
           created_at: string
         }
         Insert: {
@@ -965,8 +972,108 @@ export interface Database {
           user_id?: string | null
           body: string
           is_staff?: boolean
+          is_ai?: boolean
         }
         Update: never
+      }
+      chat_conversations: {
+        Row: {
+          id: string
+          token: string
+          visitor_name: string | null
+          visitor_email: string | null
+          visitor_ip: string | null
+          user_id: string | null
+          company_id: string | null
+          ai_enabled: boolean
+          wants_human: boolean
+          status: 'open' | 'closed'
+          agent_read_at: string | null
+          last_message_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          token?: string
+          visitor_name?: string | null
+          visitor_email?: string | null
+          visitor_ip?: string | null
+          user_id?: string | null
+          company_id?: string | null
+          ai_enabled?: boolean
+          wants_human?: boolean
+          status?: 'open' | 'closed'
+          agent_read_at?: string | null
+          last_message_at?: string
+        }
+        Update: {
+          ai_enabled?: boolean
+          wants_human?: boolean
+          status?: 'open' | 'closed'
+          agent_read_at?: string | null
+          last_message_at?: string
+        }
+      }
+      chat_messages: {
+        Row: {
+          id: string
+          conversation_id: string
+          sender: 'visitor' | 'agent'
+          agent_name: string | null
+          body: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          conversation_id: string
+          sender: 'visitor' | 'agent'
+          agent_name?: string | null
+          body: string
+        }
+        Update: never
+      }
+      maria_settings: {
+        Row: {
+          id: number
+          enabled: boolean
+          response_guidelines: string | null
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          enabled?: boolean
+          response_guidelines?: string | null
+        }
+        Update: {
+          enabled?: boolean
+          response_guidelines?: string | null
+          updated_at?: string
+        }
+      }
+      maria_knowledge: {
+        Row: {
+          id: string
+          title: string
+          content: string
+          active: boolean
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          content: string
+          active?: boolean
+          sort_order?: number
+        }
+        Update: {
+          title?: string
+          content?: string
+          active?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
       }
       support_ticket_reads: {
         Row: {
@@ -1027,6 +1134,7 @@ export interface Database {
         }[]
       }
       begin_platform_impersonation: { Args: { p_company_id: string }; Returns: undefined }
+      get_platform_company_detail: { Args: { p_company_id: string }; Returns: Json }
       end_platform_impersonation: { Args: Record<string, never>; Returns: undefined }
       add_support_admin_by_email: { Args: { p_email: string }; Returns: undefined }
       list_platform_staff_with_emails: {

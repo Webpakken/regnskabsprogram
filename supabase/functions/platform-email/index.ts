@@ -1,4 +1,4 @@
-import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
+import { serveWithSentry, captureError } from '../_shared/sentry.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts'
 import { escapeHtml } from '../_shared/emailLayout.ts'
@@ -54,7 +54,7 @@ type Kind =
   | 'invoice_reminder'
   | 'invoice_dunning'
 
-serve(async (req) => {
+serveWithSentry('platform-email', async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -314,7 +314,14 @@ serve(async (req) => {
     html: rendered.html,
     attachments: pdfAttachment ? [pdfAttachment] : undefined,
   })
-  if (!send.ok) return jsonResponse({ error: send.message }, 502)
+  if (!send.ok) {
+    await captureError(new Error(`platform-email send failed: ${send.message}`), {
+      function: 'platform-email',
+      kind,
+      invoice_id: invoiceId,
+    })
+    return jsonResponse({ error: send.message }, 502)
+  }
 
   const credit =
     Boolean(inv.credited_invoice_id) || Number(inv.gross_cents ?? 0) < 0

@@ -5,7 +5,7 @@
  * Kald POST med header: x-bilago-invoice-automation: <samme værdi>
  * (fx Supabase Scheduled Functions, GitHub Actions eller anden cron).
  */
-import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
+import { serveWithSentry, captureError } from '../_shared/sentry.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts'
 import { escapeHtml } from '../_shared/emailLayout.ts'
@@ -123,7 +123,7 @@ function isEligibleForAutomation(
   return todayYmd >= nextAfter
 }
 
-serve(async (req) => {
+serveWithSentry('invoice-automation-reminders', async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -237,6 +237,11 @@ serve(async (req) => {
 
       if (!mail.ok) {
         errors.push(`${inv.id}: ${mail.message}`)
+        await captureError(new Error(`auto-reminder email failed: ${mail.message}`), {
+          function: 'invoice-automation-reminders',
+          invoice_id: inv.id,
+          company_id: co.id,
+        })
         continue
       }
 

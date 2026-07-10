@@ -1,11 +1,11 @@
-import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
+import { serveWithSentry } from '../_shared/sentry.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import nodemailer from 'npm:nodemailer@6.9.15'
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts'
 
 const TRANSACTIONAL = 'transactional'
 
-serve(async (req) => {
+serveWithSentry('smtp-test', async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }

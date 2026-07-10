@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppProvider } from '@/context/AppProvider'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { AppShell } from '@/components/AppShell'
+import { ChatWidget } from '@/components/ChatWidget'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { ProtectedPlatformRoute } from '@/components/ProtectedPlatformRoute'
 import { RequireSubscription } from '@/components/RequireSubscription'
@@ -53,7 +54,10 @@ import { AppHelpPage } from '@/pages/AppHelpPage'
 import { SupportPage } from '@/pages/SupportPage'
 import { PlatformDashboardPage } from '@/pages/platform/PlatformDashboardPage'
 import { PlatformCompaniesPage } from '@/pages/platform/PlatformCompaniesPage'
+import { PlatformCompanyDetailPage } from '@/pages/platform/PlatformCompanyDetailPage'
 import { PlatformSupportPage } from '@/pages/platform/PlatformSupportPage'
+import { PlatformChatPage } from '@/pages/platform/PlatformChatPage'
+import { PlatformMariaPage } from '@/pages/platform/PlatformMariaPage'
 import { PlatformSettingsLayout } from '@/pages/platform/PlatformSettingsLayout'
 import { PlatformPublicSettingsLayout } from '@/pages/platform/PlatformPublicSettingsLayout'
 import { PlatformPublicContactPage } from '@/pages/platform/PlatformPublicContactPage'
@@ -110,6 +114,7 @@ export default function App() {
       <ScrollToTop />
       <AppProvider>
         <CookieConsentBanner />
+        <ChatWidget />
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/funktioner" element={<FeaturesPage />} />
@@ -135,7 +140,10 @@ export default function App() {
               />
               <Route path="dashboard" element={<PlatformDashboardPage />} />
               <Route path="companies" element={<PlatformCompaniesPage />} />
+              <Route path="companies/:companyId" element={<PlatformCompanyDetailPage />} />
               <Route path="support" element={<PlatformSupportPage />} />
+              <Route path="chat" element={<PlatformChatPage />} />
+              <Route path="maria" element={<PlatformMariaPage />} />
               <Route path="billing" element={<PlatformBillingPlansPage />} />
               <Route path="seo" element={<PlatformSeoPage />} />
               <Route path="settings" element={<PlatformSettingsLayout />}>
