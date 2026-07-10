@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useApp } from '@/context/AppProvider'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { mdToHtml } from '@/lib/markdown'
@@ -39,6 +40,7 @@ function load(): { id: string; token: string } | null {
  */
 export function ChatWidget() {
   const { user, profile } = useApp()
+  const location = useLocation()
   const defaultEmail = user?.email ?? ''
   const defaultName = profile?.full_name ?? ''
   const known = !!defaultEmail
@@ -212,6 +214,8 @@ export function ChatWidget() {
   }
 
   if (!isSupabaseConfigured) return null
+  // Kunde-support-chatten hører kun til i kunde-appen, ikke i platform-staff-området.
+  if (location.pathname.startsWith('/platform')) return null
 
   const renderMsg = (m: Msg) => {
     const isVisitor = m.sender === 'visitor'

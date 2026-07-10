@@ -38,6 +38,10 @@ export function SettingsSubscriptionPage() {
   const [planError, setPlanError] = useState<string | null>(null)
   const [changingPlanId, setChangingPlanId] = useState<string | null>(null)
   const [payments, setPayments] = useState<StripePayment[] | null>(null)
+  const [backfilling, setBackfilling] = useState(false)
+  const [backfillResult, setBackfillResult] = useState<string | null>(null)
+  // Vis som standard kun kundens nuværende plan; de øvrige foldes ud på knap.
+  const [showAllPlans, setShowAllPlans] = useState(false)
   const priceLabel = priceCents != null ? formatKrPerMonth(priceCents) : null
   const checkout = useStripeCheckoutLauncher()
   const currentPlanId = billingEntitlements[0]?.plan_id ?? subscription?.billing_plan_id ?? null
@@ -51,6 +55,13 @@ export function SettingsSubscriptionPage() {
     [currentPlanId, plans],
   )
   const currentPlanPrice = currentPlan?.monthly_price_cents ?? priceCents ?? 0
+  // Kollaps til den nuværende plan (falder tilbage til alle, hvis vi ikke kender den).
+  const collapsedPlan = ok ? currentPlan : null
+  const canCollapse = collapsedPlan != null && plans.length > 1
+  const plansToShow = useMemo(
+    () => (canCollapse && !showAllPlans ? [collapsedPlan!] : plans),
+    [canCollapse, showAllPlans, collapsedPlan, plans],
+  )
 
   useEffect(() => {
     const sync = () => setHideTrialBanner(getHideTrialBannerDuringTrial())
@@ -157,6 +168,33 @@ export function SettingsSubscriptionPage() {
     }
   }
 
+  // Hent (historiske) abonnements-fakturaer ind i kundens Bilag. Idempotent —
+  // fakturaer der allerede ligger i Bilag springes over.
+  async function backfillToBilag() {
+    if (!currentCompany || backfilling) return
+    setBackfilling(true)
+    setBackfillResult(null)
+    try {
+      const { data, error } = await supabase.functions.invoke('platform-stripe-billing', {
+        body: { company_id: currentCompany.id, action: 'backfill' },
+      })
+      if (error) throw error
+      const d = data as { issued?: number; skipped?: number }
+      const issued = d.issued ?? 0
+      if (issued > 0) {
+        setBackfillResult(
+          `${issued} faktura${issued === 1 ? '' : 'er'} lagt i Bilag. Du finder dem under Bilag.`,
+        )
+      } else {
+        setBackfillResult('Dine fakturaer ligger allerede i Bilag.')
+      }
+    } catch (e) {
+      setBackfillResult(e instanceof Error ? e.message : 'Kunne ikke hente fakturaer til Bilag.')
+    } finally {
+      setBackfilling(false)
+    }
+  }
+
   if (!currentCompany) {
     return <p className="text-slate-600">Opret virksomhed under onboarding først.</p>
   }
@@ -217,8 +255,29 @@ export function SettingsSubscriptionPage() {
 
       {payments && payments.length > 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-medium text-slate-900">Betalingshistorik</h2>
-          <p className="mt-1 text-sm text-slate-600">Dine betalinger for Bilago-abonnementet.</p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-medium text-slate-900">Betalingshistorik</h2>
+              <p className="mt-1 text-sm text-slate-600">Dine betalinger for Bilago-abonnementet.</p>
+            </div>
+            {canManageBilling ? (
+              <button
+                type="button"
+                disabled={backfilling}
+                onClick={() => void backfillToBilag()}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                title="Læg dine abonnements-fakturaer i Bilag, så de indgår i dit regnskab"
+              >
+                {backfilling ? <ButtonSpinner /> : null}
+                {backfilling ? 'Henter…' : 'Hent fakturaer til Bilag'}
+              </button>
+            ) : null}
+          </div>
+          {backfillResult ? (
+            <p className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+              {backfillResult}
+            </p>
+          ) : null}
           <div className="mt-4 -mx-1 overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -267,9 +326,13 @@ export function SettingsSubscriptionPage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 className="text-lg font-medium text-slate-900">Vælg plan</h2>
+              <h2 className="text-lg font-medium text-slate-900">
+                {canCollapse && !showAllPlans ? 'Din plan' : 'Vælg plan'}
+              </h2>
               <p className="mt-1 text-sm text-slate-600">
-                Se de planer vi tilbyder. Din nuværende plan er markeret.
+                {canCollapse && !showAllPlans
+                  ? 'Din nuværende plan. Vil du skifte, kan du se de øvrige planer.'
+                  : 'Se de planer vi tilbyder. Din nuværende plan er markeret.'}
               </p>
             </div>
           </div>
@@ -283,8 +346,13 @@ export function SettingsSubscriptionPage() {
               {planError}
             </p>
           ) : null}
-          <div className="mt-5 grid gap-4 lg:grid-cols-3">
-            {plans.map((plan) => {
+          <div
+            className={
+              'mt-5 grid gap-4 ' +
+              (canCollapse && !showAllPlans ? '' : 'lg:grid-cols-3')
+            }
+          >
+            {plansToShow.map((plan) => {
               const isCurrent = ok && plan.id === currentPlanId
               const isChosen = !isCurrent && plan.id === chosenPlanId
               const isHighlighted = isCurrent || isChosen
@@ -366,6 +434,15 @@ export function SettingsSubscriptionPage() {
               )
             })}
           </div>
+          {canCollapse ? (
+            <button
+              type="button"
+              onClick={() => setShowAllPlans((v) => !v)}
+              className="mt-4 inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              {showAllPlans ? 'Skjul andre planer' : 'Vælg en anden plan'}
+            </button>
+          ) : null}
         </div>
       ) : null}
 

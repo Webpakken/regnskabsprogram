@@ -60,7 +60,8 @@ serveWithSentry('platform-stripe-billing', async (req) => {
   if (!companyId) return jsonResponse({ error: 'company_id er påkrævet' }, 400)
 
   // Autorisation: platform-staff må se alt; et virksomhedsmedlem må kun læse
-  // sin egen virksomheds betalinger. Backfill (mailer kunden) er staff-only.
+  // sin egen virksomheds betalinger. Backfill (opretter bilag + mailer kunden)
+  // kræver ejer-rollen — så ejeren selv kan hente sine fakturaer ind i Bilag.
   const { data: staff } = await admin
     .from('platform_staff')
     .select('user_id')
@@ -68,14 +69,16 @@ serveWithSentry('platform-stripe-billing', async (req) => {
     .maybeSingle()
   const isStaff = Boolean(staff)
   if (!isStaff) {
-    if (action === 'backfill') return jsonResponse({ error: 'Forbidden' }, 403)
     const { data: member } = await admin
       .from('company_members')
-      .select('user_id')
+      .select('role')
       .eq('company_id', companyId)
       .eq('user_id', auth.user.id)
       .maybeSingle()
     if (!member) return jsonResponse({ error: 'Forbidden' }, 403)
+    if (action === 'backfill' && member.role !== 'owner') {
+      return jsonResponse({ error: 'Forbidden' }, 403)
+    }
   }
 
   const { data: subRow } = await admin
