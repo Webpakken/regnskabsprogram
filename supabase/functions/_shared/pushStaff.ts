@@ -1,13 +1,11 @@
 import webpush from 'npm:web-push@3.6.6'
 import { normalizeVapidSubject } from './push.ts'
 
-/**
- * Push til alle platform_staff (Bilago-team). Bruges når en Maria-chat eskalerer
- * eller kunden beder om et menneske. Best effort — kaster aldrig.
- */
+/** Push til en liste af bruger-ids. Best effort — kaster aldrig. */
 // deno-lint-ignore no-explicit-any
-export async function pushPlatformStaff(
+export async function pushUsers(
   admin: any,
+  userIds: string[],
   payload: { title: string; body: string; url: string },
 ): Promise<{ sent: number; subscriptionCount: number }> {
   try {
@@ -16,16 +14,13 @@ export async function pushPlatformStaff(
     const vapidSubject = normalizeVapidSubject(Deno.env.get('VAPID_SUBJECT'))
     if (!vapidPublic || !vapidPrivate) return { sent: 0, subscriptionCount: 0 }
 
-    const { data: staffRows } = await admin.from('platform_staff').select('user_id')
-    const staffIds = [
-      ...new Set((staffRows ?? []).map((r: { user_id: string }) => r.user_id).filter(Boolean)),
-    ]
-    if (staffIds.length === 0) return { sent: 0, subscriptionCount: 0 }
+    const ids = [...new Set(userIds.filter(Boolean))]
+    if (ids.length === 0) return { sent: 0, subscriptionCount: 0 }
 
     const { data: subs } = await admin
       .from('push_subscriptions')
       .select('id, subscription')
-      .in('user_id', staffIds)
+      .in('user_id', ids)
 
     webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate)
     const body = JSON.stringify(payload)
@@ -46,4 +41,18 @@ export async function pushPlatformStaff(
   } catch {
     return { sent: 0, subscriptionCount: 0 }
   }
+}
+
+/**
+ * Push til alle platform_staff (Bilago-team). Bruges når en Maria-chat eskalerer
+ * eller kunden beder om et menneske.
+ */
+// deno-lint-ignore no-explicit-any
+export async function pushPlatformStaff(
+  admin: any,
+  payload: { title: string; body: string; url: string },
+): Promise<{ sent: number; subscriptionCount: number }> {
+  const { data: staffRows } = await admin.from('platform_staff').select('user_id')
+  const staffIds = (staffRows ?? []).map((r: { user_id: string }) => r.user_id)
+  return pushUsers(admin, staffIds, payload)
 }

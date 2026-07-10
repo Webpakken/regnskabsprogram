@@ -58,12 +58,34 @@ export function ChatWidget() {
   const [online, setOnline] = useState(true)
   const [offlineMessage, setOfflineMessage] = useState('')
   const scrollRef = useRef<HTMLDivElement | null>(null)
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
 
   // Hold formular-defaults i sync når brugeren logger ind mens widgeten er mountet.
   useEffect(() => {
     if (defaultEmail) setEmail(defaultEmail)
     if (defaultName) setName(defaultName)
   }, [defaultEmail, defaultName])
+
+  // Åbn automatisk hvis man kommer fra en push-notifikation (?chat=1), og fjern
+  // parameteren igen så et refresh ikke genåbner.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('chat') === '1') {
+      setOpen(true)
+      params.delete('chat')
+      const qs = params.toString()
+      window.history.replaceState(null, '', window.location.pathname + (qs ? `?${qs}` : ''))
+    }
+  }, [])
+
+  // Andre dele af appen (fx menuen) kan åbne chatten via en event.
+  useEffect(() => {
+    function openChat() {
+      setOpen(true)
+    }
+    window.addEventListener('bilago:open-chat', openChat)
+    return () => window.removeEventListener('bilago:open-chat', openChat)
+  }, [])
 
   const refetch = useCallback(async (c: { id: string; token: string }) => {
     const { data, error } = await supabase.functions.invoke('chat-history', {
@@ -101,12 +123,25 @@ export function ChatWidget() {
       .catch(() => {})
   }, [open])
 
-  // Poll hver 5s mens åben
+  // Poll hver 5s mens åben (fallback)
   useEffect(() => {
     if (!open || !conv) return
     const t = setInterval(() => void refetch(conv), 5000)
     return () => clearInterval(t)
   }, [open, conv, refetch])
+
+  // Broadcast-kanal for øjeblikkelig opdatering når en agent svarer.
+  useEffect(() => {
+    if (!conv) return
+    const ch = supabase.channel(`chat-${conv.id}`, { config: { broadcast: { self: false } } })
+    ch.on('broadcast', { event: 'ping' }, () => void refetch(conv))
+    ch.subscribe()
+    channelRef.current = ch
+    return () => {
+      void supabase.removeChannel(ch)
+      channelRef.current = null
+    }
+  }, [conv, refetch])
 
   // Følg med til bunden ved nye beskeder / mens Maria skriver
   const lastIdRef = useRef<string | null>(null)
@@ -169,6 +204,7 @@ export function ChatWidget() {
       await supabase.functions.invoke('chat-send', {
         body: { id: c.id, token: c.token, body },
       })
+      channelRef.current?.send({ type: 'broadcast', event: 'ping', payload: {} })
       await refetch(c)
     } finally {
       setSending(false)

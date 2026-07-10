@@ -936,8 +936,6 @@ export interface Database {
           ticket_number: number
           status: 'open' | 'closed' | 'waiting_customer'
           consent_deep_access: boolean
-          ai_enabled: boolean
-          wants_human: boolean
           created_at: string
           updated_at: string
         }
@@ -946,14 +944,10 @@ export interface Database {
           company_id: string
           status?: 'open' | 'closed' | 'waiting_customer'
           consent_deep_access?: boolean
-          ai_enabled?: boolean
-          wants_human?: boolean
         }
         Update: {
           status?: 'open' | 'closed' | 'waiting_customer'
           consent_deep_access?: boolean
-          ai_enabled?: boolean
-          wants_human?: boolean
         }
       }
       support_messages: {
@@ -963,7 +957,6 @@ export interface Database {
           user_id: string | null
           body: string
           is_staff: boolean
-          is_ai: boolean
           created_at: string
         }
         Insert: {
@@ -972,7 +965,6 @@ export interface Database {
           user_id?: string | null
           body: string
           is_staff?: boolean
-          is_ai?: boolean
         }
         Update: never
       }
@@ -989,6 +981,7 @@ export interface Database {
           wants_human: boolean
           status: 'open' | 'closed'
           agent_read_at: string | null
+          visitor_read_at: string | null
           last_message_at: string
           created_at: string
         }
@@ -1004,6 +997,7 @@ export interface Database {
           wants_human?: boolean
           status?: 'open' | 'closed'
           agent_read_at?: string | null
+          visitor_read_at?: string | null
           last_message_at?: string
         }
         Update: {
@@ -1011,7 +1005,28 @@ export interface Database {
           wants_human?: boolean
           status?: 'open' | 'closed'
           agent_read_at?: string | null
+          visitor_read_at?: string | null
           last_message_at?: string
+        }
+      }
+      chat_canned_responses: {
+        Row: {
+          id: string
+          title: string
+          body: string
+          sort_order: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          body: string
+          sort_order?: number
+        }
+        Update: {
+          title?: string
+          body?: string
+          sort_order?: number
         }
       }
       chat_messages: {
@@ -1114,6 +1129,19 @@ export interface Database {
       }
     }
     Functions: {
+      support_conversations: {
+        Args: Record<string, never>
+        Returns: {
+          id: string
+          visitor_name: string | null
+          visitor_email: string | null
+          status: 'open' | 'closed'
+          ai_enabled: boolean
+          wants_human: boolean
+          last_message_at: string
+          unread: number
+        }[]
+      }
       next_invoice_number: { Args: { p_company_id: string }; Returns: string }
       get_popular_invoice_products_globally: {
         Args: { p_limit?: number }

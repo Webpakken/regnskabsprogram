@@ -27,6 +27,12 @@ serveWithSentry('chat-history', async (req) => {
     .maybeSingle()
   if (!conv) return jsonResponse({ error: 'Ugyldig samtale.' }, 403)
 
+  // Kunden ser nu beskederne → sæt læst-kvittering (til "Læst" i konsollen).
+  await admin
+    .from('chat_conversations')
+    .update({ visitor_read_at: new Date().toISOString() })
+    .eq('id', id)
+
   const { data: messages } = await admin
     .from('chat_messages')
     .select('id, sender, agent_name, body, created_at')

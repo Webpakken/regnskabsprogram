@@ -7,6 +7,7 @@ import {
   type PdfInvoice,
   type PdfLine,
 } from './invoicePdf.ts'
+import { BILAGO_LOGO_DATA_URL } from './bilagoLogo.ts'
 
 function env(name: string, fallback = ''): string {
   const v = Deno.env.get(name)
@@ -101,8 +102,8 @@ export function generateSubscriptionInvoicePdfBytes(
     sort_order: 1,
   }
 
-  return generateInvoicePdfBytes(bilagoSeller(), invoice, [line], null, {
+  return generateInvoicePdfBytes(bilagoSeller(), invoice, [line], BILAGO_LOGO_DATA_URL, {
     heading: 'Faktura',
-    paidNote: `Betalt med betalingskort d. ${daDate(p.issueDate)}. Beløbet er trukket automatisk via Stripe — intet at indbetale.`,
+    paidNote: `Betalt med betalingskort d. ${daDate(p.issueDate)}. Beløbet er trukket automatisk via Stripe.`,
   })
 }

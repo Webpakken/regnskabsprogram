@@ -1,6 +1,7 @@
 import type { ReactElement, ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { openChatWidget } from '@/lib/chatWidget'
 import clsx from 'clsx'
 import { useApp, subscriptionOk } from '@/context/AppProvider'
 import {
@@ -14,7 +15,6 @@ import { formatDateTime } from '@/lib/format'
 import { MobileBottomNav } from '@/components/MobileBottomNav'
 import { RegisterPushNotifications } from '@/components/RegisterPushNotifications'
 import { PwaPushPrompt } from '@/components/PwaPushPrompt'
-import { useSupportUnread } from '@/context/SupportUnreadContext'
 import { TrialCountdownBanner } from '@/components/TrialCountdownBanner'
 import { TrialExpiredModal } from '@/components/TrialExpiredModal'
 import { trialStatusFor } from '@/lib/trial'
@@ -22,11 +22,13 @@ import { trialStatusFor } from '@/lib/trial'
 type NavIconProps = { className?: string }
 
 type NavItem = {
-  to: string
+  to?: string
   label: string
   icon: (p: NavIconProps) => ReactElement
   /** Hvis sat, vises kun for denne entity_type. */
   onlyFor?: 'virksomhed' | 'forening'
+  /** Åbner live chat-widgeten i stedet for at navigere. */
+  action?: 'open-chat'
 }
 
 const nav: NavItem[] = [
@@ -40,7 +42,7 @@ const nav: NavItem[] = [
   { to: '/app/members', label: 'Medlemmer', icon: UsersIcon },
   { to: '/app/settings', label: 'Indstillinger', icon: CogIcon },
   { to: '/app/hjaelp', label: 'Hjælp & svar', icon: HelpIcon },
-  { to: '/app/support', label: 'Support', icon: ChatIcon },
+  { label: 'Support', icon: ChatIcon, action: 'open-chat' },
 ]
 
 type SettingsNavItem = { to: string; label: string; onlyFor?: 'virksomhed' | 'forening' }
@@ -236,18 +238,7 @@ function ChevronDownIcon({ className }: NavIconProps) {
   )
 }
 
-function NavBadge({ count }: { count: number }) {
-  if (count <= 0) return null
-  const label = count > 99 ? '99+' : String(count)
-  return (
-    <span className="absolute -right-2 -top-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-600 px-0.5 text-[10px] font-bold leading-none text-white shadow-sm">
-      {label}
-    </span>
-  )
-}
-
 export function AppShell({ children }: { children?: ReactNode }) {
-  const { unreadCount } = useSupportUnread()
   const {
     user,
     companies,
@@ -365,10 +356,25 @@ export function AppShell({ children }: { children?: ReactNode }) {
               )
             }
 
+            // "Support" åbner live chat-widgeten i stedet for at navigere.
+            if (item.action === 'open-chat') {
+              return (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => openChatWidget()}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+                >
+                  <item.icon className="h-4 w-4 shrink-0" />
+                  {item.label}
+                </button>
+              )
+            }
+
             return (
               <NavLink
                 key={item.to}
-                to={item.to}
+                to={item.to!}
                 className={({ isActive }) =>
                   clsx(
                     'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition',
@@ -380,7 +386,6 @@ export function AppShell({ children }: { children?: ReactNode }) {
               >
                 <span className="relative inline-flex shrink-0">
                   <item.icon className="h-4 w-4" />
-                  {item.to === '/app/support' ? <NavBadge count={unreadCount} /> : null}
                 </span>
                 {item.label}
               </NavLink>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ReactElement } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ROLE_LABELS, subscriptionOk, useApp } from '@/context/AppProvider'
-import { useSupportUnread } from '@/context/SupportUnreadContext'
+import { openChatWidget } from '@/lib/chatWidget'
 import { AppCard, AppPageLayout } from '@/components/AppPageLayout'
 import { logoutToLanding } from '@/lib/logoutToLanding'
 import { trialStatusFor } from '@/lib/trial'
@@ -150,10 +150,12 @@ function InvoiceIcon({ className }: { className?: string }) {
 }
 
 type MoreItem = {
-  to: string
+  to?: string
   label: string
   icon: (p: { className?: string }) => ReactElement
   onlyFor?: 'virksomhed' | 'forening'
+  /** Åbner live chat-widgeten i stedet for at navigere. */
+  action?: 'open-chat'
 }
 
 // Bottom-nav viser allerede [Overblik, Fakturaer/Indtægter, Bilag, Mere], så vi
@@ -165,7 +167,7 @@ const items: MoreItem[] = [
   { to: '/app/bank', label: 'Bank', icon: BankIcon },
   { to: '/app/members', label: 'Medlemmer', icon: UsersIcon },
   { to: '/app/hjaelp', label: 'Hjælp & svar', icon: HelpIcon },
-  { to: '/app/support', label: 'Support', icon: ChatIcon },
+  { label: 'Support', icon: ChatIcon, action: 'open-chat' },
   { to: '/app/activity', label: 'Aktivitetslog', icon: ListIcon },
   { to: '/app/settings', label: 'Indstillinger', icon: CogIcon },
 ]
@@ -182,7 +184,6 @@ export function MorePage() {
   const ok = subscriptionOk(subscription)
   const trial = trialStatusFor(currentCompany)
   const trialActive = trial?.active === true
-  const { unreadCount } = useSupportUnread()
   const navigate = useNavigate()
   const checkout = useStripeCheckoutLauncher()
 
@@ -324,25 +325,36 @@ export function MorePage() {
             .filter(
               (i) => !i.onlyFor || i.onlyFor === (currentCompany?.entity_type ?? 'virksomhed'),
             )
-            .map((i) => (
-            <li key={i.to}>
-              <Link
-                to={i.to}
-                className="flex items-center gap-4 px-5 py-4 text-slate-800 transition hover:bg-slate-50/80"
-              >
-                <span className="relative inline-flex shrink-0">
-                  <i.icon className="h-5 w-5 text-indigo-600" />
-                  {i.to === '/app/support' && unreadCount > 0 ? (
-                    <span className="absolute -right-2 -top-2 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white shadow-sm">
-                      {unreadCount > 99 ? '99+' : unreadCount}
+            .map((i) =>
+              i.action === 'open-chat' ? (
+                <li key={i.label}>
+                  <button
+                    type="button"
+                    onClick={() => openChatWidget()}
+                    className="flex w-full items-center gap-4 px-5 py-4 text-left text-slate-800 transition hover:bg-slate-50/80"
+                  >
+                    <span className="inline-flex shrink-0">
+                      <i.icon className="h-5 w-5 text-indigo-600" />
                     </span>
-                  ) : null}
-                </span>
-                <span className="flex-1 text-sm font-semibold">{i.label}</span>
-                <ChevronIcon className="h-4 w-4 shrink-0 text-slate-400" />
-              </Link>
-            </li>
-          ))}
+                    <span className="flex-1 text-sm font-semibold">{i.label}</span>
+                    <ChevronIcon className="h-4 w-4 shrink-0 text-slate-400" />
+                  </button>
+                </li>
+              ) : (
+                <li key={i.to}>
+                  <Link
+                    to={i.to!}
+                    className="flex items-center gap-4 px-5 py-4 text-slate-800 transition hover:bg-slate-50/80"
+                  >
+                    <span className="inline-flex shrink-0">
+                      <i.icon className="h-5 w-5 text-indigo-600" />
+                    </span>
+                    <span className="flex-1 text-sm font-semibold">{i.label}</span>
+                    <ChevronIcon className="h-4 w-4 shrink-0 text-slate-400" />
+                  </Link>
+                </li>
+              ),
+            )}
         </ul>
       </AppCard>
 

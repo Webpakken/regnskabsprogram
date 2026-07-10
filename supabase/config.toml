@@ -87,12 +87,9 @@ verify_jwt = false
 [functions.expense-upload-link]
 verify_jwt = false
 
-# Maria live chat + support-AI. verify_jwt=false: anonyme besøgende (marketing) skal
-# kunne kalde chat-*, og indloggede brugeres ES256-token afvises ellers i gatewayen.
-# Auth valideres internt via fetchAuthV1User hvor det er nødvendigt.
-[functions.support-maria-reply]
-verify_jwt = false
-
+# Maria live chat. verify_jwt=false: anonyme besøgende (marketing) skal kunne kalde
+# chat-*, og indloggede brugeres ES256-token afvises ellers i gatewayen. Auth
+# valideres internt via fetchAuthV1User hvor det er nødvendigt.
 [functions.chat-start]
 verify_jwt = false
 
@@ -106,4 +103,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.chat-config]
+verify_jwt = false
+
+[functions.chat-agent-notify]
 verify_jwt = false

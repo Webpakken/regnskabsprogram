@@ -51,13 +51,10 @@ import { MorePage } from '@/pages/MorePage'
 import { MinProfilePage } from '@/pages/MinProfilePage'
 import { TwoFactorChallengePage } from '@/pages/TwoFactorChallengePage'
 import { AppHelpPage } from '@/pages/AppHelpPage'
-import { SupportPage } from '@/pages/SupportPage'
 import { PlatformDashboardPage } from '@/pages/platform/PlatformDashboardPage'
 import { PlatformCompaniesPage } from '@/pages/platform/PlatformCompaniesPage'
 import { PlatformCompanyDetailPage } from '@/pages/platform/PlatformCompanyDetailPage'
-import { PlatformSupportPage } from '@/pages/platform/PlatformSupportPage'
 import { PlatformChatPage } from '@/pages/platform/PlatformChatPage'
-import { PlatformMariaPage } from '@/pages/platform/PlatformMariaPage'
 import { PlatformSettingsLayout } from '@/pages/platform/PlatformSettingsLayout'
 import { PlatformPublicSettingsLayout } from '@/pages/platform/PlatformPublicSettingsLayout'
 import { PlatformPublicContactPage } from '@/pages/platform/PlatformPublicContactPage'
@@ -70,7 +67,6 @@ import { PlatformStaffPage } from '@/pages/platform/PlatformStaffPage'
 import { PlatformSeoPage } from '@/pages/platform/PlatformSeoPage'
 import { ScrollToTop } from '@/components/ScrollToTop'
 import { CookieConsentBanner } from '@/components/CookieConsentBanner'
-import { SupportUnreadProvider } from '@/context/SupportUnreadContext'
 
 function MissingConfigPage() {
   return (
@@ -141,9 +137,10 @@ export default function App() {
               <Route path="dashboard" element={<PlatformDashboardPage />} />
               <Route path="companies" element={<PlatformCompaniesPage />} />
               <Route path="companies/:companyId" element={<PlatformCompanyDetailPage />} />
-              <Route path="support" element={<PlatformSupportPage />} />
+              {/* Support = live chat-konsollen (erstatter det gamle ticket-system).
+                  Gamle /platform/support-links (push m.m.) sendes videre hertil. */}
               <Route path="chat" element={<PlatformChatPage />} />
-              <Route path="maria" element={<PlatformMariaPage />} />
+              <Route path="support" element={<Navigate to="/platform/chat" replace />} />
               <Route path="billing" element={<PlatformBillingPlansPage />} />
               <Route path="seo" element={<PlatformSeoPage />} />
               <Route path="settings" element={<PlatformSettingsLayout />}>
@@ -181,13 +178,7 @@ export default function App() {
             <Route path="/home" element={<HomeRedirect />} />
             <Route path="/onboarding" element={<OnboardingPage />} />
             <Route path="/login/2fa" element={<TwoFactorChallengePage />} />
-            <Route
-              element={
-                <SupportUnreadProvider>
-                  <AppShell />
-                </SupportUnreadProvider>
-              }
-            >
+            <Route element={<AppShell />}>
               <Route path="/app/dashboard" element={<DashboardPage />} />
               <Route path="/app/activity" element={<ActivityLogPage />} />
               <Route path="/app/settings" element={<SettingsLayout />}>
@@ -203,7 +194,11 @@ export default function App() {
               <Route path="/app/hjaelp" element={<AppHelpPage />} />
               <Route path="/app/members" element={<MembersPage />} />
               <Route element={<RequireSubscription />}>
-                <Route path="/app/support" element={<SupportPage />} />
+                {/* Support = live chat-widgeten. Gamle links/bogmærker åbner den via ?chat=1. */}
+                <Route
+                  path="/app/support"
+                  element={<Navigate to="/app/dashboard?chat=1" replace />}
+                />
                 <Route path="/app/invoices" element={<InvoicesPage />} />
                 <Route path="/app/invoices/import" element={<ImportInvoicesPage />} />
                 <Route path="/app/invoices/new" element={<InvoiceWizardPage />} />

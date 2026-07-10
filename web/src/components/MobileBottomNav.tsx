@@ -2,7 +2,6 @@ import { useMemo, useState, type ReactElement } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { useApp } from '@/context/AppProvider'
-import { useSupportUnread } from '@/context/SupportUnreadContext'
 import { invoiceWizardFreshNavigationState } from '@/lib/invoiceWizardDraft'
 
 type IconProps = { className?: string }
@@ -130,7 +129,6 @@ function TabBadge({ count }: { count: number }) {
 export function MobileBottomNav() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const navigate = useNavigate()
-  const { unreadCount } = useSupportUnread()
   const { currentCompany } = useApp()
   const isForening = currentCompany?.entity_type === 'forening'
   const tabs = useMemo(
@@ -160,7 +158,6 @@ export function MobileBottomNav() {
               to={t.to}
               label={t.label}
               Icon={t.icon}
-              badgeCount={t.to === '/app/more' ? unreadCount : undefined}
             />
           ))}
         </nav>

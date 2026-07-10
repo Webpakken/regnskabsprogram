@@ -16,9 +16,7 @@ import { BrandMark } from '@/components/BrandMark'
 const nav = [
   { to: '/platform/dashboard', label: 'Overblik' },
   { to: '/platform/companies', label: 'Virksomheder' },
-  { to: '/platform/support', label: 'Support', notifKind: 'support' as const },
-  { to: '/platform/chat', label: 'Live chat' },
-  { to: '/platform/maria', label: 'Maria (AI)' },
+  { to: '/platform/chat', label: 'Support', notifKind: 'support' as const },
   { to: '/platform/billing', label: 'Planer', superadminOnly: true },
   { to: '/platform/seo', label: 'SEO', superadminOnly: true },
   { to: '/platform/staff', label: 'Team', superadminOnly: true },
@@ -131,7 +129,7 @@ type MobileNavItem = {
 const mobileNav: MobileNavItem[] = [
   { to: '/platform/dashboard', label: 'Overblik', icon: OverviewIcon },
   { to: '/platform/companies', label: 'Virksomheder', icon: CompaniesIcon },
-  { to: '/platform/support', label: 'Support', icon: SupportIcon, notifKind: 'support' },
+  { to: '/platform/chat', label: 'Support', icon: SupportIcon, notifKind: 'support' },
   {
     to: '/platform/settings/public/kontakt',
     label: 'Indstillinger',
