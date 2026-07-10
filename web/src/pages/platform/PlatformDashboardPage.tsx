@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { PushEnableCard } from '@/components/PushEnableCard'
 
 type Stats = {
   companies: number
@@ -68,6 +69,15 @@ export function PlatformDashboardPage() {
         <StatCard label="Aktive abonnementer" value={stats?.subscriptionsActive ?? '—'} />
         <StatCard label="Prøveperiode" value={stats?.subscriptionsTrialing ?? '—'} />
         <StatCard label="Åbne support-sager" value={stats?.ticketsOpen ?? '—'} />
+      </div>
+
+      <div className="space-y-3">
+        <h2 className="text-sm font-semibold text-slate-900">Notifikationer</h2>
+        <p className="text-sm text-slate-600">
+          Slå push til på denne enhed, så du får besked om nye kunder, support-sager og
+          abonnementer — også når appen er lukket.
+        </p>
+        <PushEnableCard />
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
