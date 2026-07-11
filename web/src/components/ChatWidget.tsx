@@ -228,8 +228,9 @@ export function ChatWidget() {
   }
 
   if (!isSupabaseConfigured) return null
-  // Kunde-support-chatten hører kun til i kunde-appen, ikke i platform-staff-området.
-  if (location.pathname.startsWith('/platform')) return null
+  // Skjul på platform-staff-området og på login/opret-siderne.
+  const hiddenOn = ['/platform', '/login', '/signup']
+  if (hiddenOn.some((p) => location.pathname.startsWith(p))) return null
 
   const renderMsg = (m: Msg) => {
     const isVisitor = m.sender === 'visitor'
@@ -266,7 +267,7 @@ export function ChatWidget() {
         <button
           onClick={() => setOpen(true)}
           aria-label="Åbn chat"
-          className="fixed bottom-20 right-4 z-[60] grid h-14 w-14 place-items-center rounded-full bg-indigo-600 text-white shadow-lg transition hover:bg-indigo-700 md:bottom-5 md:right-5"
+          className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom))] right-4 z-[60] grid h-12 w-12 place-items-center rounded-full bg-indigo-600 text-white shadow-md transition hover:bg-indigo-700 md:bottom-5 md:right-5 md:h-14 md:w-14"
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />

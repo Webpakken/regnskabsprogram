@@ -348,8 +348,17 @@ export function PlatformCompanyDetailPage() {
               <p className="py-2 text-sm text-slate-500">Intet abonnement — sandsynligvis på prøveperiode uden betaling.</p>
             )}
 
-            {/* Forlæng prøveperiode (platform-staff). */}
+            {/* Forlæng prøveperiode (platform-staff) — kun relevant for ikke-betalende kunder. */}
             {(() => {
+              // Er kunden begyndt at betale? Så er prøveperiode/forlæng irrelevant.
+              const paying =
+                sub?.status === 'active' ||
+                sub?.status === 'past_due' ||
+                billing?.subscription?.status === 'active' ||
+                (billing?.payments?.length ?? 0) > 0 ||
+                (detail?.payments?.length ?? 0) > 0
+              if (paying) return null
+
               const end = effectiveTrialEnd(company)
               const expired = end.getTime() <= Date.now()
               const daysLeft = Math.max(0, Math.ceil((end.getTime() - Date.now()) / DAY_MS))

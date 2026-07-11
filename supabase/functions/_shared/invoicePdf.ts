@@ -388,7 +388,7 @@ export function generateInvoicePdfBytes(
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(9.5)
     doc.setTextColor(40, 40, 50)
-    doc.text(paidLines, MARGIN, py)
+    doc.text(paidLines, pageW / 2, py, { align: 'center' })
   } else if (!isCreditNote) {
     // ── Betalings-blok (kun for ubetalte fakturaer) ───────────────────────
     const netDays = netCalendarDays(invoice.issue_date, invoice.due_date)
