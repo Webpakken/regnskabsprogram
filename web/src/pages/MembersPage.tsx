@@ -52,7 +52,7 @@ function activityStatus(lastActiveAt: string | null): {
 
 const ROLES: CompanyRole[] = ['owner', 'manager', 'bookkeeper', 'accountant']
 
-type MemberSortKey = 'name' | 'role' | 'added' | 'last_active'
+type MemberSortKey = 'name' | 'email' | 'role' | 'added' | 'last_active'
 type InviteSortKey = 'email' | 'role' | 'sent'
 
 function sortMembers(list: MemberRow[], key: MemberSortKey, dir: ColumnSortDir): MemberRow[] {
@@ -63,6 +63,10 @@ function sortMembers(list: MemberRow[], key: MemberSortKey, dir: ColumnSortDir):
         return (
           mul *
           String(a.full_name ?? '').localeCompare(String(b.full_name ?? ''), 'da', { sensitivity: 'base' })
+        )
+      case 'email':
+        return (
+          mul * String(a.email ?? '').localeCompare(String(b.email ?? ''), 'da', { sensitivity: 'base' })
         )
       case 'role':
         return mul * String(a.role).localeCompare(String(b.role))
@@ -160,7 +164,7 @@ export function MembersPage() {
         : Promise.resolve(),
     ])
 
-    const [membersRes, invitesRes, activityRes] = await Promise.all([
+    const [membersRes, invitesRes, activityRes, emailsRes] = await Promise.all([
       supabase
         .from('company_members')
         .select('id, user_id, role, created_at')
@@ -179,7 +183,16 @@ export function MembersPage() {
         .not('actor_id', 'is', null)
         .order('created_at', { ascending: false })
         .limit(1000),
+      supabase.rpc('list_company_member_emails', { p_company_id: currentCompany.id }),
     ])
+
+    const emailByUser = new Map<string, string | null>()
+    for (const row of (emailsRes.data ?? []) as Array<{
+      user_id: string
+      email: string | null
+    }>) {
+      emailByUser.set(row.user_id, row.email)
+    }
 
     const lastActiveByUser = new Map<string, string>()
     for (const row of (activityRes.data ?? []) as Array<{
@@ -231,6 +244,7 @@ export function MembersPage() {
           role: m.role,
           created_at: m.created_at,
           full_name: namesByUser.get(m.user_id) ?? null,
+          email: emailByUser.get(m.user_id) ?? null,
           last_active_at: lastActiveAt,
         }
       }),
@@ -418,6 +432,9 @@ export function MembersPage() {
                         {m.full_name?.trim() || 'Uden navn'}
                         {isSelf ? <span className="ml-2 text-xs text-slate-400">(dig)</span> : null}
                       </p>
+                      {m.email ? (
+                        <p className="mt-0.5 break-all text-xs text-slate-600">{m.email}</p>
+                      ) : null}
                       <p className="mt-0.5 text-xs text-slate-500">
                         Tilføjet {formatDateTime(m.created_at)}
                       </p>
@@ -476,6 +493,12 @@ export function MembersPage() {
                     onClick={() => onMemberSort('name')}
                   />
                   <SortableTh
+                    label="E-mail"
+                    isActive={memberSortKey === 'email'}
+                    direction={memberSortKey === 'email' ? memberSortDir : null}
+                    onClick={() => onMemberSort('email')}
+                  />
+                  <SortableTh
                     label="Rolle"
                     isActive={memberSortKey === 'role'}
                     direction={memberSortKey === 'role' ? memberSortDir : null}
@@ -509,6 +532,15 @@ export function MembersPage() {
                           {m.full_name?.trim() || 'Uden navn'}
                           {isSelf ? <span className="ml-2 text-xs text-slate-400">(dig)</span> : null}
                         </div>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-600">
+                        {m.email ? (
+                          <a className="break-all hover:underline" href={`mailto:${m.email}`}>
+                            {m.email}
+                          </a>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         {canManage && !isSelf ? (

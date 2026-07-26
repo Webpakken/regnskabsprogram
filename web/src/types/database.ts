@@ -1237,6 +1237,13 @@ export interface Database {
           email: string
         }[]
       }
+      list_company_member_emails: {
+        Args: { p_company_id: string }
+        Returns: {
+          user_id: string
+          email: string | null
+        }[]
+      }
       get_my_platform_role: { Args: Record<string, never>; Returns: string | null }
       ensure_platform_smtp_profiles: { Args: Record<string, never>; Returns: undefined }
       create_company_with_owner: {
