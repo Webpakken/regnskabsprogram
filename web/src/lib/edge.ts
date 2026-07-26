@@ -393,13 +393,26 @@ export type VoucherExtractionResult = {
   expense_date: string | null
   currency: string | null
   line_items: VoucherExtractionLineItem[]
+  payment_method: 'fik' | 'bank_transfer' | 'iban' | 'mobilepay' | null
+  fik_line: string | null
+  fik_card_type: string | null
+  fik_creditor_no: string | null
+  fik_payment_id: string | null
+  bank_reg_no: string | null
+  bank_account_no: string | null
+  iban: string | null
+  payment_reference: string | null
+  due_date: string | null
   confidence: number
+  /** Felter modellen selv er i tvivl om — markeres til manuel kontrol i UI. */
+  uncertain_fields: string[]
   notes: string | null
 }
 
 /**
- * Bed AI om at læse bilag-billede (Claude Haiku 4.5 vision).
- * Returnerer strukturerede felter (merchant, total, dato, moms, linjer).
+ * Bed AI om at læse bilag-billede (Claude Sonnet 5 vision).
+ * Returnerer strukturerede felter (merchant, total, dato, moms, linjer,
+ * betalingsoplysninger).
  */
 export async function invokeVoucherExtract(input: {
   imageBase64: string

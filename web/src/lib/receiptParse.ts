@@ -1,6 +1,7 @@
 /**
  * Heuristik til danske kvitteringer (REMA, Netto, osv.) — ikke 100 %, men god MVP.
  */
+import { parsePaymentDetailsFromText, type VoucherPaymentInfo } from '@/lib/paymentDetails'
 
 export type ParsedReceipt = {
   totalKr: number | null
@@ -12,6 +13,8 @@ export type ParsedReceipt = {
   lineItems: string[]
   merchantGuess: string | null
   rawSnippet: string
+  /** FIK-linje, kontonummer m.m. fundet i teksten. */
+  payment: VoucherPaymentInfo
 }
 
 function parseDanishNumber(s: string): number | null {
@@ -259,6 +262,9 @@ export function parseDanishReceiptText(ocrText: string): ParsedReceipt {
     lineItems,
     merchantGuess,
     rawSnippet: normalized.slice(0, 4000),
+    // Bevidst mod hele teksten, ikke rawSnippet: FIK-linjen står nederst på et
+    // indbetalingskort og ligger ofte efter de første 4000 tegn.
+    payment: parsePaymentDetailsFromText(normalized),
   }
 }
 

@@ -15,12 +15,24 @@ export type ExtractedVoucher = ParsedReceipt & {
   source: 'ai' | 'ocr-heuristic'
   /** AI-confidence (0-1) hvis source=ai. */
   confidence: number | null
+  /** Felter modellen selv flaggede som usikre — markeres til kontrol i UI. */
+  uncertainFields: string[]
   /** AI-noter (forbehold). */
   aiNotes: string | null
 }
 
-/** Maks længste kant ved upload til AI — holder token-cost lavt. */
-const AI_MAX_DIMENSION = 1024
+/**
+ * Maks længste kant ved upload til AI.
+ *
+ * Var 1024 px, hvilket gjorde en lang kvittering ca. 340 px bred — for lidt til
+ * at aflæse cifre pålideligt, og hovedårsagen til forkerte beløb og datoer.
+ * Sonnet 5 læser op til 2576 px; 1800 rammer balancen mellem læsbarhed og
+ * token-pris (≈ 1700-3200 billed-tokens afhængigt af format).
+ */
+const AI_MAX_DIMENSION = 1800
+
+/** Højere end 0.85: JPEG-artefakter omkring små cifre kostede læsbarhed. */
+const AI_JPEG_QUALITY = 0.92
 
 function aiToParsedReceipt(ai: VoucherExtractionResult): ExtractedVoucher {
   return {
@@ -35,7 +47,20 @@ function aiToParsedReceipt(ai: VoucherExtractionResult): ExtractedVoucher {
     rawSnippet: ai.notes ?? '',
     source: 'ai',
     confidence: ai.confidence,
+    uncertainFields: ai.uncertain_fields ?? [],
     aiNotes: ai.notes,
+    payment: {
+      paymentMethod: ai.payment_method,
+      fikLine: ai.fik_line,
+      fikCardType: ai.fik_card_type,
+      fikCreditorNo: ai.fik_creditor_no,
+      fikPaymentId: ai.fik_payment_id,
+      bankRegNo: ai.bank_reg_no,
+      bankAccountNo: ai.bank_account_no,
+      iban: ai.iban,
+      paymentReference: ai.payment_reference,
+      dueDate: ai.due_date,
+    },
   }
 }
 
@@ -44,6 +69,7 @@ function tesseractToParsed(parsed: ParsedReceipt): ExtractedVoucher {
     ...parsed,
     source: 'ocr-heuristic',
     confidence: null,
+    uncertainFields: [],
     aiNotes: null,
   }
 }
@@ -54,7 +80,7 @@ async function canvasToJpegBase64(canvas: HTMLCanvasElement): Promise<{
 }> {
   const scaled = downscaleToCanvas(canvas, AI_MAX_DIMENSION, AI_MAX_DIMENSION)
   const blob = await new Promise<Blob | null>((res) =>
-    scaled.toBlob((b) => res(b), 'image/jpeg', 0.85),
+    scaled.toBlob((b) => res(b), 'image/jpeg', AI_JPEG_QUALITY),
   )
   if (!blob) throw new Error('Kunne ikke konvertere canvas til JPEG')
   const base64 = await blobToBase64(blob)

@@ -13,7 +13,14 @@ import { formatParsedNotes } from '@/lib/receiptParse'
 import { canAttemptVoucherOcr } from '@/lib/voucherOcr'
 import { extractVoucherFromFile } from '@/lib/voucherExtractClient'
 import { inferVoucherCategory } from '@/lib/voucherCategories'
+import { EMPTY_PAYMENT_INFO, type VoucherPaymentInfo } from '@/lib/paymentDetails'
 import { expenseLinkUrl, randomExpenseLinkToken, sha256Hex, sha256HexFromFile } from '@/lib/expenseLinks'
+import {
+  BANK_REFERENCE_MAX_LENGTH,
+  buildRefundReference,
+  formatVoucherNumber,
+  parseVoucherNumberQuery,
+} from '@/lib/voucherNumber'
 import {
   ButtonSpinner,
   useStripeCheckoutLauncher,
@@ -43,9 +50,10 @@ function shiftYmd(ymd: string, days: number): string {
 const VOUCHERS_VIEW_KEY = 'bilago:vouchersDesktopView'
 const VOUCHERS_SORT_KEY = 'bilago:vouchersSort'
 
-type VoucherSortKey = 'date' | 'title' | 'category' | 'project' | 'gross' | 'vat'
+type VoucherSortKey = 'number' | 'date' | 'title' | 'category' | 'project' | 'gross' | 'vat'
 
 const VOUCHER_SORT_KEYS: ReadonlyArray<VoucherSortKey> = [
+  'number',
   'date',
   'title',
   'category',
@@ -90,7 +98,38 @@ function isVoucherProjectSchemaError(error: { message?: string; code?: string } 
 
 const VOUCHER_PAGE_SIZE = 25
 
+/**
+ * "Forfalder snart" dækker en måned frem plus alt der allerede er forfaldent.
+ * Rammer det partielle indeks vouchers_due_date_idx (company_id, due_date).
+ */
+const DUE_SOON_HORIZON_DAYS = 30
+const DUE_SOON_LIMIT = 25
+
+type DueSoonVoucher = {
+  id: string
+  voucher_number: number
+  title: string | null
+  gross_cents: number
+  due_date: string
+}
+
+/** Hele dage fra `from` til `to`; negativ når `to` ligger i fortiden. */
+function daysBetweenYmd(from: string, to: string): number {
+  const [fy, fm, fd] = from.split('-').map(Number)
+  const [ty, tm, td] = to.split('-').map(Number)
+  return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86_400_000)
+}
+
+function dueLabel(dueDate: string, today: string): string {
+  const days = daysBetweenYmd(today, dueDate)
+  if (days < 0) return `${Math.abs(days)} ${Math.abs(days) === 1 ? 'dag' : 'dage'} forsinket`
+  if (days === 0) return 'Forfalder i dag'
+  if (days === 1) return 'Forfalder i morgen'
+  return `Om ${days} dage`
+}
+
 const VOUCHER_SORT_COLUMN: Record<VoucherSortKey, string> = {
+  number: 'voucher_number',
   date: 'expense_date',
   title: 'title',
   category: 'category',
@@ -102,6 +141,14 @@ const VOUCHER_SORT_COLUMN: Record<VoucherSortKey, string> = {
 /** Escape brugerinput så det ikke ødelægger PostgREST `or()`-syntaksen. */
 function sanitizeIlikeQuery(input: string): string {
   return input.replace(/[%,()*]/g, ' ').trim()
+}
+
+/**
+ * Til et enkeltstående `ilike`-filter (ikke inde i `or()`), hvor komma er lovligt.
+ * Betalingsreferencer indeholder komma — «Bilag 42,43,51» — så de må ikke strippes.
+ */
+function sanitizeStandaloneIlike(input: string): string {
+  return input.replace(/[%*]/g, ' ').trim()
 }
 
 export function VouchersPage() {
@@ -117,8 +164,24 @@ export function VouchersPage() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [projects, setProjects] = useState<VoucherProject[]>([])
   const [reimbursements, setReimbursements] = useState<Reimbursement[]>([])
+  // Bilagsdata for de udlæg der endnu ikke er afsluttet. Udlæg hentes for hele
+  // virksomheden, mens `rows` er pagineret — derfor et separat opslag, så
+  // refunderingspanelet altid kan vise nummer og beløb.
+  const [openReimbursementVouchers, setOpenReimbursementVouchers] = useState<
+    Record<string, { voucher_number: number; gross_cents: number; title: string | null }>
+  >({})
+  // Ubetalte regninger med forfaldsdato. Hentes separat fra `rows`, som er
+  // pagineret og sorteret efter brugerens valg — panelet skal vise de mest
+  // hastende uanset hvilken side af listen man står på.
+  const [dueSoon, setDueSoon] = useState<DueSoonVoucher[]>([])
+  const [dueSoonOpen, setDueSoonOpen] = useState(true)
+  const [refundingGroupKey, setRefundingGroupKey] = useState<string | null>(null)
+  const [copiedRefundKey, setCopiedRefundKey] = useState<string | null>(null)
+  const [refundPanelOpen, setRefundPanelOpen] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  // Bilag fundet via en udlægs-betalingsreference — se effekten længere nede.
+  const [referenceMatchIds, setReferenceMatchIds] = useState<string[]>([])
   const [projectFilter, setProjectFilter] = useState<'all' | 'none' | string>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | 'unpaid'>('all')
   const [newProjectName, setNewProjectName] = useState('')
@@ -149,6 +212,11 @@ export function VouchersPage() {
   const [projectOverviewOpen, setProjectOverviewOpen] = useState(false)
 
   const canDeleteVoucher = canWriterDeleteVouchers(currentRole)
+  const todayYmd = todayIso()
+  const overdueCount = dueSoon.filter((v) => daysBetweenYmd(todayYmd, v.due_date) < 0).length
+  // Samme roller som RLS-policyen for skrivning på voucher_reimbursements.
+  const canManageReimbursements =
+    currentRole === 'owner' || currentRole === 'manager' || currentRole === 'bookkeeper'
   const featureGateKnown = billingEntitlements.length > 0
   const canUseVoucherProjects = !featureGateKnown || canUse('voucher_projects')
   const canUseExpenseLinks = !featureGateKnown || canUse('expense_links')
@@ -172,6 +240,34 @@ export function VouchersPage() {
     }
   }, [sortKey, sortDir])
 
+  /**
+   * Slår søgeteksten op som betalingsreference på udlæg. Klistrer man teksten fra
+   * en banktransaktion ind — fx «Bilag 42,43,51 +6» — findes alle bilag i den
+   * overførsel, også de seks der ikke kunne være i bankens tegnbegrænsede felt.
+   */
+  useEffect(() => {
+    if (!currentCompany) return
+    const needle = sanitizeStandaloneIlike(debouncedSearch)
+    if (!needle) {
+      setReferenceMatchIds([])
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      const { data } = await supabase
+        .from('voucher_reimbursements')
+        .select('voucher_id')
+        .eq('company_id', currentCompany.id)
+        .ilike('refund_reference', `%${needle}%`)
+        .limit(200)
+      if (cancelled) return
+      setReferenceMatchIds((data ?? []).map((r) => r.voucher_id))
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [debouncedSearch, currentCompany])
+
   const buildVoucherQuery = useCallback(
     (offset: number, limit: number) => {
       if (!currentCompany) return null
@@ -181,9 +277,19 @@ export function VouchersPage() {
         .eq('company_id', currentCompany.id)
       const safe = sanitizeIlikeQuery(debouncedSearch)
       if (safe) {
-        q = q.or(
-          `title.ilike.%${safe}%,filename.ilike.%${safe}%,category.ilike.%${safe}%,notes.ilike.%${safe}%`,
-        )
+        const filters = [
+          `title.ilike.%${safe}%`,
+          `filename.ilike.%${safe}%`,
+          `category.ilike.%${safe}%`,
+          `notes.ilike.%${safe}%`,
+        ]
+        // «42», «0042» og «bilag 42» skal finde bilagsnummeret.
+        const number = parseVoucherNumberQuery(safe)
+        if (number !== null) filters.push(`voucher_number.eq.${number}`)
+        if (referenceMatchIds.length > 0) {
+          filters.push(`id.in.(${referenceMatchIds.join(',')})`)
+        }
+        q = q.or(filters.join(','))
       }
       if (projectFilter === 'none') {
         q = q.is('voucher_project_id', null)
@@ -200,7 +306,15 @@ export function VouchersPage() {
       q = q.order('id', { ascending: false })
       return q.range(offset, offset + limit - 1)
     },
-    [currentCompany, debouncedSearch, projectFilter, statusFilter, sortKey, sortDir],
+    [
+      currentCompany,
+      debouncedSearch,
+      referenceMatchIds,
+      projectFilter,
+      statusFilter,
+      sortKey,
+      sortDir,
+    ],
   )
 
   // Hent første side + sideforløb-data (projekter, refusioner) når deps ændres.
@@ -211,7 +325,7 @@ export function VouchersPage() {
       setLoading(true)
       setError(null)
       const query = buildVoucherQuery(0, VOUCHER_PAGE_SIZE)
-      const [voucherRes, projectRes, reimbursementRes] = await Promise.all([
+      const [voucherRes, projectRes, reimbursementRes, dueSoonRes] = await Promise.all([
         query,
         supabase
           .from('voucher_projects')
@@ -224,8 +338,24 @@ export function VouchersPage() {
           .select('*')
           .eq('company_id', currentCompany.id)
           .order('created_at', { ascending: false }),
+        supabase
+          .from('vouchers')
+          .select('id, voucher_number, title, gross_cents, due_date')
+          .eq('company_id', currentCompany.id)
+          .eq('payment_status', 'unpaid')
+          .not('due_date', 'is', null)
+          .lte('due_date', shiftYmd(todayIso(), DUE_SOON_HORIZON_DAYS))
+          .order('due_date', { ascending: true })
+          .limit(DUE_SOON_LIMIT),
       ])
       if (cancelled) return
+      // Kolonnen er nullable i skemaet, men filtret ovenfor har allerede
+      // sorteret null'erne fra — narrow så panelet slipper for guards.
+      setDueSoon(
+        (dueSoonRes.data ?? []).filter(
+          (v): v is DueSoonVoucher => typeof v.due_date === 'string',
+        ),
+      )
       if (voucherRes?.error) {
         setError(voucherRes.error.message)
       }
@@ -234,7 +364,29 @@ export function VouchersPage() {
       setRows(data)
       setTotalCount(count)
       setHasMore(data.length < count)
-      setReimbursements(reimbursementRes.data ?? [])
+      const allReimbursements = reimbursementRes.data ?? []
+      setReimbursements(allReimbursements)
+      const openVoucherIds = allReimbursements
+        .filter((r) => r.status === 'pending_approval' || r.status === 'ready_for_refund')
+        .map((r) => r.voucher_id)
+      if (openVoucherIds.length > 0) {
+        const { data: refundVouchers } = await supabase
+          .from('vouchers')
+          .select('id, voucher_number, gross_cents, title')
+          .eq('company_id', currentCompany.id)
+          .in('id', openVoucherIds)
+        if (cancelled) return
+        setOpenReimbursementVouchers(
+          Object.fromEntries(
+            (refundVouchers ?? []).map((v) => [
+              v.id,
+              { voucher_number: v.voucher_number, gross_cents: v.gross_cents, title: v.title },
+            ]),
+          ),
+        )
+      } else {
+        setOpenReimbursementVouchers({})
+      }
       if (isVoucherProjectSchemaError(projectRes.error)) {
         setProjectFeatureUnavailable(true)
         setProjects([])
@@ -393,6 +545,70 @@ export function VouchersPage() {
     return new Map(reimbursements.map((r) => [r.voucher_id, r]))
   }, [reimbursements])
 
+  const voucherNumberById = useCallback(
+    (voucherId: string): number | null => {
+      const loaded = rows.find((r) => r.id === voucherId)
+      if (loaded) return loaded.voucher_number
+      return openReimbursementVouchers[voucherId]?.voucher_number ?? null
+    },
+    [rows, openReimbursementVouchers],
+  )
+
+  /**
+   * Udlæg klar til refundering, grupperet pr. modtager + konto, så flere bilag
+   * til samme person kan betales i én overførsel.
+   */
+  const refundGroups = useMemo(() => {
+    const groups = new Map<
+      string,
+      {
+        key: string
+        name: string
+        regNumber: string | null
+        accountNumber: string | null
+        items: Array<{ reimbursement: Reimbursement; number: number | null; gross: number }>
+        total: number
+      }
+    >()
+    for (const r of reimbursements) {
+      if (r.status !== 'ready_for_refund') continue
+      const info = openReimbursementVouchers[r.voucher_id]
+      const reg = r.bank_reg_number?.trim() ?? ''
+      const account = r.bank_account_number?.trim() ?? ''
+      // Uden kontonummer er navnet det eneste vi har, og to forskellige
+      // personer kan hedde det samme. Så slår vi dem ikke sammen — en samlet
+      // overførsel til den forkerte konto er dyrere end to separate.
+      const key = account
+        ? [r.requester_name.trim().toLowerCase(), reg, account].join('|')
+        : `no-account|${r.id}`
+      const group =
+        groups.get(key) ??
+        {
+          key,
+          name: r.requester_name.trim(),
+          regNumber: r.bank_reg_number,
+          accountNumber: r.bank_account_number,
+          items: [],
+          total: 0,
+        }
+      group.items.push({
+        reimbursement: r,
+        number: info?.voucher_number ?? null,
+        gross: Number(info?.gross_cents ?? 0),
+      })
+      group.total += Number(info?.gross_cents ?? 0)
+      groups.set(key, group)
+    }
+    return Array.from(groups.values())
+      .map((group) => {
+        const items = [...group.items].sort((a, b) => (a.number ?? 0) - (b.number ?? 0))
+        return { ...group, items, reference: buildRefundReference(items.map((i) => i.number)) }
+      })
+      .sort((a, b) => b.total - a.total)
+  }, [reimbursements, openReimbursementVouchers])
+
+  type RefundGroup = (typeof refundGroups)[number]
+
   // Server-side search/filter/sort: rækkerne i `rows` er allerede filtreret + sorteret.
   // Vi bevarer client-side `voucherTotals` over indlæste rækker; viser "X af Y" hvis flere venter.
   const voucherTotals = useMemo(() => {
@@ -462,11 +678,13 @@ export function VouchersPage() {
     let vatRateForDb = '25'
     let notesForDb: string | null = null
     let categoryForDb: string | null = inferVoucherCategory(file.name)
+    let paymentForDb: VoucherPaymentInfo = EMPTY_PAYMENT_INFO
 
     if (canOcr) {
       try {
         const parsed = await extractVoucherFromFile(file, (p) => setOcrProgress(p))
         notesForDb = formatParsedNotes(parsed)
+        paymentForDb = parsed.payment
         titleForDb = parsed.merchantGuess ?? titleForDb
         categoryForDb =
           inferVoucherCategory(
@@ -551,6 +769,16 @@ export function VouchersPage() {
       vat_rate: rate,
       file_hash: fileHash,
       possible_duplicate_of: possibleDuplicateOf,
+      payment_method: paymentForDb.paymentMethod,
+      fik_line: paymentForDb.fikLine,
+      fik_card_type: paymentForDb.fikCardType,
+      fik_creditor_no: paymentForDb.fikCreditorNo,
+      fik_payment_id: paymentForDb.fikPaymentId,
+      bank_reg_no: paymentForDb.bankRegNo,
+      bank_account_no: paymentForDb.bankAccountNo,
+      iban: paymentForDb.iban,
+      payment_reference: paymentForDb.paymentReference,
+      due_date: paymentForDb.dueDate,
     }
     if (!projectFeatureUnavailable) {
       voucherInsert.voucher_project_id = null
@@ -660,8 +888,20 @@ export function VouchersPage() {
     if (!currentCompany) return
     const previous = reimbursements
     const previousRows = rows
+    const now = new Date().toISOString()
+    // Referencen gør transaktionen i banken sporbar tilbage til bilaget.
+    const refund =
+      status === 'refunded'
+        ? {
+            // Tom streng ville ryge i det partielle indeks og vises som en
+            // betalingstekst der ikke findes — null er det ærlige svar.
+            refund_reference:
+              buildRefundReference([voucherNumberById(reimbursement.voucher_id)]) || null,
+            refunded_at: now,
+          }
+        : { refund_reference: null, refunded_at: null }
     setReimbursements((prev) =>
-      prev.map((row) => (row.id === reimbursement.id ? { ...row, status } : row)),
+      prev.map((row) => (row.id === reimbursement.id ? { ...row, status, ...refund } : row)),
     )
     // Refundering af et udlæg ER betalingen af bilaget — hold de to i sync.
     const payment: { payment_status: 'paid' | 'unpaid'; paid_date: string | null } =
@@ -673,7 +913,7 @@ export function VouchersPage() {
     )
     const { error: statusErr } = await supabase
       .from('voucher_reimbursements')
-      .update({ status, updated_at: new Date().toISOString() })
+      .update({ status, ...refund, updated_at: now })
       .eq('id', reimbursement.id)
     if (statusErr) {
       setReimbursements(previous)
@@ -687,6 +927,65 @@ export function VouchersPage() {
       .eq('id', reimbursement.voucher_id)
       .eq('company_id', currentCompany.id)
     if (payErr) setError(payErr.message)
+  }
+
+  async function copyRefundReference(group: RefundGroup) {
+    if (!group.reference) return
+    await navigator.clipboard?.writeText(group.reference)
+    setCopiedRefundKey(group.key)
+    window.setTimeout(() => setCopiedRefundKey((key) => (key === group.key ? null : key)), 2000)
+  }
+
+  /** Markér alle udlæg i gruppen som refunderet — én bankoverførsel, ét klik. */
+  async function refundGroup(group: RefundGroup) {
+    if (!currentCompany || refundingGroupKey) return
+    setRefundingGroupKey(group.key)
+    setError(null)
+    const reimbursementIds = group.items.map((i) => i.reimbursement.id)
+    const voucherIds = group.items.map((i) => i.reimbursement.voucher_id)
+    const now = new Date().toISOString()
+    const previous = reimbursements
+    const previousRows = rows
+    const payment = { payment_status: 'paid' as const, paid_date: todayIso() }
+
+    setReimbursements((prev) =>
+      prev.map((row) =>
+        reimbursementIds.includes(row.id)
+          ? {
+              ...row,
+              status: 'refunded' as const,
+              refund_reference: group.reference || null,
+              refunded_at: now,
+            }
+          : row,
+      ),
+    )
+    setRows((prev) => prev.map((row) => (voucherIds.includes(row.id) ? { ...row, ...payment } : row)))
+
+    const { error: statusErr } = await supabase
+      .from('voucher_reimbursements')
+      .update({
+        status: 'refunded',
+        refund_reference: group.reference || null,
+        refunded_at: now,
+        updated_at: now,
+      })
+      .in('id', reimbursementIds)
+      .eq('company_id', currentCompany.id)
+    if (statusErr) {
+      setReimbursements(previous)
+      setRows(previousRows)
+      setError(statusErr.message)
+      setRefundingGroupKey(null)
+      return
+    }
+    const { error: payErr } = await supabase
+      .from('vouchers')
+      .update(payment)
+      .in('id', voucherIds)
+      .eq('company_id', currentCompany.id)
+    if (payErr) setError(payErr.message)
+    setRefundingGroupKey(null)
   }
 
   async function uploadVoucherFiles(files: File[]) {
@@ -926,7 +1225,7 @@ export function VouchersPage() {
             type="search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Søg efter titel, fil, kategori, event, beløb, dato …"
+            placeholder="Søg efter bilagsnummer, titel, fil, kategori, event, dato …"
             className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 md:flex-1"
             autoComplete="off"
           />
@@ -1094,6 +1393,159 @@ export function VouchersPage() {
         </div>
       ) : null}
 
+      {dueSoon.length > 0 ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <h3 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-amber-950">
+                Forfalder snart ({dueSoon.length})
+                {overdueCount > 0 ? (
+                  <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-800">
+                    {overdueCount} forsinket
+                  </span>
+                ) : null}
+              </h3>
+              <p className="mt-0.5 text-xs text-amber-900/80">
+                Ubetalte regninger med forfald inden for {DUE_SOON_HORIZON_DAYS} dage. Åbn
+                bilaget for at kopiere betalingsoplysningerne over i netbanken.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDueSoonOpen((open) => !open)}
+              className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-50"
+            >
+              {dueSoonOpen ? 'Skjul' : 'Vis'}
+            </button>
+          </div>
+
+          {dueSoonOpen ? (
+            <ul className="mt-3 space-y-1.5">
+              {dueSoon.map((v) => {
+                const overdue = daysBetweenYmd(todayYmd, v.due_date) < 0
+                return (
+                  <li key={v.id}>
+                    <Link
+                      to={`/app/vouchers/${v.id}`}
+                      className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-white px-3 py-2 transition hover:border-indigo-300 hover:bg-indigo-50/40"
+                    >
+                      <span className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-slate-700">
+                        {formatVoucherNumber(v.voucher_number)}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm text-slate-900">
+                        {v.title ?? 'Uden titel'}
+                      </span>
+                      <span
+                        className={`text-xs font-semibold ${
+                          overdue ? 'text-rose-700' : 'text-amber-900'
+                        }`}
+                      >
+                        {dueLabel(v.due_date, todayYmd)}
+                      </span>
+                      <span className="text-sm font-semibold tabular-nums text-slate-900">
+                        {formatDkk(v.gross_cents)}
+                      </span>
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+
+      {refundGroups.length > 0 && canManageReimbursements ? (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-semibold text-emerald-950">
+                Klar til refundering ({refundGroups.length}{' '}
+                {refundGroups.length === 1 ? 'person' : 'personer'})
+              </h3>
+              <p className="mt-0.5 text-xs text-emerald-900/80">
+                Betal ét samlet beløb pr. person, skriv bilagsnumrene i bankens tekstfelt, og
+                markér alle bilagene som refunderet på én gang.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setRefundPanelOpen((open) => !open)}
+              className="rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-50"
+            >
+              {refundPanelOpen ? 'Skjul' : 'Vis'}
+            </button>
+          </div>
+
+          {refundPanelOpen ? (
+            <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              {refundGroups.map((group) => (
+                <div key={group.key} className="rounded-xl border border-emerald-200 bg-white p-3">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="text-sm font-semibold text-slate-900">{group.name}</span>
+                    <span className="text-sm font-semibold text-slate-900">
+                      {formatDkk(group.total)}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-slate-600">
+                    {group.regNumber || group.accountNumber
+                      ? `Reg. ${group.regNumber ?? '—'} / Konto ${group.accountNumber ?? '—'}`
+                      : 'Ingen konto angivet'}
+                    {' · '}
+                    {group.items.length} bilag
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {group.items.map((item) => (
+                      <Link
+                        key={item.reimbursement.id}
+                        to={`/app/vouchers/${item.reimbursement.voucher_id}`}
+                        className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-medium text-slate-700 hover:bg-indigo-100 hover:text-indigo-800"
+                        title={`${formatDkk(item.gross)} — åbn bilag`}
+                      >
+                        {formatVoucherNumber(item.number)}
+                      </Link>
+                    ))}
+                  </div>
+                  <div className="mt-3">
+                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Tekst til modtager i banken
+                    </span>
+                    <div className="mt-1 flex gap-2">
+                      <input
+                        readOnly
+                        aria-label={`Betalingstekst til ${group.name}`}
+                        value={group.reference}
+                        onFocus={(e) => e.currentTarget.select()}
+                        className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 font-mono text-xs text-slate-800"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void copyRefundReference(group)}
+                        className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        {copiedRefundKey === group.key ? 'Kopieret' : 'Kopiér'}
+                      </button>
+                    </div>
+                  </div>
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Maks. {BANK_REFERENCE_MAX_LENGTH} tegn — banken afkorter længere tekst.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={refundingGroupKey === group.key}
+                    onClick={() => void refundGroup(group)}
+                    className="mt-3 min-h-[44px] w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {refundingGroupKey === group.key
+                      ? 'Markerer…'
+                      : `Markér ${group.items.length} bilag som refunderet`}
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       <div
         className={`grid grid-cols-1 gap-3 ${desktopView === 'list' ? 'md:hidden' : 'md:grid-cols-2 lg:grid-cols-3'}`}
       >
@@ -1131,8 +1583,13 @@ export function VouchersPage() {
                 {isForening ? (
                   <>
                     <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                      <span className="font-medium uppercase tracking-wide text-slate-500">
-                        {dateStr}
+                      <span className="flex items-center gap-2">
+                        <span className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-slate-700">
+                          {formatVoucherNumber(v.voucher_number)}
+                        </span>
+                        <span className="font-medium uppercase tracking-wide text-slate-500">
+                          {dateStr}
+                        </span>
                       </span>
                       <div className="flex flex-wrap items-center justify-end gap-2">
                         {v.payment_status === 'unpaid' ? (
@@ -1175,9 +1632,16 @@ export function VouchersPage() {
                       <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-950">
                         <div className="font-semibold">Udlæg: {reimbursement.requester_name}</div>
                         {reimbursement.status === 'refunded' ? (
-                          <span className="mt-2 inline-flex rounded-full bg-emerald-200/70 px-2 py-0.5 text-[11px] font-semibold text-emerald-900">
-                            {reimbursementStatusLabels.refunded}
-                          </span>
+                          <div className="mt-2">
+                            <span className="inline-flex rounded-full bg-emerald-200/70 px-2 py-0.5 text-[11px] font-semibold text-emerald-900">
+                              {reimbursementStatusLabels.refunded}
+                            </span>
+                            {reimbursement.refund_reference ? (
+                              <div className="mt-1 font-mono text-[11px] text-emerald-900/80">
+                                {reimbursement.refund_reference}
+                              </div>
+                            ) : null}
+                          </div>
                         ) : (
                           <select
                             value={reimbursement.status}
@@ -1231,8 +1695,13 @@ export function VouchersPage() {
                 ) : (
                   <>
                     <div className="flex items-start justify-between gap-2">
-                      <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                        {dateStr}
+                      <span className="flex items-center gap-2 text-xs">
+                        <span className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-slate-700">
+                          {formatVoucherNumber(v.voucher_number)}
+                        </span>
+                        <span className="font-medium uppercase tracking-wide text-slate-500">
+                          {dateStr}
+                        </span>
                       </span>
                       {v.gross_cents ? (
                         <span className="text-sm font-semibold text-slate-900">
@@ -1249,9 +1718,16 @@ export function VouchersPage() {
                       <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-950">
                         <div className="font-semibold">Udlæg: {reimbursement.requester_name}</div>
                         {reimbursement.status === 'refunded' ? (
-                          <span className="mt-2 inline-flex rounded-full bg-emerald-200/70 px-2 py-0.5 text-[11px] font-semibold text-emerald-900">
-                            {reimbursementStatusLabels.refunded}
-                          </span>
+                          <div className="mt-2">
+                            <span className="inline-flex rounded-full bg-emerald-200/70 px-2 py-0.5 text-[11px] font-semibold text-emerald-900">
+                              {reimbursementStatusLabels.refunded}
+                            </span>
+                            {reimbursement.refund_reference ? (
+                              <div className="mt-1 font-mono text-[11px] text-emerald-900/80">
+                                {reimbursement.refund_reference}
+                              </div>
+                            ) : null}
+                          </div>
                         ) : (
                           <select
                             value={reimbursement.status}
@@ -1336,6 +1812,12 @@ export function VouchersPage() {
           <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
             <tr>
               <SortableTh
+                label="Bilag"
+                isActive={sortKey === 'number'}
+                direction={sortKey === 'number' ? sortDir : null}
+                onClick={() => onSortColumn('number')}
+              />
+              <SortableTh
                 label="Dato"
                 isActive={sortKey === 'date'}
                 direction={sortKey === 'date' ? sortDir : null}
@@ -1382,13 +1864,13 @@ export function VouchersPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={isForening ? 7 : 8} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={isForening ? 8 : 9} className="px-4 py-8 text-center text-slate-500">
                   Indlæser…
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={isForening ? 7 : 8} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={isForening ? 8 : 9} className="px-4 py-8 text-center text-slate-500">
                   {debouncedSearch || projectFilter !== 'all' || statusFilter !== 'all'
                     ? 'Ingen bilag matcher søgningen.'
                     : 'Ingen bilag endnu.'}
@@ -1404,6 +1886,9 @@ export function VouchersPage() {
                   onClick={() => openVoucher(v)}
                   className="cursor-pointer border-t border-slate-100 transition hover:bg-indigo-50/40"
                 >
+                  <td className="whitespace-nowrap px-4 py-3 font-mono text-xs font-semibold text-slate-700">
+                    {formatVoucherNumber(v.voucher_number)}
+                  </td>
                   <td className="px-4 py-3 text-slate-600">
                     {v.expense_date
                       ? formatDateOnly(v.expense_date)
@@ -1460,9 +1945,16 @@ export function VouchersPage() {
                           </div>
                         ) : null}
                         {reimbursement.status === 'refunded' ? (
-                          <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
-                            {reimbursementStatusLabels.refunded}
-                          </span>
+                          <div>
+                            <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+                              {reimbursementStatusLabels.refunded}
+                            </span>
+                            {reimbursement.refund_reference ? (
+                              <div className="mt-1 font-mono text-[11px] text-slate-500">
+                                {reimbursement.refund_reference}
+                              </div>
+                            ) : null}
+                          </div>
                         ) : (
                           <select
                             value={reimbursement.status}

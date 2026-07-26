@@ -2,10 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AppPageLayout } from '@/components/AppPageLayout'
 import { InvoicePdfCanvasViewer } from '@/components/InvoicePdfCanvasViewer'
+import { PaymentDetailsCard } from '@/components/PaymentDetailsCard'
 import { VOUCHER_CATEGORY_OPTIONS } from '@/lib/voucherCategories'
+import type { VoucherPaymentInfo } from '@/lib/paymentDetails'
 import { supabase } from '@/lib/supabase'
 import { useApp } from '@/context/AppProvider'
 import { formatDkk } from '@/lib/format'
+import { buildRefundReference, formatVoucherNumber } from '@/lib/voucherNumber'
 import type { CompanyRole, Database } from '@/types/database'
 
 type Voucher = Database['public']['Tables']['vouchers']['Row']
@@ -26,6 +29,20 @@ type VoucherEditableFields = Pick<
   | 'voucher_type'
   | 'payment_status'
   | 'paid_date'
+>
+
+type VoucherPaymentFields = Pick<
+  Voucher,
+  | 'payment_method'
+  | 'fik_line'
+  | 'fik_card_type'
+  | 'fik_creditor_no'
+  | 'fik_payment_id'
+  | 'bank_reg_no'
+  | 'bank_account_no'
+  | 'iban'
+  | 'payment_reference'
+  | 'due_date'
 >
 
 const reimbursementStatusLabels: Record<ReimbursementStatus, string> = {
@@ -57,6 +74,38 @@ function todayDateInput(): string {
   return `${d.getFullYear()}-${mm < 10 ? '0' + mm : mm}-${dd < 10 ? '0' + dd : dd}`
 }
 
+/** Formen `PaymentDetailsCard` returnerer → kolonnerne på vouchers. */
+function toPaymentColumns(p: VoucherPaymentInfo): VoucherPaymentFields {
+  return {
+    payment_method: p.paymentMethod,
+    fik_line: p.fikLine,
+    fik_card_type: p.fikCardType,
+    fik_creditor_no: p.fikCreditorNo,
+    fik_payment_id: p.fikPaymentId,
+    bank_reg_no: p.bankRegNo,
+    bank_account_no: p.bankAccountNo,
+    iban: p.iban,
+    payment_reference: p.paymentReference,
+    due_date: p.dueDate,
+  }
+}
+
+/** Kolonnerne på vouchers → formen `PaymentDetailsCard` forventer. */
+function toPaymentInfo(v: Voucher): VoucherPaymentInfo {
+  return {
+    paymentMethod: v.payment_method,
+    fikLine: v.fik_line,
+    fikCardType: v.fik_card_type,
+    fikCreditorNo: v.fik_creditor_no,
+    fikPaymentId: v.fik_payment_id,
+    bankRegNo: v.bank_reg_no,
+    bankAccountNo: v.bank_account_no,
+    iban: v.iban,
+    paymentReference: v.payment_reference,
+    dueDate: v.due_date,
+  }
+}
+
 function canDelete(role: CompanyRole | null) {
   return role === 'owner' || role === 'manager' || role === 'bookkeeper'
 }
@@ -75,6 +124,7 @@ export function VoucherDetailPage() {
   const [siblingIds, setSiblingIds] = useState<string[]>([])
   const lockedUntil = currentCompany?.accounting_locked_until ?? null
   const isLocked = Boolean(voucher && lockedUntil && voucher.expense_date <= lockedUntil)
+  const voucherPayment = voucher ? toPaymentInfo(voucher) : null
   const [projects, setProjects] = useState<VoucherProject[]>([])
   const [reimbursement, setReimbursement] = useState<Reimbursement | null>(null)
   const [url, setUrl] = useState<string | null>(null)
@@ -93,6 +143,7 @@ export function VoucherDetailPage() {
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'unpaid'>('paid')
   const [paidDate, setPaidDate] = useState('')
   const [saving, setSaving] = useState(false)
+  const [savingPayment, setSavingPayment] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [formMessage, setFormMessage] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -333,6 +384,30 @@ export function VoucherDetailPage() {
     setFormMessage('Gemt.')
   }
 
+  /**
+   * Gemmes med det samme frem for via autosave-timeren: brugeren har trykket
+   * «Gem» i kortet, og betalingsfelterne indgår ikke i `dirty`-sporingen.
+   */
+  async function savePaymentDetails(next: VoucherPaymentInfo) {
+    if (!voucher || !currentCompany) return
+    setFormError(null)
+    setFormMessage(null)
+    const updates = toPaymentColumns(next)
+    setSavingPayment(true)
+    const { error } = await supabase
+      .from('vouchers')
+      .update(updates)
+      .eq('id', voucher.id)
+      .eq('company_id', currentCompany.id)
+    setSavingPayment(false)
+    if (error) {
+      setFormError(error.message)
+      return
+    }
+    setVoucher({ ...voucher, ...updates })
+    setFormMessage('Betalingsoplysninger gemt.')
+  }
+
   // Autosave: når et felt er ændret, gem efter 800ms uden ny tastetryk.
   useEffect(() => {
     if (!dirty || saving) return
@@ -353,15 +428,25 @@ export function VoucherDetailPage() {
 
   async function updateReimbursementStatus(status: ReimbursementStatus) {
     if (!reimbursement || !currentCompany || !voucher) return
-    const previous = reimbursement.status
-    setReimbursement({ ...reimbursement, status })
+    const previous = reimbursement
+    // Referencen gør transaktionen i banken sporbar tilbage til bilaget.
+    const refund =
+      status === 'refunded'
+        ? {
+            // Tom streng ville ryge i det partielle indeks og vises som en
+            // betalingstekst der ikke findes — null er det ærlige svar.
+            refund_reference: buildRefundReference([voucher.voucher_number]) || null,
+            refunded_at: new Date().toISOString(),
+          }
+        : { refund_reference: null, refunded_at: null }
+    setReimbursement({ ...reimbursement, status, ...refund })
     const { error } = await supabase
       .from('voucher_reimbursements')
-      .update({ status })
+      .update({ status, ...refund })
       .eq('id', reimbursement.id)
       .eq('company_id', currentCompany.id)
     if (error) {
-      setReimbursement({ ...reimbursement, status: previous })
+      setReimbursement(previous)
       setFormError(error.message)
       return
     }
@@ -449,6 +534,12 @@ export function VoucherDetailPage() {
           ← Tilbage til bilag
         </Link>
         <div className="flex items-center gap-2">
+          <span
+            className="rounded-md bg-slate-100 px-2 py-1 font-mono text-xs font-semibold text-slate-700"
+            title="Bilagsnummer — brug det som reference i banken"
+          >
+            Bilag {formatVoucherNumber(voucher.voucher_number)}
+          </span>
           {currentIndex >= 0 && siblingIds.length > 1 ? (
             <span className="text-xs text-slate-500">
               {currentIndex + 1} / {siblingIds.length}
@@ -658,6 +749,18 @@ export function VoucherDetailPage() {
                 ) : null}
               </div>
             </div>
+            {voucherPayment ? (
+              <div className="sm:col-span-2">
+                <PaymentDetailsCard
+                  payment={voucherPayment}
+                  saving={savingPayment}
+                  // I en låst regnskabsperiode afviser databasetriggeren alligevel
+                  // enhver UPDATE — så vis kortet skrivebeskyttet frem for at lade
+                  // brugeren taste noget der ikke kan gemmes.
+                  onChange={isLocked ? undefined : (next) => void savePaymentDetails(next)}
+                />
+              </div>
+            ) : null}
             {reimbursement ? (
               <label className="block text-xs font-medium text-slate-600">
                 Udlæg-status
@@ -694,6 +797,12 @@ export function VoucherDetailPage() {
                   <div className="text-emerald-900/80">
                     <span className="text-emerald-900/60">Telefon: </span>
                     <span className="font-medium">{reimbursement.phone}</span>
+                  </div>
+                ) : null}
+                {reimbursement.refund_reference ? (
+                  <div className="text-emerald-900/80">
+                    <span className="text-emerald-900/60">Betalt i banken som: </span>
+                    <span className="font-mono font-medium">{reimbursement.refund_reference}</span>
                   </div>
                 ) : null}
               </div>

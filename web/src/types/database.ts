@@ -16,6 +16,9 @@ export type IncomeKind =
   | 'event'
   | 'andet'
 
+/** Hvordan et bilag skal betales — udlæst fra faktura/indbetalingskort. */
+export type VoucherPaymentMethod = 'fik' | 'bank_transfer' | 'iban' | 'mobilepay'
+
 export interface Database {
   public: {
     Tables: {
@@ -466,10 +469,25 @@ export interface Database {
           last_value?: number
         }
       }
+      voucher_number_seq: {
+        Row: {
+          company_id: string
+          last_value: number
+        }
+        Insert: {
+          company_id: string
+          last_value?: number
+        }
+        Update: {
+          last_value?: number
+        }
+      }
       vouchers: {
         Row: {
           id: string
           company_id: string
+          /** Fortløbende bilagsnummer pr. virksomhed; tildeles af databasen. */
+          voucher_number: number
           storage_path: string
           filename: string
           mime_type: string | null
@@ -489,10 +507,22 @@ export interface Database {
           voucher_type: 'kvittering' | 'regning'
           payment_status: 'paid' | 'unpaid'
           paid_date: string | null
+          payment_method: VoucherPaymentMethod | null
+          fik_line: string | null
+          fik_card_type: string | null
+          fik_creditor_no: string | null
+          fik_payment_id: string | null
+          bank_reg_no: string | null
+          bank_account_no: string | null
+          iban: string | null
+          payment_reference: string | null
+          due_date: string | null
         }
         Insert: {
           id?: string
           company_id: string
+          /** Udelad — databasen tildeler næste nummer. Sættes kun ved historisk import. */
+          voucher_number?: number
           storage_path: string
           filename: string
           mime_type?: string | null
@@ -511,6 +541,16 @@ export interface Database {
           voucher_type?: 'kvittering' | 'regning'
           payment_status?: 'paid' | 'unpaid'
           paid_date?: string | null
+          payment_method?: VoucherPaymentMethod | null
+          fik_line?: string | null
+          fik_card_type?: string | null
+          fik_creditor_no?: string | null
+          fik_payment_id?: string | null
+          bank_reg_no?: string | null
+          bank_account_no?: string | null
+          iban?: string | null
+          payment_reference?: string | null
+          due_date?: string | null
         }
         Update: {
           title?: string | null
@@ -526,6 +566,16 @@ export interface Database {
           voucher_type?: 'kvittering' | 'regning'
           payment_status?: 'paid' | 'unpaid'
           paid_date?: string | null
+          payment_method?: VoucherPaymentMethod | null
+          fik_line?: string | null
+          fik_card_type?: string | null
+          fik_creditor_no?: string | null
+          fik_payment_id?: string | null
+          bank_reg_no?: string | null
+          bank_account_no?: string | null
+          iban?: string | null
+          payment_reference?: string | null
+          due_date?: string | null
         }
       }
       expense_upload_links: {
@@ -578,6 +628,8 @@ export interface Database {
           bank_reg_number: string | null
           bank_account_number: string | null
           status: 'pending_approval' | 'ready_for_refund' | 'refunded' | 'rejected'
+          refund_reference: string | null
+          refunded_at: string | null
           created_at: string
           updated_at: string
         }
@@ -591,6 +643,8 @@ export interface Database {
           bank_reg_number?: string | null
           bank_account_number?: string | null
           status?: 'pending_approval' | 'ready_for_refund' | 'refunded' | 'rejected'
+          refund_reference?: string | null
+          refunded_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -600,6 +654,8 @@ export interface Database {
           bank_reg_number?: string | null
           bank_account_number?: string | null
           status?: 'pending_approval' | 'ready_for_refund' | 'refunded' | 'rejected'
+          refund_reference?: string | null
+          refunded_at?: string | null
           updated_at?: string
         }
       }

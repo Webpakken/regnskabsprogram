@@ -11,6 +11,8 @@ import {
   type ExtractedVoucher,
 } from '@/lib/voucherExtractClient'
 import { VOUCHER_CATEGORY_OPTIONS, inferVoucherCategory } from '@/lib/voucherCategories'
+import { PaymentDetailsCard } from '@/components/PaymentDetailsCard'
+import { EMPTY_PAYMENT_INFO, type VoucherPaymentInfo } from '@/lib/paymentDetails'
 import type { Database } from '@/types/database'
 
 type VoucherProject = Database['public']['Tables']['voucher_projects']['Row']
@@ -18,6 +20,30 @@ type VoucherProject = Database['public']['Tables']['voucher_projects']['Row']
 /** Lavere tærskel + færre frames — mobil-kamera giver ofte lavere «edge score». */
 const DETECT_THRESHOLD = 0.075
 const FRAMES_STABLE = 6
+
+/**
+ * Feltnavne som AI'en kan flagge som usikre, oversat til det brugeren ser i
+ * formularen. Ukendte navne udelades, så en ny feltnøgle fra modellen ikke
+ * lækker rå snake_case ud i UI'et.
+ */
+const UNCERTAIN_FIELD_LABELS: Record<string, string> = {
+  merchant: 'forretningsnavnet',
+  total_cents: 'beløbet',
+  expense_date: 'datoen',
+  vat_cents: 'momsen',
+  vat_rate: 'momssatsen',
+  fik_line: 'indbetalingskortet',
+  bank_reg_no: 'reg.nr.',
+  bank_account_no: 'kontonummeret',
+  iban: 'IBAN',
+  due_date: 'forfaldsdatoen',
+}
+
+/** "beløbet, datoen og momsen" — dansk opremsning med «og» før sidste led. */
+function formatDanishList(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? ''
+  return `${items.slice(0, -1).join(', ')} og ${items[items.length - 1]}`
+}
 
 function isVoucherProjectSchemaError(error: { message?: string; code?: string } | null) {
   const msg = error?.message?.toLowerCase() ?? ''
@@ -71,6 +97,7 @@ export function ScanBilagPage() {
   const [grossKr, setGrossKr] = useState('')
   const [vatRate, setVatRate] = useState('25')
   const [notes, setNotes] = useState('')
+  const [payment, setPayment] = useState<VoucherPaymentInfo>(EMPTY_PAYMENT_INFO)
   const [voucherProjectId, setVoucherProjectId] = useState('')
   const [projects, setProjects] = useState<VoucherProject[]>([])
   const [projectFeatureUnavailable, setProjectFeatureUnavailable] = useState(false)
@@ -244,6 +271,7 @@ export function ScanBilagPage() {
       if (p.expenseDateIso) setExpenseDate(p.expenseDateIso)
       if (p.totalKr != null) setGrossKr(p.totalKr.toFixed(2).replace('.', ','))
       if (p.vatRateGuess !== null) setVatRate(String(p.vatRateGuess))
+      setPayment(p.payment)
       setNotes('')
       setPhase('review')
     } catch (e) {
@@ -303,6 +331,7 @@ export function ScanBilagPage() {
       if (p.expenseDateIso) setExpenseDate(p.expenseDateIso)
       if (p.totalKr != null) setGrossKr(p.totalKr.toFixed(2).replace('.', ','))
       if (p.vatRateGuess !== null) setVatRate(String(p.vatRateGuess))
+      setPayment(p.payment)
       setNotes('')
       setPhase('review')
     } catch (e) {
@@ -348,6 +377,16 @@ export function ScanBilagPage() {
       net_cents: netCents,
       vat_cents: vatCents,
       vat_rate: rate,
+      payment_method: payment.paymentMethod,
+      fik_line: payment.fikLine,
+      fik_card_type: payment.fikCardType,
+      fik_creditor_no: payment.fikCreditorNo,
+      fik_payment_id: payment.fikPaymentId,
+      bank_reg_no: payment.bankRegNo,
+      bank_account_no: payment.bankAccountNo,
+      iban: payment.iban,
+      payment_reference: payment.paymentReference,
+      due_date: payment.dueDate,
     }
     if (!projectFeatureUnavailable) {
       voucherInsert.voucher_project_id = voucherProjectId || null
@@ -379,6 +418,13 @@ export function ScanBilagPage() {
     )
   }
 
+  const uncertainLabels =
+    parsed?.uncertainFields
+      .map((f) => UNCERTAIN_FIELD_LABELS[f])
+      .filter((label): label is string => Boolean(label)) ?? []
+  /* Under 0.6 har modellen i praksis gættet på mindst ét væsentligt felt. */
+  const lowConfidence = parsed?.confidence != null && parsed.confidence < 0.6
+
   if (phase === 'review' || phase === 'saving') {
     return (
       <div className="relative -mx-4 min-h-[100dvh] bg-slate-50 pb-8 md:-mx-8">
@@ -390,6 +436,7 @@ export function ScanBilagPage() {
               if (previewUrl) URL.revokeObjectURL(previewUrl)
               setPreviewUrl(null)
               setParsed(null)
+              setPayment(EMPTY_PAYMENT_INFO)
               setOcrText('')
               stableRef.current = 0
               setDocumentFound(false)
@@ -413,6 +460,16 @@ export function ScanBilagPage() {
         ) : null}
 
         <div className="mx-auto max-w-lg space-y-4 px-4 pt-4">
+          {uncertainLabels.length ? (
+            <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              Tjek {formatDanishList(uncertainLabels)} mod bilaget — de kunne ikke
+              aflæses med sikkerhed.
+            </p>
+          ) : lowConfidence ? (
+            <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              Bilaget var svært at læse. Kontrollér felterne herunder inden du gemmer.
+            </p>
+          ) : null}
           <label className="block text-sm font-medium text-slate-700">Titel</label>
           <input
             className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
@@ -468,6 +525,13 @@ export function ScanBilagPage() {
             <option value="25">25 %</option>
             <option value="0">0 %</option>
           </select>
+          <PaymentDetailsCard
+            payment={payment}
+            uncertain={parsed?.uncertainFields.some((f) => f.startsWith('fik')) ?? false}
+            // Bilaget er ikke gemt endnu, så rettelsen skal bare i lokal state —
+            // den følger med i insert'et nedenfor.
+            onChange={setPayment}
+          />
           <label className="block text-sm font-medium text-slate-700">Event/projekt</label>
           <select
             className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
