@@ -19,6 +19,29 @@ export type IncomeKind =
 /** Hvordan et bilag skal betales — udlæst fra faktura/indbetalingskort. */
 export type VoucherPaymentMethod = 'fik' | 'bank_transfer' | 'iban' | 'mobilepay'
 
+/** Om en momskode hører til salg (udgående), køb (indgående) eller ingen af delene. */
+export type VatCodeDirection = 'sales' | 'purchase' | 'none'
+
+/** Kontotype. asset/liability/equity hører til balancen, revenue/expense til resultatet. */
+export type AccountType = 'asset' | 'liability' | 'equity' | 'revenue' | 'expense'
+
+/**
+ * Stabilt håndtag til de konti appen selv posterer på. Slå altid systemkonti op
+ * via denne nøgle — aldrig via kontonummer, da virksomheder kan omnummerere.
+ */
+export type AccountSystemKey =
+  | 'debtors'
+  | 'creditors'
+  | 'bank'
+  | 'cash'
+  | 'vat_input'
+  | 'vat_output'
+  | 'vat_settlement'
+  | 'retained_earnings'
+  | 'profit_current_year'
+  | 'owner_current_account'
+  | 'suspense'
+
 export interface Database {
   public: {
     Tables: {
@@ -90,6 +113,7 @@ export interface Database {
           vat_registered: boolean
           vat_period: 'monthly' | 'quarterly' | 'half_yearly'
           vat_period_started_at: string | null
+          fiscal_year_start_month: number
           accounting_locked_until: string | null
           trial_ends_at: string | null
           trial_reminder_stage: number
@@ -123,6 +147,7 @@ export interface Database {
           vat_registered?: boolean
           vat_period?: 'monthly' | 'quarterly' | 'half_yearly'
           vat_period_started_at?: string | null
+          fiscal_year_start_month?: number
           accounting_locked_until?: string | null
         }
         Update: {
@@ -150,7 +175,58 @@ export interface Database {
           vat_registered?: boolean
           vat_period?: 'monthly' | 'quarterly' | 'half_yearly'
           vat_period_started_at?: string | null
+          fiscal_year_start_month?: number
           accounting_locked_until?: string | null
+        }
+      }
+      /** Globale danske momskoder. Skrivebeskyttet — ændres kun via migrationer. */
+      vat_codes: {
+        Row: {
+          code: string
+          name: string
+          direction: VatCodeDirection
+          rate: number
+          /** Fradragsberettiget andel af momsen i procent. 25 = restauration, 0 = repræsentation. */
+          deductible_pct: number
+          reverse_charge: boolean
+          vat_return_box: string | null
+          sort_order: number
+          is_active: boolean
+        }
+        Insert: never
+        Update: never
+      }
+      accounts: {
+        Row: {
+          id: string
+          company_id: string
+          account_no: number
+          name: string
+          type: AccountType
+          default_vat_code: string | null
+          system_key: AccountSystemKey | null
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          account_no: number
+          name: string
+          type: AccountType
+          default_vat_code?: string | null
+          system_key?: AccountSystemKey | null
+          is_active?: boolean
+        }
+        Update: {
+          account_no?: number
+          name?: string
+          type?: AccountType
+          default_vat_code?: string | null
+          system_key?: AccountSystemKey | null
+          is_active?: boolean
+          updated_at?: string
         }
       }
       company_members: {
@@ -1253,6 +1329,19 @@ export interface Database {
           p_entity_type?: 'virksomhed' | 'forening'
         }
         Returns: string
+      }
+      /** Første og sidste dag i det regnskabsår som p_date falder i. */
+      fiscal_year_bounds: {
+        Args: { p_company_id: string; p_date?: string }
+        Returns: {
+          starts_on: string
+          ends_on: string
+        }[]
+      }
+      /** Opretter dansk standardkontoplan. Idempotent. Returnerer antal nye konti. */
+      seed_default_chart_of_accounts: {
+        Args: { p_company_id: string }
+        Returns: number
       }
       support_unread_staff_count: { Args: { p_company_id: string }; Returns: number }
       support_mark_ticket_read: { Args: { p_company_id: string }; Returns: undefined }
