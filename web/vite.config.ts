@@ -20,6 +20,22 @@ function gitRelease(): string {
 
 const SENTRY_RELEASE = gitRelease()
 const SENTRY_AUTH_TOKEN = process.env.SENTRY_AUTH_TOKEN
+const SENTRY_ORG = process.env.SENTRY_ORG
+const SENTRY_PROJECT = process.env.SENTRY_PROJECT
+
+/**
+ * Sourcemap-upload kræver alle tre værdier. Tjekkes de ikke samlet, kører
+ * pluginnet med org/project = undefined, hvis kun tokenet er sat — så fejler
+ * uploaden og fælder hele buildet i CI, mens lokale builds er upåvirkede.
+ */
+const SENTRY_ENABLED = Boolean(SENTRY_AUTH_TOKEN && SENTRY_ORG && SENTRY_PROJECT)
+
+if (SENTRY_AUTH_TOKEN && !SENTRY_ENABLED) {
+  console.warn(
+    '[vite] SENTRY_AUTH_TOKEN er sat, men SENTRY_ORG og/eller SENTRY_PROJECT mangler — ' +
+      'springer sourcemap-upload over.',
+  )
+}
 
 /** Kort build-stempel til platform-UI (København — uanset server/dev-maskine). */
 function platformBuildStamp(): string {
@@ -43,13 +59,13 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    // Upload kun sourcemaps når et auth-token er sat (fx i Netlify-build) —
-    // så lokale builds ikke fejler eller uploader.
-    ...(SENTRY_AUTH_TOKEN
+    // Upload kun sourcemaps når Sentry er fuldt konfigureret (fx i produktions-
+    // build hos Hostinger) — så lokale builds og CI hverken fejler eller uploader.
+    ...(SENTRY_ENABLED
       ? [
           sentryVitePlugin({
-            org: process.env.SENTRY_ORG,
-            project: process.env.SENTRY_PROJECT,
+            org: SENTRY_ORG,
+            project: SENTRY_PROJECT,
             authToken: SENTRY_AUTH_TOKEN,
             release: { name: SENTRY_RELEASE },
             // Slet uploadede sourcemaps fra dist, så de ikke serveres offentligt.
@@ -62,7 +78,9 @@ export default defineConfig({
     alias: { '@': path.resolve(__dirname, 'src') },
   },
   // 'hidden': generér sourcemaps til upload, men referér dem ikke i bundtet.
-  build: { sourcemap: 'hidden' },
+  // Uden Sentry-upload er de spildt arbejde — hovedbundtets sourcemap fylder
+  // ~9 MB, og at droppe den sparer både byggetid og hukommelse på små CI-runnere.
+  build: { sourcemap: SENTRY_ENABLED ? 'hidden' : false },
   define: {
     __PLATFORM_BUILD__: JSON.stringify(platformBuildStamp()),
     __SENTRY_RELEASE__: JSON.stringify(SENTRY_RELEASE),

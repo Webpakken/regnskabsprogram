@@ -4,12 +4,20 @@
  * tegnbudgettet er stramt.
  */
 
-const VOUCHER_NUMBER_WIDTH = 4
+const DOCUMENT_NUMBER_WIDTH = 4
+
+/**
+ * 42 → «0042». Fælles format for alle fortløbende dokumentnumre — bilag og
+ * indtægter har hver sin serie, men vises ens.
+ */
+export function formatDocumentNumber(n: number | null | undefined): string {
+  if (n === null || n === undefined) return '—'
+  return String(n).padStart(DOCUMENT_NUMBER_WIDTH, '0')
+}
 
 /** 42 → «0042». */
 export function formatVoucherNumber(n: number | null | undefined): string {
-  if (n === null || n === undefined) return '—'
-  return String(n).padStart(VOUCHER_NUMBER_WIDTH, '0')
+  return formatDocumentNumber(n)
 }
 
 /**

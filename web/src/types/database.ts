@@ -766,10 +766,25 @@ export interface Database {
           updated_at?: string
         }
       }
+      income_entry_number_seq: {
+        Row: {
+          company_id: string
+          last_value: number
+        }
+        Insert: {
+          company_id: string
+          last_value?: number
+        }
+        Update: {
+          last_value?: number
+        }
+      }
       income_entries: {
         Row: {
           id: string
           company_id: string
+          /** Fortløbende indtægtsnummer pr. virksomhed. Tildeles af databasen. */
+          entry_number: number
           entry_date: string
           amount_cents: number
           kind: IncomeKind
@@ -784,6 +799,8 @@ export interface Database {
         Insert: {
           id?: string
           company_id: string
+          /** Udelades normalt — sættes af trigger. Angives kun ved historisk import. */
+          entry_number?: number
           entry_date?: string
           amount_cents: number
           kind: IncomeKind

@@ -5,9 +5,10 @@ import { nextColumnSortState, type ColumnSortDir } from '@/lib/tableSort'
 import { supabase } from '@/lib/supabase'
 import { hasRole, useApp } from '@/context/AppProvider'
 import { formatDateOnly, formatDkk } from '@/lib/format'
+import { formatDocumentNumber } from '@/lib/voucherNumber'
 import type { Database, IncomeKind } from '@/types/database'
 
-type IncomeSortKey = 'date' | 'type' | 'source' | 'earmarking' | 'amount'
+type IncomeSortKey = 'number' | 'date' | 'type' | 'source' | 'earmarking' | 'amount'
 
 type IncomeEntry = Database['public']['Tables']['income_entries']['Row']
 
@@ -72,6 +73,9 @@ export function IncomePage() {
     if (!q) return entries
     return entries.filter((e) => {
       const haystack = [
+        // Både «7» og «0007» skal finde indtægt nr. 7.
+        String(e.entry_number),
+        formatDocumentNumber(e.entry_number),
         e.source_name,
         e.earmarking ?? '',
         e.notes ?? '',
@@ -90,6 +94,8 @@ export function IncomePage() {
     const mul = sortDir === 'asc' ? 1 : -1
     return [...filteredEntries].sort((a, b) => {
       switch (sortKey) {
+        case 'number':
+          return mul * (a.entry_number - b.entry_number)
         case 'date':
           return mul * String(a.entry_date).localeCompare(String(b.entry_date))
         case 'type':
@@ -441,7 +447,7 @@ export function IncomePage() {
           type="search"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Søg i kilde, øremærkning, type, beløb…"
+          placeholder="Søg i nr., kilde, øremærkning, type, beløb…"
           className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
           autoComplete="off"
         />
@@ -496,8 +502,13 @@ export function IncomePage() {
                   }`}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <span className="font-medium uppercase tracking-wide text-slate-500">
-                      {formatDateOnly(entry.entry_date)}
+                    <span className="flex items-center gap-2">
+                      <span className="font-mono text-slate-400">
+                        {formatDocumentNumber(entry.entry_number)}
+                      </span>
+                      <span className="font-medium uppercase tracking-wide text-slate-500">
+                        {formatDateOnly(entry.entry_date)}
+                      </span>
                     </span>
                     <div className="flex flex-wrap items-center justify-end gap-2">
                       <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
@@ -549,6 +560,12 @@ export function IncomePage() {
               <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
                   <SortableTh
+                    label="Nr."
+                    isActive={sortKey === 'number'}
+                    direction={sortKey === 'number' ? sortDir : null}
+                    onClick={() => onSortColumn('number')}
+                  />
+                  <SortableTh
                     label="Dato"
                     isActive={sortKey === 'date'}
                     direction={sortKey === 'date' ? sortDir : null}
@@ -585,6 +602,9 @@ export function IncomePage() {
               <tbody className="divide-y divide-slate-100">
                 {displayEntries.map((entry) => (
                   <tr key={entry.id} className="hover:bg-slate-50/50">
+                    <td className="whitespace-nowrap px-6 py-3 font-mono text-xs text-slate-500">
+                      {formatDocumentNumber(entry.entry_number)}
+                    </td>
                     <td className="whitespace-nowrap px-6 py-3 text-slate-700">
                       {formatDateOnly(entry.entry_date)}
                     </td>
