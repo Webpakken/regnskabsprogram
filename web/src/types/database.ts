@@ -290,6 +290,7 @@ export interface Database {
           marketing_badge_text: string | null
           marketing_lock_label: string | null
           is_default_free: boolean
+          is_default_signup: boolean
           sort_order: number
           created_at: string
           updated_at: string
@@ -307,6 +308,7 @@ export interface Database {
           marketing_badge_text?: string | null
           marketing_lock_label?: string | null
           is_default_free?: boolean
+          is_default_signup?: boolean
           sort_order?: number
           created_at?: string
           updated_at?: string
@@ -323,6 +325,7 @@ export interface Database {
           marketing_badge_text?: string | null
           marketing_lock_label?: string | null
           is_default_free?: boolean
+          is_default_signup?: boolean
           sort_order?: number
           updated_at?: string
         }

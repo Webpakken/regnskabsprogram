@@ -115,6 +115,10 @@ serveWithSentry('stripe-checkout', async (req) => {
       .maybeSingle()
 
     let customerId = subRow?.stripe_customer_id as string | undefined
+    // Prislåsen fra migration 20260423300000: den pris kunden oprindeligt tegnede
+    // abonnement på. Nulstilles hvis vi må oprette en ny Stripe-customer, for så
+    // hører prisen til en customer der ikke findes (typisk test→live-skift).
+    let lockedPriceId = (subRow?.stripe_price_id as string | null) ?? null
     // Verificer at en gemt customer faktisk findes i Stripe — typisk fejl efter
     // test→live-skift hvor DB-rækken peger på en customer der kun findes i test mode.
     if (customerId) {
@@ -139,6 +143,7 @@ serveWithSentry('stripe-checkout', async (req) => {
         metadata: { company_id: companyId, user_id: user.id },
       })
       customerId = customer.id
+      lockedPriceId = null
       await admin.from('subscriptions').upsert(
         {
           company_id: companyId,
@@ -154,8 +159,12 @@ serveWithSentry('stripe-checkout', async (req) => {
       )
     }
 
-    // Nye kunder skal bruge Stripe Price ID fra den valgte plan i billing_plans.
-    // STRIPE_PRICE_ID beholdes kun som gammel nød-fallback hvis der ikke er planer.
+    // Prioritet: (1) plan kunden selv valgte, (2) kundens låste pris fra en
+    // tidligere tilmelding, (3) den plan der er markeret som default for signup,
+    // (4) billigste aktive betalte plan, (5) STRIPE_PRICE_ID som nød-fallback.
+    //
+    // (2) SKAL ligge før (3): ellers bliver en Pro-kunde hvis kort er udløbet
+    // nedgraderet til den billigste plan når de trykker «Aktivér abonnement».
     let checkoutPriceId = ''
     let checkoutBillingPlanId: string | null = null
 
@@ -174,8 +183,44 @@ serveWithSentry('stripe-checkout', async (req) => {
       }
       checkoutPriceId = plan.stripe_price_id
       checkoutBillingPlanId = plan.id
-    } else {
-      const { data: defaultPlan, error: defaultPlanErr } = await admin
+    }
+
+    if (!checkoutPriceId && lockedPriceId) {
+      try {
+        const lockedPrice = await stripe.prices.retrieve(lockedPriceId)
+        if (lockedPrice.active) {
+          checkoutPriceId = lockedPriceId
+          // Genfind planen så entitlements følger med — webhooken kan selv slå
+          // op på price_id, men metadata gør det entydigt hvis planen skifter pris.
+          const { data: lockedPlan } = await admin
+            .from('billing_plans')
+            .select('id')
+            .eq('stripe_price_id', lockedPriceId)
+            .maybeSingle()
+          checkoutBillingPlanId = lockedPlan?.id ?? null
+        }
+      } catch (e) {
+        console.warn('stripe-checkout locked price retrieve failed', stripeErrorMessage(e))
+      }
+    }
+
+    if (!checkoutPriceId) {
+      const { data: defaultPlan } = await admin
+        .from('billing_plans')
+        .select('id, stripe_price_id')
+        .eq('active', true)
+        .eq('is_default_signup', true)
+        .not('stripe_price_id', 'is', null)
+        .maybeSingle()
+
+      if (defaultPlan?.stripe_price_id) {
+        checkoutPriceId = defaultPlan.stripe_price_id
+        checkoutBillingPlanId = defaultPlan.id
+      }
+    }
+
+    if (!checkoutPriceId) {
+      const { data: cheapestPlan } = await admin
         .from('billing_plans')
         .select('id, stripe_price_id')
         .eq('active', true)
@@ -186,23 +231,12 @@ serveWithSentry('stripe-checkout', async (req) => {
         .limit(1)
         .maybeSingle()
 
-      if (!defaultPlanErr && defaultPlan?.stripe_price_id) {
-        checkoutPriceId = defaultPlan.stripe_price_id
-        checkoutBillingPlanId = defaultPlan.id
+      if (cheapestPlan?.stripe_price_id) {
+        checkoutPriceId = cheapestPlan.stripe_price_id
+        checkoutBillingPlanId = cheapestPlan.id
       }
     }
 
-    const lockedPriceId = subRow?.stripe_price_id as string | undefined
-    if (!checkoutBillingPlanId && lockedPriceId) {
-      try {
-        const lockedPrice = await stripe.prices.retrieve(lockedPriceId)
-        if (lockedPrice.active) {
-          checkoutPriceId = lockedPriceId
-        }
-      } catch (e) {
-        console.warn('stripe-checkout locked price retrieve failed', stripeErrorMessage(e))
-      }
-    }
     if (!checkoutPriceId && fallbackPriceId) {
       checkoutPriceId = fallbackPriceId
     }

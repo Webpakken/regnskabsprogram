@@ -5,8 +5,10 @@ import { formatDate, formatDateTime, formatDkk, formatKrPerMonth } from '@/lib/f
 import { subscriptionStatusLabelDa } from '@/lib/subscriptionLabels'
 import type { Database } from '@/types/database'
 import { changeStripePlan } from '@/lib/edge'
+import { useHasFailingPayment } from '@/lib/useCheckoutPlan'
 import {
   ButtonSpinner,
+  useStripeBillingPortalLauncher,
   useStripeCheckoutLauncher,
 } from '@/lib/useStripeCheckoutLauncher'
 import {
@@ -44,6 +46,8 @@ export function SettingsSubscriptionPage() {
   const [showAllPlans, setShowAllPlans] = useState(false)
   const priceLabel = priceCents != null ? formatKrPerMonth(priceCents) : null
   const checkout = useStripeCheckoutLauncher()
+  const portal = useStripeBillingPortalLauncher()
+  const paymentFailing = useHasFailingPayment()
   const currentPlanId = billingEntitlements[0]?.plan_id ?? subscription?.billing_plan_id ?? null
   const chosenPlanId = useMemo(() => {
     if (currentPlanId) return currentPlanId
@@ -229,23 +233,51 @@ export function SettingsSubscriptionPage() {
             </span>
           </p>
         ) : null}
-        {!ok && canManageBilling ? (
-          <button
-            type="button"
-            disabled={checkout.loading}
-            className="mt-2 inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-80"
-            onClick={() =>
-              void checkout.launch(currentCompany.id, {
-                billingPlanId:
-                  plans.find((plan) => plan.id === chosenPlanId && plan.stripe_price_id)?.id ??
-                  plans.find((plan) => plan.monthly_price_cents > 0 && plan.stripe_price_id)?.id,
-              })
-            }
-          >
-            {checkout.loading ? <ButtonSpinner /> : null}
-            {checkout.loading ? 'Åbner Stripe…' : 'Aktivér abonnement'}
-          </button>
+        {paymentFailing && canManageBilling ? (
+          <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            Vi kunne ikke trække betalingen — typisk et udløbet kort. Opdatér kortet, så genoptager
+            Stripe opkrævningen på dit nuværende abonnement.
+          </p>
         ) : null}
+        <div className="mt-2 flex flex-wrap gap-2">
+          {!ok && canManageBilling && !paymentFailing ? (
+            <button
+              type="button"
+              disabled={checkout.loading}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-80"
+              onClick={() =>
+                void checkout.launch(currentCompany.id, {
+                  billingPlanId:
+                    plans.find((plan) => plan.id === chosenPlanId && plan.stripe_price_id)?.id ??
+                    plans.find((plan) => plan.monthly_price_cents > 0 && plan.stripe_price_id)?.id,
+                })
+              }
+            >
+              {checkout.loading ? <ButtonSpinner /> : null}
+              {checkout.loading ? 'Åbner Stripe…' : 'Aktivér abonnement'}
+            </button>
+          ) : null}
+          {canManageBilling && subscription?.stripe_customer_id ? (
+            <button
+              type="button"
+              disabled={portal.loading}
+              className={
+                'inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-80 ' +
+                (paymentFailing
+                  ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                  : 'border border-slate-200 text-slate-700 hover:bg-slate-50')
+              }
+              onClick={() => void portal.launch(currentCompany.id)}
+            >
+              {portal.loading ? <ButtonSpinner /> : null}
+              {portal.loading
+                ? 'Åbner Stripe…'
+                : paymentFailing
+                  ? 'Opdatér betalingskort'
+                  : 'Administrér betaling'}
+            </button>
+          ) : null}
+        </div>
         {!canManageBilling ? (
           <p className="mt-2 text-sm text-slate-500">
             Kun ejeren af virksomheden kan ændre abonnement og betalingsoplysninger.

@@ -95,6 +95,66 @@ export async function redirectToStripeCheckout(
   }
 }
 
+/**
+ * Åbner Stripe Billing Portal, hvor kunden kan opdatere betalingskort på sit
+ * EKSISTERENDE abonnement. Bruges frem for checkout når kortet er udløbet/afvist
+ * — checkout ville oprette et nyt abonnement ved siden af det gamle.
+ */
+export async function redirectToStripeBillingPortal(
+  companyId: string,
+  options?: { returnPath?: 'dashboard' | 'settings' },
+): Promise<void> {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const token = sessionData.session?.access_token
+  if (!token) throw new Error('Ikke logget ind')
+
+  const anon = import.meta.env.VITE_SUPABASE_ANON_KEY as string
+  try {
+    const res = await fetch(fnUrl('stripe-portal'), {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        apikey: anon,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        company_id: companyId,
+        return_path: options?.returnPath ?? 'settings',
+      }),
+    })
+    const raw = await res.text()
+    let data = {} as { url?: string; error?: string }
+    if (raw) {
+      try {
+        data = JSON.parse(raw) as typeof data
+      } catch {
+        throw new Error(
+          `Betalingsportal (HTTP ${res.status}): ${raw.slice(0, 400).trim() || 'tomt svar'}`,
+        )
+      }
+    }
+    if (!res.ok) {
+      throw new Error(data.error ?? `Kunne ikke åbne betalingsportalen (HTTP ${res.status})`)
+    }
+    if (!data.url) throw new Error('Manglede Stripe URL i svaret')
+    window.location.href = data.url
+  } catch (e) {
+    const raw = e instanceof Error ? e.message : String(e)
+    const lower = raw.toLowerCase()
+    let msg = raw
+    if (
+      lower.includes('failed to fetch') ||
+      lower.includes('networkerror') ||
+      lower.includes('load failed')
+    ) {
+      msg =
+        'Kunne ikke åbne betalingsportalen (netværk). Tjek forbindelsen og at Edge Function «stripe-portal» er deployet.'
+    }
+    window.alert(msg)
+    throw e
+  }
+}
+
 export async function changeStripePlan(
   companyId: string,
   billingPlanId: string,

@@ -1,8 +1,10 @@
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '@/context/AppProvider'
 import { logoutToLanding } from '@/lib/logoutToLanding'
+import { useCheckoutPlan, useHasFailingPayment } from '@/lib/useCheckoutPlan'
 import {
   ButtonSpinner,
+  useStripeBillingPortalLauncher,
   useStripeCheckoutLauncher,
 } from '@/lib/useStripeCheckoutLauncher'
 
@@ -16,6 +18,11 @@ export function TrialExpiredModal({ company }: { company: { id: string } }) {
   const { currentRole } = useApp()
   const navigate = useNavigate()
   const checkout = useStripeCheckoutLauncher()
+  const portal = useStripeBillingPortalLauncher()
+  const { plan, priceLabel } = useCheckoutPlan()
+  // Fejlet betaling på et eksisterende abonnement → kortet skal skiftes i
+  // Billing Portal. Checkout ville oprette abonnement nummer to hos Stripe.
+  const paymentFailing = useHasFailingPayment()
   const isOwner = currentRole === 'owner'
 
   return (
@@ -47,12 +54,18 @@ export function TrialExpiredModal({ company }: { company: { id: string } }) {
           id="trial-expired-title"
           className="mt-5 text-2xl font-semibold tracking-tight text-slate-900"
         >
-          Din gratis prøveperiode er slut
+          {paymentFailing ? 'Din betaling gik ikke igennem' : 'Din gratis prøveperiode er slut'}
         </h2>
         <p className="mt-3 text-sm text-slate-600">
-          {isOwner
-            ? 'Aktivér et abonnement (99 kr./md.) for at bruge Bilago igen. Alle dine data er gemt, og du har fuld adgang så snart betalingen er på plads.'
-            : 'Virksomhedens abonnement skal aktiveres, før I kan bruge Bilago igen. Kontakt virksomhedens ejer for at aktivere & betale.'}
+          {!isOwner
+            ? 'Virksomhedens abonnement skal aktiveres, før I kan bruge Bilago igen. Kontakt virksomhedens ejer for at aktivere & betale.'
+            : paymentFailing
+              ? `Vi kunne ikke trække betalingen for dit abonnement${
+                  plan ? ` (${plan.name}${priceLabel ? `, ${priceLabel}.` : ''})` : ''
+                } — typisk fordi kortet er udløbet. Opdatér kortet, så genoptager vi opkrævningen på dit nuværende abonnement.`
+              : `Aktivér et abonnement${
+                  priceLabel ? ` (${priceLabel}.)` : ''
+                } for at bruge Bilago igen. Alle dine data er gemt, og du har fuld adgang så snart betalingen er på plads.`}
         </p>
         <ul className="mt-5 space-y-2 text-sm text-slate-700">
           {[
@@ -80,7 +93,21 @@ export function TrialExpiredModal({ company }: { company: { id: string } }) {
           ))}
         </ul>
         <div className="mt-7 flex flex-col gap-2">
-          {isOwner ? (
+          {isOwner && paymentFailing ? (
+            <button
+              type="button"
+              disabled={portal.loading}
+              onClick={() => {
+                if (portal.loading) return
+                void portal.launch(company.id, { returnPath: 'dashboard' })
+              }}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-80"
+            >
+              {portal.loading ? <ButtonSpinner /> : null}
+              {portal.loading ? 'Åbner Stripe…' : 'Opdatér betalingskort'}
+              {portal.loading ? null : <span aria-hidden>→</span>}
+            </button>
+          ) : isOwner ? (
             <button
               type="button"
               disabled={checkout.loading}

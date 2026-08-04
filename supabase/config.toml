@@ -37,6 +37,9 @@ verify_jwt = false
 [functions.stripe-checkout]
 verify_jwt = false
 
+[functions.stripe-portal]
+verify_jwt = false
+
 [functions.aiia-oauth-start]
 verify_jwt = false
 

@@ -119,7 +119,18 @@ export function PlatformBillingPlansPage() {
       setError(err.message)
       return
     }
-    setPlans((prev) => prev.map((p) => (p.id === plan.id ? { ...p, ...patch } : p)))
+    // DB-triggeren rydder is_default_signup på de øvrige planer; spejl det lokalt
+    // så der ikke står to «Standard»-badges indtil næste reload.
+    const clearOthersDefaultSignup = patch.is_default_signup === true
+    setPlans((prev) =>
+      prev.map((p) =>
+        p.id === plan.id
+          ? { ...p, ...patch }
+          : clearOthersDefaultSignup
+            ? { ...p, is_default_signup: false }
+            : p,
+      ),
+    )
   }
 
   async function createPlan() {
@@ -432,6 +443,29 @@ export function PlatformBillingPlansPage() {
                     title={plan.marketing_hidden ? 'Skjult — klik for at vise på pricing-siden' : 'Synlig — klik for at skjule'}
                   >
                     {plan.marketing_hidden ? 'Skjult' : 'Synlig'}
+                  </button>
+                  {/* Hvilken plan rammer «Aktivér abonnement» når kunden ikke selv
+                      vælger? Højst én plan kan være default (DB-trigger rydder de
+                      øvrige), og kunder med en låst pris beholder deres egen. */}
+                  <button
+                    type="button"
+                    disabled={plan.is_default_signup || !plan.active || !plan.stripe_price_id}
+                    onClick={() => void updatePlan(plan, { is_default_signup: true })}
+                    className={
+                      'inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium disabled:cursor-not-allowed ' +
+                      (plan.is_default_signup
+                        ? 'border-indigo-200 bg-indigo-50 text-indigo-800'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40')
+                    }
+                    title={
+                      plan.is_default_signup
+                        ? 'Standard ved tilmelding uden valgt plan'
+                        : !plan.active || !plan.stripe_price_id
+                          ? 'Kræver at planen er aktiv og har et Stripe Price ID'
+                          : 'Gør denne plan til standard ved tilmelding'
+                    }
+                  >
+                    {plan.is_default_signup ? 'Standard' : 'Sæt som standard'}
                   </button>
                   <button
                     type="button"

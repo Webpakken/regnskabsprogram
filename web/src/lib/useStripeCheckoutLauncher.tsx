@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import {
+  redirectToStripeBillingPortal,
   redirectToStripeCheckout,
   type StripeCheckoutReturnPath,
 } from '@/lib/edge'
@@ -19,6 +20,24 @@ export function useStripeCheckoutLauncher() {
       setLoading(true)
       try {
         await redirectToStripeCheckout(companyId, options)
+      } catch {
+        setLoading(false)
+      }
+    },
+    [loading],
+  )
+  return { launch, loading }
+}
+
+/** Åbner Stripe Billing Portal, så kunden kan skifte betalingskort på et eksisterende abonnement. */
+export function useStripeBillingPortalLauncher() {
+  const [loading, setLoading] = useState(false)
+  const launch = useCallback(
+    async (companyId: string, options?: { returnPath?: 'dashboard' | 'settings' }) => {
+      if (loading) return
+      setLoading(true)
+      try {
+        await redirectToStripeBillingPortal(companyId, options)
       } catch {
         setLoading(false)
       }
