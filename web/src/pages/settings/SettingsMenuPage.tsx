@@ -1,29 +1,14 @@
 import { Link } from 'react-router-dom'
-
-const items = [
-  {
-    to: '/app/settings/general',
-    label: 'Generelt',
-    body: 'Virksomhedens stamdata, adresse og grundlæggende oplysninger.',
-  },
-  {
-    to: '/app/settings/invoice',
-    label: 'Faktura',
-    body: 'Fakturaoplysninger, logo, kontonumre og automatiske påmindelser.',
-  },
-  {
-    to: '/app/settings/notifications',
-    label: 'Notifikationer',
-    body: 'Push-beskeder og valg af hvilke hændelser du vil have besked om.',
-  },
-  {
-    to: '/app/settings/subscription',
-    label: 'Abonnement',
-    body: 'Status på abonnement, prøveperiode og betaling.',
-  },
-]
+import { useApp } from '@/context/AppProvider'
+import { visibleSettingsNavFor } from '@/lib/settingsNav'
 
 export function SettingsMenuPage() {
+  const { currentCompany, currentRole } = useApp()
+  const items = visibleSettingsNavFor(
+    currentCompany?.entity_type ?? 'virksomhed',
+    currentRole,
+  )
+
   return (
     <div className="space-y-3">
       {items.map((item) => (

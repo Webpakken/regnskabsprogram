@@ -31,6 +31,12 @@ export const appHelpTopics: AppHelpTopic[] = [
     searchExtra: 'skifte regnskab system flytte',
   },
   {
+    id: 'revisor',
+    title: 'Revisor: download alle bilag og fakturaer',
+    body: 'Inviter din revisor under «Medlemmer» med rollen Revisor — den giver læseadgang og eksport, men ikke adgang til at ændre virksomhedens opsætning. Revisoren går derefter til Indstillinger → Eksport og henter alle bilag og fakturaer som én ZIP-fil. Du kan også selv hente ZIP-filen samme sted, fx til arkiv, eller hvis revisoren ikke skal have en bruger i Bilago.',
+    searchExtra: 'revisor bogholder eksport export zip download arkiv årsregnskab aflevere materiale',
+  },
+  {
     id: 'binding',
     title: 'Binding',
     body: marketingFaqs[2].a,

@@ -1,7 +1,10 @@
 import { supabase } from '@/lib/supabase'
 
-const STORAGE_KEY = 'bilago:last_heartbeat'
-// Skriv højst ét heartbeat pr. 10 min pr. enhed — nok til "Sidste aktivitet"
+// Nøglen er pr. bruger: ellers ville en anden brugers heartbeat på samme enhed
+// (fx ejer → revisor kort efter) throttle den nye bruger, så vedkommende stod
+// som «Ingen aktivitet endnu» i op til 10 minutter.
+const storageKeyFor = (userId: string) => `bilago:last_heartbeat:${userId}`
+// Skriv højst ét heartbeat pr. 10 min pr. bruger/enhed — nok til "Sidste aktivitet"
 // uden at spamme databasen ved hver navigation/tab-focus.
 const THROTTLE_MS = 10 * 60 * 1000
 
@@ -12,12 +15,13 @@ const THROTTLE_MS = 10 * 60 * 1000
  */
 export function recordHeartbeat(userId: string): void {
   if (!userId) return
+  const storageKey = storageKeyFor(userId)
   let stamped = false
   try {
     if (typeof window !== 'undefined') {
-      const last = window.localStorage.getItem(STORAGE_KEY)
+      const last = window.localStorage.getItem(storageKey)
       if (last && Date.now() - Number(last) < THROTTLE_MS) return
-      window.localStorage.setItem(STORAGE_KEY, String(Date.now()))
+      window.localStorage.setItem(storageKey, String(Date.now()))
       stamped = true
     }
   } catch {
@@ -35,7 +39,7 @@ export function recordHeartbeat(userId: string): void {
       // vente 10 min på et heartbeat der aldrig kom igennem.
       if (stamped) {
         try {
-          window.localStorage.removeItem(STORAGE_KEY)
+          window.localStorage.removeItem(storageKey)
         } catch {
           // ignoreres
         }

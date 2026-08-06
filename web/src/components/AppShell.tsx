@@ -18,6 +18,7 @@ import { PwaPushPrompt } from '@/components/PwaPushPrompt'
 import { TrialCountdownBanner } from '@/components/TrialCountdownBanner'
 import { TrialExpiredModal } from '@/components/TrialExpiredModal'
 import { trialStatusFor } from '@/lib/trial'
+import { visibleSettingsNavFor } from '@/lib/settingsNav'
 
 type NavIconProps = { className?: string }
 
@@ -29,6 +30,8 @@ type NavItem = {
   onlyFor?: 'virksomhed' | 'forening'
   /** Åbner live chat-widgeten i stedet for at navigere. */
   action?: 'open-chat'
+  /** Viser et "Snart"-badge i menuen — funktionen er ikke klar endnu. */
+  comingSoon?: boolean
 }
 
 const nav: NavItem[] = [
@@ -36,23 +39,12 @@ const nav: NavItem[] = [
   { to: '/app/invoices', label: 'Fakturaer', icon: InvoiceIcon },
   { to: '/app/income', label: 'Indtægter', icon: CoinIcon, onlyFor: 'forening' },
   { to: '/app/vouchers', label: 'Bilag', icon: ReceiptIcon },
-  { to: '/app/bank', label: 'Bank', icon: BankIcon },
+  { to: '/app/bank', label: 'Bank', icon: BankIcon, comingSoon: true },
   { to: '/app/vat', label: 'Moms', icon: PercentIcon, onlyFor: 'virksomhed' },
   { to: '/app/resultat', label: 'Resultat', icon: ChartIcon, onlyFor: 'virksomhed' },
-  { to: '/app/members', label: 'Medlemmer', icon: UsersIcon },
   { to: '/app/settings', label: 'Indstillinger', icon: CogIcon },
   { to: '/app/hjaelp', label: 'Hjælp & svar', icon: HelpIcon },
   { label: 'Support', icon: ChatIcon, action: 'open-chat' },
-]
-
-type SettingsNavItem = { to: string; label: string; onlyFor?: 'virksomhed' | 'forening' }
-
-const settingsNav: SettingsNavItem[] = [
-  { to: '/app/settings/general', label: 'Generelt' },
-  { to: '/app/settings/invoice', label: 'Faktura' },
-  { to: '/app/settings/vat', label: 'Moms', onlyFor: 'virksomhed' },
-  { to: '/app/settings/notifications', label: 'Notifikationer' },
-  { to: '/app/settings/subscription', label: 'Abonnement' },
 ]
 
 function UserIcon({ className }: NavIconProps) {
@@ -201,17 +193,6 @@ function CoinIcon({ className }: NavIconProps) {
   )
 }
 
-function UsersIcon({ className }: NavIconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="9" cy="8" r="3.5" />
-      <path d="M2.5 20a6.5 6.5 0 0 1 13 0" />
-      <circle cx="17" cy="9" r="2.8" />
-      <path d="M22 19a5 5 0 0 0-7.5-4.3" />
-    </svg>
-  )
-}
-
 function CogIcon({ className }: NavIconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -255,17 +236,29 @@ export function AppShell({ children }: { children?: ReactNode }) {
   const location = useLocation()
   const ok = subscriptionOk(subscription)
   const checkout = useStripeCheckoutLauncher()
-  const settingsActive = location.pathname === '/app/settings' || location.pathname.startsWith('/app/settings/')
+  const visibleNav = useMemo(() => {
+    const entityType = currentCompany?.entity_type ?? 'virksomhed'
+    return nav.filter((item) => !item.onlyFor || item.onlyFor === entityType)
+  }, [currentCompany?.entity_type])
+
+  const visibleSettingsNav = useMemo(
+    () =>
+      visibleSettingsNavFor(currentCompany?.entity_type ?? 'virksomhed', currentRole),
+    [currentCompany?.entity_type, currentRole],
+  )
+
+  // Undermenuen tæller også som «aktiv» på sider uden for /app/settings (fx Medlemmer).
+  const settingsActive =
+    location.pathname === '/app/settings' ||
+    location.pathname.startsWith('/app/settings/') ||
+    visibleSettingsNav.some(
+      (sub) => location.pathname === sub.to || location.pathname.startsWith(`${sub.to}/`),
+    )
   const [settingsOpen, setSettingsOpen] = useState(settingsActive)
 
   useEffect(() => {
     if (settingsActive) setSettingsOpen(true)
   }, [settingsActive])
-
-  const visibleNav = useMemo(() => {
-    const entityType = currentCompany?.entity_type ?? 'virksomhed'
-    return nav.filter((item) => !item.onlyFor || item.onlyFor === entityType)
-  }, [currentCompany?.entity_type])
 
   async function logout() {
     await logoutToLanding(navigate)
@@ -328,12 +321,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
                   </button>
                   {settingsOpen ? (
                     <div className="space-y-0.5 pl-7">
-                      {settingsNav
-                        .filter(
-                          (sub) =>
-                            !sub.onlyFor ||
-                            sub.onlyFor === (currentCompany?.entity_type ?? 'virksomhed'),
-                        )
+                      {visibleSettingsNav
                         .map((sub) => (
                           <NavLink
                             key={sub.to}
@@ -387,7 +375,12 @@ export function AppShell({ children }: { children?: ReactNode }) {
                 <span className="relative inline-flex shrink-0">
                   <item.icon className="h-4 w-4" />
                 </span>
-                {item.label}
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                {item.comingSoon ? (
+                  <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                    Snart
+                  </span>
+                ) : null}
               </NavLink>
             )
           })}
@@ -514,21 +507,6 @@ export function AppShell({ children }: { children?: ReactNode }) {
         })()}
         {currentCompany && !ok && trialStatusFor(currentCompany)?.expired ? (
           <TrialExpiredModal company={currentCompany} />
-        ) : null}
-
-        {currentRole === 'accountant' ? (
-          <div className="border-b border-violet-200 bg-violet-50 px-5 py-2.5 text-sm text-violet-900 md:px-10">
-            <div className="mx-auto flex max-w-6xl items-start gap-2">
-              <span aria-hidden className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-violet-200 text-xs font-semibold text-violet-800">
-                R
-              </span>
-              <p className="min-w-0 flex-1">
-                <strong className="font-semibold">Revisor-tilstand:</strong> du har læseadgang til
-                fakturaer, bilag og rapporter, og kan låse regnskabsperioder. Du kan ikke oprette,
-                ændre eller slette poster.
-              </p>
-            </div>
-          </div>
         ) : null}
 
         <main className="flex min-h-0 flex-1 flex-col px-5 pb-28 pt-5 md:px-10 md:pb-8 md:pt-9">

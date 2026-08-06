@@ -1,25 +1,27 @@
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { AppPageLayout } from '@/components/AppPageLayout'
-
-const tabs = [
-  { to: '/app/settings/general', label: 'Generelt' },
-  { to: '/app/settings/invoice', label: 'Faktura' },
-  { to: '/app/settings/notifications', label: 'Notifikationer' },
-  { to: '/app/settings/subscription', label: 'Abonnement' },
-]
+import { useApp } from '@/context/AppProvider'
+import { settingsNav } from '@/lib/settingsNav'
 
 export function SettingsLayout() {
   const location = useLocation()
+  const { currentRole } = useApp()
   const isMenuPage = location.pathname === '/app/settings'
   const activeTab =
-    tabs.find((tab) => location.pathname === tab.to || location.pathname.startsWith(`${tab.to}/`)) ??
-    null
+    settingsNav.find(
+      (tab) => location.pathname === tab.to || location.pathname.startsWith(`${tab.to}/`),
+    ) ?? null
+  const isAccountant = currentRole === 'accountant'
 
   return (
     <AppPageLayout maxWidth="full" className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Indstillinger</h1>
-        <p className="text-sm text-slate-600">Virksomhed, faktura, notifikationer og abonnement</p>
+        <p className="text-sm text-slate-600">
+          {isAccountant
+            ? 'Download bilag og fakturaer'
+            : 'Virksomhed, faktura, notifikationer og abonnement'}
+        </p>
       </div>
 
       {!isMenuPage ? (

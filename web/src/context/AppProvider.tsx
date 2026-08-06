@@ -74,6 +74,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
    */
   const shouldBlockUiForAuthLoad = useRef(true)
 
+  /**
+   * Hvilken bruger der allerede er indlæst. supabase-js udsender `SIGNED_IN` igen,
+   * hver gang fanen får fokus og sessionen genskabes — uden denne vagt hentede vi
+   * profil/virksomheder/abonnement forfra hver gang, og hele appen blinkede.
+   */
+  const loadedUserId = useRef<string | null>(null)
+
   const load = useCallback(async () => {
     if (!isSupabaseConfigured) {
       setSession(null)
@@ -95,6 +102,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     const { data: sessionData } = await supabase.auth.getSession()
     const s = sessionData.session
+    loadedUserId.current = s?.user?.id ?? null
     setSession(s)
     setUser(s?.user ?? null)
     if (!s?.user) {
@@ -254,9 +262,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return
     }
     void load()
-    // Ref tracker så vi ved hvilken bruger der allerede er indlæst — undgår reload på
-    // tab-focus events (INITIAL_SESSION, USER_UPDATED) når user-id'et er uændret.
-    let lastUserId: string | null = null
     const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
       // Token-refresh: bare opdater session/user, ingen full reload.
       if (event === 'TOKEN_REFRESHED') {
@@ -265,15 +270,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return
       }
       const nextUid = nextSession?.user?.id ?? null
-      // Login/logout → reload alt.
-      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'MFA_CHALLENGE_VERIFIED') {
-        lastUserId = nextUid
+      // Logout og gennemført MFA ændrer altid adgangen → hent alt forfra.
+      if (event === 'SIGNED_OUT' || event === 'MFA_CHALLENGE_VERIFIED') {
         void load()
         return
       }
-      // INITIAL_SESSION og USER_UPDATED: kun reload hvis brugeren faktisk er en anden.
-      if (nextUid !== lastUserId) {
-        lastUserId = nextUid
+      // SIGNED_IN, INITIAL_SESSION og USER_UPDATED udsendes også når fanen får fokus
+      // igen. Hent kun forfra hvis det faktisk er en anden bruger end den indlæste.
+      if (nextUid !== loadedUserId.current) {
         void load()
         return
       }

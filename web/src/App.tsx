@@ -6,6 +6,7 @@ import { ChatWidget } from '@/components/ChatWidget'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { ProtectedPlatformRoute } from '@/components/ProtectedPlatformRoute'
 import { RequireSubscription } from '@/components/RequireSubscription'
+import { BlockAccountant } from '@/components/BlockAccountant'
 import { HomeRedirect } from '@/components/HomeRedirect'
 import { LandingPage } from '@/pages/LandingPage'
 import { SupportHoursPage } from '@/pages/SupportHoursPage'
@@ -44,6 +45,7 @@ import { SettingsInvoicePage } from '@/pages/settings/SettingsInvoicePage'
 import { SettingsVatPage } from '@/pages/settings/SettingsVatPage'
 import { SettingsSubscriptionPage } from '@/pages/settings/SettingsSubscriptionPage'
 import { SettingsNotificationsPage } from '@/pages/settings/SettingsNotificationsPage'
+import { SettingsExportPage } from '@/pages/settings/SettingsExportPage'
 import { MembersPage } from '@/pages/MembersPage'
 import { VatPage } from '@/pages/VatPage'
 import { ResultatPage } from '@/pages/ResultatPage'
@@ -183,11 +185,15 @@ export default function App() {
               <Route path="/app/activity" element={<ActivityLogPage />} />
               <Route path="/app/settings" element={<SettingsLayout />}>
                 <Route index element={<SettingsMenuPage />} />
-                <Route path="general" element={<SettingsGeneralPage />} />
-                <Route path="invoice" element={<SettingsInvoicePage />} />
-                <Route path="vat" element={<SettingsVatPage />} />
-                <Route path="notifications" element={<SettingsNotificationsPage />} />
-                <Route path="subscription" element={<SettingsSubscriptionPage />} />
+                <Route path="export" element={<SettingsExportPage />} />
+                {/* Revisor har kun læseadgang — virksomhedens opsætning er spærret. */}
+                <Route element={<BlockAccountant />}>
+                  <Route path="general" element={<SettingsGeneralPage />} />
+                  <Route path="invoice" element={<SettingsInvoicePage />} />
+                  <Route path="vat" element={<SettingsVatPage />} />
+                  <Route path="notifications" element={<SettingsNotificationsPage />} />
+                  <Route path="subscription" element={<SettingsSubscriptionPage />} />
+                </Route>
               </Route>
               <Route path="/app/more" element={<MorePage />} />
               <Route path="/app/profile" element={<MinProfilePage />} />
