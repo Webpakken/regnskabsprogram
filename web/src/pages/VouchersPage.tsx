@@ -62,21 +62,34 @@ const VOUCHER_SORT_KEYS: ReadonlyArray<VoucherSortKey> = [
   'vat',
 ]
 
-/** Læs gemt sortering fra localStorage. Returnerer fallback hvis intet/ugyldigt. */
-function readStoredVoucherSort(): { key: VoucherSortKey | null; dir: ColumnSortDir } {
-  if (typeof window === 'undefined') return { key: null, dir: 'desc' }
+/**
+ * Standard-sortering: nyeste bilagsdato først. Upload-rækkefølge er ikke
+ * interessant for bogføring — et bilag fra maj skal ikke ligge over et fra juni,
+ * bare fordi det blev scannet sidst.
+ */
+const DEFAULT_VOUCHER_SORT: { key: VoucherSortKey; dir: ColumnSortDir } = {
+  key: 'date',
+  dir: 'desc',
+}
+
+/** Læs gemt sortering fra localStorage. Returnerer standarden hvis intet/ugyldigt. */
+function readStoredVoucherSort(): { key: VoucherSortKey; dir: ColumnSortDir } {
+  if (typeof window === 'undefined') return DEFAULT_VOUCHER_SORT
   try {
     const raw = window.localStorage.getItem(VOUCHERS_SORT_KEY)
-    if (!raw) return { key: null, dir: 'desc' }
+    if (!raw) return DEFAULT_VOUCHER_SORT
     const parsed = JSON.parse(raw) as { key?: unknown; dir?: unknown }
+    // `key: null` er gemt af den gamle tri-state-sortering (= upload-rækkefølge);
+    // den falder nu tilbage til standarden.
     const key =
-      parsed.key === null || (typeof parsed.key === 'string' && (VOUCHER_SORT_KEYS as readonly string[]).includes(parsed.key))
-        ? (parsed.key as VoucherSortKey | null)
-        : null
+      typeof parsed.key === 'string' &&
+      (VOUCHER_SORT_KEYS as readonly string[]).includes(parsed.key)
+        ? (parsed.key as VoucherSortKey)
+        : DEFAULT_VOUCHER_SORT.key
     const dir: ColumnSortDir = parsed.dir === 'asc' ? 'asc' : 'desc'
     return { key, dir }
   } catch {
-    return { key: null, dir: 'desc' }
+    return DEFAULT_VOUCHER_SORT
   }
 }
 
@@ -200,7 +213,7 @@ export function VouchersPage() {
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
   const addMenuRef = useRef<HTMLDivElement>(null)
   const [addOpen, setAddOpen] = useState(false)
-  const [sortKey, setSortKey] = useState<VoucherSortKey | null>(() => readStoredVoucherSort().key)
+  const [sortKey, setSortKey] = useState<VoucherSortKey>(() => readStoredVoucherSort().key)
   const [sortDir, setSortDir] = useState<ColumnSortDir>(() => readStoredVoucherSort().dir)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [expenseLinkMode, setExpenseLinkMode] = useState<ExpenseLinkMode>('single_use')
@@ -227,8 +240,7 @@ export function VouchersPage() {
     return () => window.clearTimeout(t)
   }, [searchQuery])
 
-  // Husk sortering på tværs af besøg (localStorage). Standard er sortKey=null, dir=desc
-  // (svarer til server-side fallback uploaded_at desc).
+  // Husk sortering på tværs af besøg (localStorage). Standard er dato faldende.
   useEffect(() => {
     try {
       window.localStorage.setItem(
@@ -299,9 +311,10 @@ export function VouchersPage() {
       if (statusFilter === 'unpaid') {
         q = q.eq('payment_status', 'unpaid')
       }
-      const sortCol = sortKey ? VOUCHER_SORT_COLUMN[sortKey] : 'uploaded_at'
-      const ascending = sortKey ? sortDir === 'asc' : false
-      q = q.order(sortCol, { ascending, nullsFirst: false })
+      q = q.order(VOUCHER_SORT_COLUMN[sortKey], {
+        ascending: sortDir === 'asc',
+        nullsFirst: false,
+      })
       // Stabil tiebreaker så pagineringen ikke springer i rækkefølge.
       q = q.order('id', { ascending: false })
       return q.range(offset, offset + limit - 1)
@@ -634,9 +647,11 @@ export function VouchersPage() {
       .slice(0, 6)
   }, [projects, rows])
 
+  // To-vejs toggle (ingen "ingen sortering"-tilstand): listen skal altid have en
+  // forklarlig rækkefølge, og standarden er dato faldende.
   function onSortColumn(col: VoucherSortKey) {
-    const next = nextColumnSortState(col, sortKey, sortDir, true)
-    setSortKey(next.key as VoucherSortKey | null)
+    const next = nextColumnSortState(col, sortKey, sortDir, false)
+    setSortKey(next.key as VoucherSortKey)
     setSortDir(next.dir)
   }
 
