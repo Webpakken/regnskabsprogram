@@ -13,6 +13,23 @@ function hasRecoveryParams() {
   return hashParams.get('type') === 'recovery' || searchParams.get('type') === 'recovery'
 }
 
+/**
+ * Udløbet/brugt nulstillingslink: Supabase redirecter til /login#error_code=otp_expired&…
+ * (kun nulstillingsflowet redirecter hertil). Uden dette lander brugeren på et tomt login.
+ */
+function readRecoveryLinkError(): string | null {
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+  const searchParams = new URLSearchParams(window.location.search)
+  const code = hashParams.get('error_code') ?? searchParams.get('error_code')
+  const description =
+    hashParams.get('error_description') ?? searchParams.get('error_description')
+  if (!code && !description) return null
+  if (code === 'otp_expired' || description?.toLowerCase().includes('expired')) {
+    return 'Linket er udløbet eller allerede brugt. Bed om et nyt link herunder.'
+  }
+  return translateAuthErrorDa(description)
+}
+
 export function LoginPage() {
   const { session, loading, refresh } = useApp()
   const navigate = useNavigate()
@@ -34,6 +51,14 @@ export function LoginPage() {
       setError(null)
       setForgotDone(false)
       setRecoveryDone(false)
+    } else {
+      const linkError = readRecoveryLinkError()
+      if (linkError) {
+        setMode('forgot')
+        setError(linkError)
+        setForgotDone(false)
+        window.history.replaceState({}, document.title, '/login')
+      }
     }
 
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {

@@ -28,6 +28,9 @@ export function translateAuthErrorDa(message: string | null | undefined): string
   if (lower.includes('user not found')) {
     return 'Der findes ingen konto med denne e-mail.'
   }
+  if (lower.includes('aal2 session is required')) {
+    return 'Din konto har totrinsbekræftelse slået til, så adgangskoden kan ikke nulstilles via mail-linket alene. Kontakt support.'
+  }
   if (lower.includes('token has expired') || lower.includes('invalid token')) {
     return 'Linket er udløbet eller ugyldigt. Bed om et nyt link.'
   }
